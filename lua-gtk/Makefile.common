@@ -55,7 +55,11 @@ ${ODIR}glade.o: src/glade.c
 
 ${ODIR}hack.o: src/hack.c
 	@echo $@
-	@${CC} -I ../lua-5.1/src -c -o $@ $<
+	@${CC} -I lua-5.1/src -c -o $@ $<
+
+${ODIR}debug.o: src/debug.c
+	@echo $@
+	@${CC} ${CFLAGS} -I lua-5.1/src -c -o $@ $<
 
 ${ODIR}_funclist.c: ${ODIR}gtkdata.funcs.txt ${ODIR}generate src/hash.h
 	@echo $@
