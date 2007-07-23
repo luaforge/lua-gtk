@@ -1,0 +1,111 @@
+
+Usage of hash tables in lua-gtk2
+================================
+
+  This wrapper library has to find the expected parameters for a given Gtk
+function before each call.  This information is not stored anywhere, so it has
+to be included and looked up.  Note that this is being used for ENUM values in
+the same way; just the data part of the entries is different.
+
+  The simple approach is to have a sorted list of function names followed by
+the parameter information, and apply a binary search.  Unfortunately, this uses
+a lot of space, and the search is relatively expensive.
+
+  Instead of such a list, a hash table is built as C data and compiled into the
+program.  If the "cmph" utility is available, then a minimal perfect hash
+function is created.  This maps each input key to a unique bucket number (no
+collisions), and there are no empty buckets.
+
+  Otherwise, a regular hash function is used, with a certain percentage of
+empty buckets and collisions, i.e. buckets with more than one entry.
+
+  Each entry contains the hash value (to verify a hit or miss), and the data
+associated with the key.  For the function table, this data is the type of
+the return value and of the expected parameters; for ENUMs, the value of the
+ENUM.
+
+  If you can guarantee that only keys that actually exist will be looked up
+in the hash table, it is superfluous to store the hash value, unless it is a
+bucket with collisions.  In this case, it may be enough to store just 8 of the
+32 bits of the hash value to differentiate the various entries in the bucket.
+This is not the case in this application.
+
+
+Bucket layout with minimal perfect hash function
+------------------------------------------------
+
+As each bucket contains exactly one entry, not much information is required.
+
+	4 bytes		hash value
+	2/4 bytes	offset of the data in the data string
+
+To determine the end of the data value, look at the offset in the following
+bucket.
+
+
+Layout with full hash values
+----------------------------
+
+The first byte states the number of entries in the bucket - 1, followed
+by this many entries in the following format:
+
+	4 bytes		hash value
+	1 byte		length of data
+	n bytes		zero or more bytes of data
+
+
+
+Minimal layout
+--------------
+
+The first byte is split into two parts:
+
+	2 bits		which of the 4 bytes of the hash value to compare
+	6 bits		number of entries in the bucket - 1
+
+Directly following are the entries, which look like this:
+
+	0 or 1 byte	(only if nr entries>1) one byte from the hash value
+	1 byte		length of the data
+	n bytes		zero or more bytes of data
+
+
+  Note that the key is NOT stored in any case.  This method allows to store a
+list with about 200 KiB of data in an object file with only 64 KiB (with the
+"full" layout), 60 KiB (using a minimal perfect hash function) or 47 KiB (with
+the "minmal" layout).
+
+
+On hash functions read these documents:
+
+http://burtleburtle.net/bob/hash/doobs.html
+http://en.wikipedia.org/wiki/Hash_function
+http://sf.net/projects/cmph
+
+
+generate
+========
+
+This utility is required if the cmph utility is not available.  It reads the
+input list with one key/value pair per line, and generates the hash table in a
+compileable .c file.  It outputs one line of information, e.g. this:
+
+sz:   4000, d:  40193, i:   8000, t:  48193, c:   2357 - 0=1071 1=1403 2=935 3=412 4=129 5=39 6=11
+
+ sz	Size of the hash table, i.e. the number of buckets
+ d	Size of the data part in bytes
+ i	Size of the index part in bytes
+ t	Total size
+ c	Number of collisions
+ 0=...	Histogram of bucket size: 0 keys, 1 keys etc.
+
+  In this case, the largest buckets are 11 with 6 entries each; 1071 buckets
+are empty.  This is far from an optimal hash, of course.  An optimal hash
+would have 0=0 1=n; this would be nice but I haven't had the time to use such
+an algorithm here - yet.
+
+  In order to try different sizes of hash tables, use the "-e" and "-i" command
+line parameters.  In this case, generate tries different table sizes and
+outputs the line of information for each try.  Select the smallest size with
+not too many collisions.
+

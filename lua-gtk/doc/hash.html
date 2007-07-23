@@ -1,0 +1,545 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<!-- @(#) $Id: hash.html,v 1.1 2007-07-23 16:40:56 wiz Exp $ -->
+<html>
+<head>
+  <title>Hash functions.</title>
+  <!-- Copyright (c) 2004 Paul Hsieh. All Rights Reserved. -->
+  <META content="text/html; charset=UTF-8" http-equiv=Content-Type>
+  <style type="text/css">
+    body {
+        margin: 10px 10px; 
+	background-image: url("/qed/whiteback.gif");
+	background: #fffff4;
+    }
+    p {
+        margin: 10px 10px;
+        font: 16px Arial, sans-serif;
+    }
+    pre {
+	margin: 10px 10px;
+        font: 12px Courier New, monospace;
+	font-size: 8pt;
+    }
+    table {
+	margin: 10px 10px; 
+        font: 14px Arial, sans-serif, Lucida Grande, Verdana, Helvetica;
+	background: #000000;
+	text-align: left;
+    }
+    td {
+	background: #ffffff;
+    }
+    td.green {
+	background: palegreen;
+    }
+  </style>
+</head>
+<body> <!-- background="whiteback.gif" -->
+
+<script language="Javascript" type="text/javascript" src="format.js"></script>
+<script language="JavaScript">
+<!--
+function displayAsm (theURL, winName, features) {
+   // window.status = features;
+   window.open (theURL, winName, features);
+}
+//-->
+</script>
+
+<h1>Hash functions.</h1>
+<a href="weblicense.html" target="license">&#169; Copyright 2004</a> by Paul Hsieh
+<hr>
+
+<h3>Why look at hash functions?</h3>
+
+<p>
+
+In a previous job, I was asked to look at hashing functions and got into a
+dispute with my boss about how such functions should be designed.  I had 
+advocated the used of LFSRs or CRCs that would be customized to the size of
+the table, as discussed in "Numerical Recipes".  My boss advocated simply 
+performing a modulo by prime operation and cited Knuth's 30 years old "the 
+Art of Computer Programming".  I showed him examples where modulo by prime
+had extremely bad collisions, but this did not seem to sway him at all.  It
+seems Knuth's rewrites have come too late.
+
+<p>
+
+A coworker "settled" the dispute by discovering <a 
+href="http://burtleburtle.net/bob/hash/doobs.html" target="bjhash">Bob 
+Jenkin's hash function</a>. This outperformed both of our suggestions while 
+being based on better analysis regarding collisions.  I had bookmarked the 
+webpage and occassionally referred to it in future projects, and noticed the 
+two additions of the "One at a time Hash" and <a 
+href="http://www.isthe.com/chongo/tech/comp/fnv/" target="fnvhash">"FNV 
+hash"</a> as updates to the page over time.  The thing about the Bob Jenkin's 
+function is that the code is messy, and uses a large number of mystery 
+constants whose construction I did not understand.  Both the "One at a time 
+Hash" and "FNV Hash" are extremely elegant with very few magic constants.
+
+<p>
+
+Bob Jenkins himself indicated that FNV outperformed his own function, so at 
+first I simply took his word for it, and started using the FNV hash blindly on
+all occassions.  After that, I had finally had the occassion to measure the
+real performance inside of a project.  After a number of miscalculations and
+mismeasurements, I decided that I needed to study the problem for real.
+
+<h3>Analyzing existing hash functions</h3>
+
+<p>
+
+The first thing I noticed was that on my system (an Athlon XP) the Bob 
+Jenkins function outperformed basically everything else (including the FNV 
+function) by a large margin.  How do we resolve this contradiction with Bob 
+Jenkins' claim?  Simple -- he was measuring on a "Pentium".  Intel's latest
+Pentium IV is known to have very slow shifters which slows down <em>every</em>
+hash function <em>except</em> the FNV function which uses a multiply instead.
+The Opteron/Athlon 64 architecture has a vastly improved integer multiplier 
+(unchallenged by any other architecture, save perhaps the Itanium) which 
+suggests that the FNV hash should do well on that system as well.
+
+<p>
+
+But at a more fundamental level I wanted to understand what the real 
+performance limiters were for these functions to see if a recoding of them 
+might help (I performed a similar exercise for some reference MD5 code and got
+a drammatic performance boost, so I was optimistic.)  The Bob Jenkins' code is
+too convoluted and it seemed that the compiler or out-of-order CPU 
+architectures could easily find the parallelism that was there (and there is
+some to be had.)  
+
+<p>
+
+But the CRCs and One at a time Hash are completely instruction after 
+instruction dependent.  So I split the input data into odd and even bytes and
+calculated two parallel CRCs and One at a time Hashes then at the end 
+combined one into the other as if it were more data.  This markedly improved 
+the performance of these functions, but not quite up to the point of 
+outperforming the Bob Jenkins hash.  So I did not completely pursue the task 
+of proving the suitability of these modified functions.
+
+<p>
+
+If I was going to try to outperform Bob Jenkins' function, I would have to take
+a step back and understand the functional nature of the bottleneck in these 
+functions.  The functions other than Bob Jenkins' basically operated on the 
+idea of consuming one 8-bit byte at a time of input data and mixing each in 
+some <a href="http://mathworld.wolfram.com/Injection.html" 
+target="mathworld">injective</a> way into some 32-bit accumulator which, 
+after possible post processing, is simply output.  One can see the motivation
+of this idea -- each input byte can be mixed twice with a large degree of 
+freedom in the 32 bit accumulator without self overlapping.  Thus in 
+successive steps its only really required to sort of "spread out" consecutive 
+sequences of at most 8 bits in such a way that previous bytes don't obviously 
+cancell out.
+
+<p>
+
+This is explicitely seen in the "One at a Time hash" function.  In fact, 
+for each byte only a few very simple operations are performed -- a final 
+short sequence of operations is required at the end.  These operations at the
+end are required to make sure the bits in the last few bytes fully "avalanche"
+to all the output bytes.  Avalanching is the property between an input and 
+output bit where the output bit will flip with a probability p ("close" to 
+0.5) if the input bit is flipped relative to any random input data.  A good
+hash function requires avalanching from all input bits to all the output bits.
+(Incidentally, Bob Jenkins overly chastizes CRCs for their lack of 
+avalanching -- CRCs are not supposed to be truncated to fewer bits as other 
+more general hash functions are; you are supposed to construct a custom CRC
+for each number of bits you require.)
+
+<h3>Creating a new hash function</h3>
+
+<p>
+
+Using the One at a Time hash function as a model, the next obvious question to
+ask is "why not try to use fewer operations between data fragments"?  The idea
+would be to rely more heavily on fixups at the end to produce the final 
+avalanching which adds a constant time overhead in hopes of reducing the 
+linear overhead.  I.e., the mixing function would in fact operate much more
+slowly relative to the stream of input bytes, but this would not matter to the
+bulk of the early bytes because they would eventually reach a maximal point of
+avalanching anyway.
+
+<p>
+
+So my thought was to use fewer instructions per input fragment and to 
+increase the size of the input fragment from 8 bits to 16 bits.  On the x86 
+this latter idea has a particularly high impact on performance since these
+architectures have hardware support for unaligned 16 bit word accesses.  Using
+Bob Jenkin's definition of avalanching, I chose an inner loop instruction 
+sequence that I thought might work by interleaving two 16 bit words, then 
+wrote a program to search for parameters which gave the greatest amount of 
+avalanching before requiring a fix up for the end.  I then added instructions
+that would be equivalent of unrolling the inner loop corresponding to padding 
+the input with a fixed number zeros, then scanned for the set of parameters
+which could complete the avalanching for all the real input bits.
+
+<p>
+
+I was shocked to find that there were no significant impediments to this
+exercise, and I easily found a hash function with all these properties after a 
+few hours or work.  I then subjected all realistic sub-bit patterns of the 
+hash output to a simple statistical test and verified that it had a 
+distribution equivalent to a uniformly random map.
+
+<p>
+
+The moment of truth came with the performance test -- but given the 
+architecture, it was a forgone conclusion.  My hash function performs around 
+66% faster than Bob Jenkin's functions tested with various compilers.
+
+<p>
+
+Below is the code:
+
+<p>
+
+  <table cellpadding="8" cellspacing="2" bgcolor="#80c080">
+    <tbody>
+      <tr>
+        <td valign="Top">
+<pre>
+#include "<a href="stdint.h">stdint.h</a>" /* Replace with &lt;stdint.h&gt; if appropriate */
+#undef get16bits
+#if (defined(__GNUC__) && defined(__i386__)) || defined(__WATCOMC__) \
+  || defined(_MSC_VER) || defined (__BORLANDC__) || defined (__TURBOC__)
+#define get16bits(d) (*((const uint16_t *) (d)))
+#endif
+
+#if !defined (get16bits)
+#define get16bits(d) ((((const uint8_t *)(d))[1] &lt;&lt; UINT32_C(8))\
+                      +((const uint8_t *)(d))[0])
+#endif
+
+uint32_t SuperFastHash (const char * data, int len) {
+uint32_t hash = 0, tmp;
+int rem;
+
+    if (len &lt;= 0 || data == NULL) return 0;
+
+    rem = len & 3;
+    len &gt;&gt;= 2;
+
+    /* Main loop */
+    for (;len &gt; 0; len--) {
+        hash  += get16bits (data);
+        tmp    = (get16bits (data+2) &lt;&lt; 11) ^ hash;
+        hash   = (hash &lt;&lt; 16) ^ tmp;
+        data  += 2*sizeof (uint16_t);
+        hash  += hash &gt;&gt; 11;
+    }
+
+    /* Handle end cases */
+    switch (rem) {
+        case 3: hash += get16bits (data);
+                hash ^= hash &lt;&lt; 16;
+                hash ^= data[sizeof (uint16_t)] &lt;&lt; 18;
+                hash += hash &gt;&gt; 11;
+                break;
+        case 2: hash += get16bits (data);
+                hash ^= hash &lt;&lt; 11;
+                hash += hash &gt;&gt; 17;
+                break;
+        case 1: hash += *data;
+                hash ^= hash &lt;&lt; 10;
+                hash += hash &gt;&gt; 1;
+    }
+
+    /* Force "avalanching" of final 127 bits */
+    hash ^= hash &lt;&lt; 3;
+    hash += hash &gt;&gt; 5;
+    hash ^= hash &lt;&lt; 2;
+    hash += hash &gt;&gt; 15;
+    hash ^= hash &lt;&lt; 10;
+
+    return hash;
+}
+</pre>
+
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+Below is the results of a benchmark:
+
+  <table cellpadding="8" cellspacing="2" bgcolor="#80c080">
+    <tbody>
+      <tr>
+        <td valign="Top">
+
+          <table cellpadding="8" cellspacing="1" bgcolor="#80c080">
+            <tbody>
+              <tr>
+                <td valign="Top">
+                </td>
+                <td valign="Top" colspan=4>
+                <center><b>AMD Athlon XP 1.620Ghz</b></center>
+                </td>
+                <td valign="Top">
+                <center><b>Power4 1Ghz</b></center>
+                <!-- according to cat /proc/cpuinfo -->
+                </td>
+              </tr>
+              <tr>
+                <td valign="Top">
+                </td>
+                <td valign="Top">
+                <b>Intel C/C++</b><br>
+                <font size="-2">/O2&nbsp;/G6&nbsp;/Qaxi&nbsp;/Qxi&nbsp;/Qip</font>
+                </td>
+                <td valign="Top">
+                <b>MSVC</b><br>
+                <font size="-2">/O2&nbsp;/Ot&nbsp;/Og&nbsp;/G6</font>
+                </td>
+                <td valign="Top">
+                <b>WATCOM C/C++</b><br>
+                <font size="-2">/otexan&nbsp;/6r</font>
+                </td>
+                <td valign="Top">
+                <b>GCC</b><br>
+                <font size="-2">-O3&nbsp;-march=athlon-xp</font>
+                </td>
+                <td valign="Top">
+                <b>GCC</b><br>
+                <font size="-2">-O3&nbsp;-mpowerpc64</font>
+                </td>
+              </tr>
+              <tr align="right">
+                <td valign="Top">
+                CRC32
+                </td>
+                <td valign="Top">
+                6.42
+                </td>
+                <td class=green valign="Top">
+                5.66
+                </td>
+                <td class=green valign="Top">
+                5.66
+                </td>
+                <td class=green valign="Top">
+                5.67
+                </td>
+                <td>
+                14.06
+                </td>
+              </tr>
+              <tr align="right">
+                <td valign="Top">
+                One at a Time
+                </td>
+                <td valign="Top">
+                5.76
+                </td>
+                <td class=green valign="Top">
+                5.66
+                </td>
+                <td class=green valign="Top">
+                5.66
+                </td>
+                <td class=green valign="Top">
+                5.69
+                </td>
+                <td>
+                12.79
+                </td>
+              </tr>
+              <tr align="right">
+                <td valign="Top">
+                Alpha Numeric
+                </td>
+                <td class=green valign="Top">
+                3.29
+                </td>
+                <td valign="Top">
+                4.06
+                </td>
+                <td valign="Top">
+                4.06
+                </td>
+                <td valign="Top">
+                5.67
+                </td>
+                <td>
+                10.26
+                </td>
+              </tr>
+              <tr align="right">
+                <td valign="Top">
+                FNV Hash
+                </td>
+                <td class=green valign="Top">
+                4.88
+                </td>
+                <td class=green valign="Top">
+                4.84
+                </td>
+                <td class=green valign="Top">
+                4.83
+                </td>
+                <td class=green valign="Top">
+                4.87
+                </td>
+                <td>
+                8.92
+                </td>
+              </tr>
+              <tr align="right">
+                <td valign="Top">
+                Bob Jenkins
+                </td>
+                <td class=green valign="Top">
+                2.08
+                </td>
+                <td valign="Top">
+                2.36
+                </td>
+                <td valign="Top">
+                2.03
+                </td>
+                <td class=green valign="Top">
+                2.07
+                </td>
+                <td>
+                6.16
+                </td>
+              </tr>
+              <tr align="right">
+                <td class=green valign="Top">
+                SuperFastHash
+                </td>
+                <td valign="Top">
+                <a href="javascript:;" onClick="displayAsm('hashasm.html#IntelSuper','HashDisassembly','scrollbars=no,resizable=no,width=480,height=290');" onmouseover="window.status='Intel C/C++ disassembly'; return true;" onmouseout="window.status=''; return true;">1.54</a>
+                </td>
+                <td valign="Top">
+                <a href="javascript:;" onClick="displayAsm('hashasm.html#MSVCSuper','HashDisassembly','scrollbars=no,resizable=no,width=480,height=304')" onmouseover="window.status='MSVC disassembly'; return true;" onmouseout="window.status=''; return true;">1.92</a>
+                </td>
+                <td valign="Top">
+                <a href="javascript:;" onClick="displayAsm('hashasm.html#WATCOMSuper','HashDisassembly','scrollbars=no,resizable=no,width=480,height=318')" onmouseover="window.status='WATCOM C/C++ disassembly'; return true;" onmouseout="window.status=''; return true;">1.59</a>
+                </td>
+                <td class=green valign="Top">
+                <a href="javascript:;" onClick="displayAsm('hashasm.html#GCCSuper','HashDisassembly','scrollbars=no,resizable=no,width=480,height=272')" onmouseover="window.status='GCC disassembly'; return true;" onmouseout="window.status=''; return true;">1.34</a>
+                </td>
+                <td>
+                <a href="javascript:;" onClick="displayAsm('hashasm.html#GCCSuperPPC64','HashDisassembly','scrollbars=no,resizable=no,width=500,height=330')" onmouseover="window.status='GCC disassembly on PPC64'; return true;" onmouseout="window.status=''; return true;">3.71</a>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+        <hr>
+
+        <font size = "-2">Data is time in seconds taken to hash a random buffer
+        of 256 bytes 5 million times.  <a 
+        href="hash.c">Download test here</a></font>
+
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+MSVC seems to have a hard time optimizing the two faster hash functions, and
+surprisingly the open source gcc is able to turn in the outright fastest
+result.  Well done!
+
+<p>
+
+For the hash function to have the correct properties, it is assumed that 
+CHAR_BIT is 8 and computations use 2s complement arithmetic.
+
+<p>
+
+I was initially worried that using a portable way of accessing 16 bits at a 
+time would erode the performance significantly.  Although none of the x86 
+compilers correctly reduced the portable version to the direct version 
+(something worth complaining about), subsequent testing showed that this did 
+not lead to the drastic performance drop that I thought it would (only about 
+20%). This leads me to believe that even on RISC architectures that this 
+function should perform very well versus the Bob Jenkins, or other hashes.
+
+<p>
+
+<b>Update(1):</b> David C. wrote: <em>I tested your hash function against 
+all of the popular ones, including Bob Burtles. It turns out it was not only 
+the quickest but had the best distribution (I created histograms of the chain 
+lengths). The architecture I work on is IBM Z/OS (S/390 mainframes). Well 
+done mate, will be using your code from now on!</em>  Ok, not exactly RISC, 
+but at least this demonstrates that this function is good beyond the x86 
+architecture.
+
+<p>
+
+<b>Update(2):</b> I have recently gained access to a Power4 based Linux 
+machine, as can be seen in the updated performance table above.  
+(Interestingly, even normalizing for clock rate differences, the Athlon XP is 
+35-40% faster than the Power4 architecture).  I did not see any appreciable 
+performance difference between gcc and the native cc compiler, so I just 
+reported the results from gcc.  The performance ratio between SuperFastHash 
+and Bob Jenkins is only slightly less impressive, so the main point about its 
+advantage still holds.
+
+<p>
+
+<b>Update(3):</b> Feedback from Tim Rentsch suggested that to be fair,
+Bob Jenkin's hash should leverage the x86's unaligned access feature as
+well (this helps it even more than for my function because it accesses 32 
+bits at once.)  I have also rescheduled the operations of SuperFastHash to 
+maximally leverage the pipelines of modern CPUs.  I have made the code more 
+uniform in its treatment of integers, so besides being portable from a 
+compilation point of view, it is now more portable from a semantic point of 
+view.  And finally I have added results from an alpha numeric hash that has 
+been discussed on USENET.
+
+<p>
+
+<h3>Future work to be considered</h3>
+
+<p>
+
+The newest generation of CPUs are capable of 64 bit computation and certainly
+in a few years we can expect that there will be widespread development with 
+tool availability for 64 bit software.  So should this idea work by reading 
+32 bits at a time within a 64 bit accumulator?  Probably, and we could expect
+the result to have roughly twice the asymptotic performance.
+
+<p>
+
+<s>There's also the question of the inline dependencies.  There are 6 
+instruction dependencies in the inner loop, so its quite possible that the
+odd and even word splits and recombination might lead to a substantial 
+performance boost.</s> (Rescheduling the operations actually saturates even
+the 3-pipeline Athlon, so unrolling is not necessary.)
+
+<p>
+
+<b>Update(1):</b> There have been some requests for an incremental version
+of SuperFastHash.  This is straightforward enough to do, by accepting the
+"hash" value as a parameter, and initializing it with some non-zero constant 
+(since the point is to assume that the length is not available until all the 
+data is read).  The only sticking issue, is <em>which</em> constant to choose.
+
+<p>
+
+<b>Update(2):</b> Tim Rentsch has noticed that the bit avalanching probability
+of SuperFastHash deviates from 50% more than Bob Jenkin's hash -- this is 
+true, in fact it is between 5/12 and 7/12 (by design), while Bob Jenkin's 
+hash appears to be far closer to 50%.  There are some easy hacks limited to
+adding to the avalanche code at the end (for example, adding hash += (hash << 16) | 
+(hash >> 16) to the end) to make all the bits of my hash function avalanche 
+with a probability between .485 and .515, however its probably best that I 
+revisit this to see how to achieve this with the least additional impact.
+
+<hr>
+
+<p>
+<center>
+<A HREF="index.html"><IMG SRC="selfs.gif" alt="Home" width=50 height=63></A>
+<A HREF="programming.html#opinions"><IMG SRC="comp.gif" alt="Programming Cases" height=63 width=63></A>
+<A HREF="mailme.html"><IMG SRC="mail38.jpg" alt="Mail me!" height=63 width=63></A>
+</center>
+
+</body>
+</html>

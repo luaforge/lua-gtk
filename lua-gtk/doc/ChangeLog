@@ -1,0 +1,182 @@
+
+Tue Jul 12
+* first version
+* simple calls to a few functions through a static function table
+
+Thu Jul 14
+* Perl script to get a list of functions and their parameter types
+* this list is read at startup, practically all functions are callable now
+
+Fri Jul 15
+* widgets as userdata with metatable
+* automatically determine class hierarchy
+* methods of widgets are now callable
+
+Sat Jul 16 08:57:00 CEST 2005
+* get rid of global variables for the call function (use cclosure)
+* callbacks called directly; gtk_main_loop used instead of gtk_main_iteration
+* callback parameters have the correct type now
+* callbacks can return values
+* complete parsing of structure definitions by perl file + dump in funclist
+
+
+Sun Jul 17 11:54:58 CEST 2005
+* parse & dump enum
+* complete parsing of structures
+* read structure info and enum info into memory
+* make enums available
+* access to structures!
+
+
+Fri Jul 22 01:25:54 CEST 2005
+* integrate new hashing methods into libluagtk, debug
+* generate compileable output for structure information
+
+
+Sat Jul 23 11:50:45 CEST 2005
+* structure information compiled in, works again
+* enum information compiled in
+* got rid of "funclist", all data now is compiled in.
+
+
+Sun Jul 24 16:11:12 CEST 2005
+* re-read of all the code, cleanup
+* LONGPTR parameters can be used as input, too
+* allow widget:connect() syntax
+* properly works with a minimal function hash table
+* G_TYPE_xxx constants in src/extra_enum
+* VARARG parameters now work (only a few data types yet)
+* gdk.new to create any type of structure
+
+
+
+Thu Jul 28 05:59:52 CEST 2005
+* handle some GValue conversions (boolean, integer, string)
+* first attempts at including a Lua library to simplify some
+  calls.
+
+
+Sun Jul 31 21:40:51 CEST 2005
+* override.lua functions used automatically
+* use interfaces when searching for a method
+
+
+Thu Aug  4 00:20:41 CEST 2005
+* compile override.lua into the library to avoid a file dependency
+
+Thu Aug  4 18:40:12 CEST 2005
+* use gcc-4.0
+* fix all new warnings of gcc-4 (almost all related to signedness)
+
+
+Fri Aug  5 19:52:20 CEST 2005
+* _structlist.c: minimize use of dynamic relocation with struct_strings,
+  reduces .so size considerably (about 15 kB I guess).
+
+Sun Aug  7 21:28:23 CEST 2005
+* _structlist.c: store the size of the structures for easy allocation
+* support double parameters to functions
+
+Wed Aug 10 01:29:05 CEST 2005
+* leak fixed for find_func - no strdup anymore
+
+Wed Aug 10 23:57:57 CEST 2005
+* __gc method in metatable for widgets; call g_object_unref
+* g_object_ref/gtk_object_sink in make_widget
+
+
+Sun Aug 14 11:50:30 CEST 2005
+* improved reference counting
+
+
+Tue Aug 16 18:43:10 CEST 2005
+* more examples: toolbar and scrolled text view, notebook
+* main.c -- a minimal wrapper to run lua files without the interactive
+  cmd interpreter (therefore, without readline or ncurses).  This saves
+  about 350 kB of virtual memory and 160 kB of RSS.  Probably not worth
+  the effort.
+* released version 0.3 to luaforge.net
+
+
+Thu Aug 18 15:35:52 CEST 2005
+* port to Lua 5.1
+
+
+Fre Jun  2 18:58:29 CEST 2006
+* License changed from GPL to LGPL
+
+
+Fre Feb  2 12:17:32 CET 2007
+* use Lua references to store callback info, as suggested by Thomas Harning
+  Jr.  <harningt@gmail.com>
+* new function to disconnect signal handlers
+* removed the close() call which led to SEGV at the program end.
+* free the struct callback_info on signal disconnect
+
+
+Mon Feb  5 15:08:04 CET 2007
+* Glade XML library added over the weekend
+* split source into multiple files (over 3500 lines now)
+* luaglade-0.5 inspected, used some ideas from it
+* argument order for callbacks changed
+* tested on win32, some bugs fixed
+* script/gen-list.pl now runs separately for linux and win32 (struct padding!)
+
+
+Mit Feb  7 02:18:50 CET 2007
+* FTP upload in the background
+* Image upload application now allows selection of file, preview, scaling and
+  upload, and entry of titles and descriptions.  Saving of this is missing.
+
+
+Mit Feb  7 15:55:48 CET 2007
+* FTP Upload now properly works with win32, too.
+* refcounting fixed; these caused random SEGV in combination with garbage
+  collection.
+
+
+Son Jun 17 13:45:12 CEST 2007
+* Glade module update to handle Menus
+* Glade example
+
+
+Sam Jun 23 19:02:25 CEST 2007
+* Can now write to Gtk structures (assignment)
+* Calculator Demo enhanced a lot
+
+
+Don Jun 28 20:00:15 CEST 2007
+* overrides for callback parameters of type G_TYPE_POINTER studied;
+  overriding is not useful.  Code deactivated, but left for possible
+  later use.
+* notebook example now runs without runtime errors (again).
+
+
+Son Jul  1 01:38:29 CEST 2007
+* Bugfixes
+* gen-list.pl: detect typedefs that are effectively declaring a child class
+  with unchanged attributes (but possibly other methods, example GdkWindow).
+* examples/pixmap.lua mostly working; segfaults after resizing the window
+  for a while.
+
+
+Mon Jul  2 22:21:56 CEST 2007
+* use full hash for function hash.  This avoids the problem of finding
+  parameters for the wrong function.  Can happen when trying to call a
+  deprecated function which exists, but is not in the function hash.
+  Example: gtk_entry_set_position vs. gtk_editable_set_position.
+
+
+Sam Jul 14 14:06:30 CEST 2007
+* Updated doc/README.hash
+* implement the usage of a minimal perfect hash function (from cmph).
+  This makes the library about 3 KiB smaller; older hash is still available.
+
+
+Son Jul 15 21:48:12 CEST 2007
+* debugging, bugfixes, some refactoring
+* require "gtk" instead of require "gtk2"
+* demo for http_co download (examples/request.lua)
+* release 0.6
+
+

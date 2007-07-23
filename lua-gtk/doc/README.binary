@@ -1,0 +1,23 @@
+
+Binary package
+==============
+
+You have downloaded the binary package of lua-gtk2.  This way you can
+easily try it out - supposing it actually works in your installation...
+
+Prerequisites:
+
+ - Lua 5.1
+ - Gtk/Gdk libraries
+
+Change to this directory and run an example, like "./gladedemo.lua".  This
+requires that your Lua binary is installed in the current search path, and
+that "." is in the module search path.  To verify this, type
+
+	print(package.cpath)
+
+at the Lua prompt.  It should contain "./?.so" somewhere.  If not, copy
+gtk.so to one of the places in the search path.
+
+Now you can already run the examples.
+

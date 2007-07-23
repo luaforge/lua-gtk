@@ -1,0 +1,201 @@
+
+# -- general configuration --
+CFLAGS	+=-g -Wall $$(pkg-config --cflags gtk+-2.0) -I ${ODIR} -I src
+HASHF	:=hsieh
+HASH	:=hash-$(HASHF)
+LD	:=${MINGW}ld
+CC	:=${MINGW}gcc
+HOSTCC	:=gcc
+VERSION	:=0.5
+# -- end general configuration --
+
+.PHONY:	tags wc tar install mrproper clean
+
+ifeq ($(LINK), 1)
+LIBS	:=${GTKLIB}
+else
+CFLAGS	+=-DMANUAL_LINKING
+endif
+
+# -- is cmph available? --
+ifeq ($(CMPHDIR),)
+HASHOBJ	:= ${ODIR}hash-simple.o ${ODIR}${HASH}.o \
+	${ODIR}_funclist.o ${ODIR}_enumlist.o
+else
+HASHOBJ	:= ${ODIR}hash-fch.o ${ODIR}hash-jenkins.o \
+	${ODIR}_funclist_hash.o ${ODIR}_funclist_data.o \
+	${ODIR}_enumlist_hash.o ${ODIR}_enumlist_data.o
+endif
+
+
+gtk2dll: ${ODIR}${ODLL}
+
+dirs:
+	@mkdir -p ${ODIR}
+
+# rule to build the library.
+
+${ODIR}${ODLL}: ${ODIR}gtk2.o ${ODIR}interface.o ${ODIR}data.o 	\
+	${ODIR}call.o ${ODIR}signal.o ${ODIR}debug.o ${ODIR}widget.o \
+	${ODIR}_structlist.o ${ODIR}_override.o \
+	${HASHOBJ}
+	@echo $@
+	@${CC} -shared -o $@ $^ ${EXTRALIB} ${LIBS}
+
+${ODIR}gtk2.o: src/gtk2.c ${ODIR}_typelist.c src/luagtk.h src/hash.h src/link.h
+${ODIR}data.o: src/data.c src/luagtk.h src/link.h ${ODIR}_typelist.c
+${ODIR}interface.o: src/interface.c src/luagtk.h src/link.h
+${ODIR}call.o: src/call.c src/luagtk.h src/link.c src/link.h
+${ODIR}widget.o: src/widget.c src/luagtk.h src/link.h
+${ODIR}debug.o: src/debug.c src/luagtk.h src/link.h
+
+# not used. this is implemented in Lua instead, see lib/glade.lua
+${ODIR}glade.o: src/glade.c
+	@${CC} -c -o $@ $$(pkg-config --cflags libglade-2.0) $^
+
+${ODIR}hack.o: src/hack.c
+	@echo $@
+	@${CC} -I ../lua-5.1/src -c -o $@ $<
+
+${ODIR}_funclist.c: ${ODIR}gtkdata.funcs.txt ${ODIR}generate src/hash.h
+	@echo $@
+	@${ODIR}generate -s 4096 -o $@ -n hash_info_funcs -d -f $<
+
+${ODIR}_structlist.c: ${ODIR}gtkdata.structs.c
+	cp -f $< $@
+
+${ODIR}_typelist.c: ${ODIR}gtkdata.types.c
+	cp -f $< $@
+
+${ODIR}_enumlist.c: ${ODIR}gtkdata.enums.txt ${ODIR}generate src/hash.h
+	@echo $@
+	@${ODIR}generate -s 1201 -o $@ -n hash_info_enums -d -f $<
+
+${ODIR}_override.c: ${ODIR}override.luac ${ODIR}file2c
+	@echo $@
+	@${ODIR}file2c < $^ > $@
+	
+${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c: src/extra_enum.txt
+	@echo "Generating Gtk Data..."
+	@(cd ${ODIR}; ../script/gen-list.pl linux)
+	@cat src/extra_enum.txt >> ${ODIR}gtkdata.enums.txt
+
+${ODIR}%.o: ${ODIR}%.c
+	@echo $@
+	@${CC} ${CFLAGS} -c -o $@ $<
+
+# -- simple hash --
+
+${ODIR}hash-simple.o: src/hash-simple.c src/hash-simple.h src/hash.h
+	@echo $@
+	@${CC} ${CFLAGS} -DHASHFUNC=hash_$(HASHF) -c -o $@ $<
+
+# -- fch hash --
+
+fchtest: ${ODIR}_funclist_hash.o ${ODIR}_funclist_data.o
+
+${ODIR}%.keys: ${ODIR}%.txt
+	@echo $@
+	@sed 's/,.*$$//' < $^ > $@
+
+${ODIR}%.mph: ${ODIR}%.keys
+	@echo $@
+	@cmph -a fch -c 2.0 -m $@ -g $^
+
+${ODIR}_funclist_hash.c: ${ODIR}hash-fch-generate ${ODIR}gtkdata.funcs.mph
+	@echo $@
+	@${ODIR}hash-fch-generate ${ODIR}gtkdata.funcs.mph "fch_funcs" > $@
+
+${ODIR}_funclist_data.c: ${ODIR}hash-fch-generate-funcs ${ODIR}gtkdata.funcs.txt
+	@echo $@
+	@${ODIR}hash-fch-generate-funcs ${ODIR}gtkdata.funcs.txt > $@
+
+${ODIR}_enumlist_hash.c: ${ODIR}hash-fch-generate ${ODIR}gtkdata.enums.mph
+	@echo $@
+	@${ODIR}hash-fch-generate ${ODIR}gtkdata.enums.mph "fch_enums" > $@
+
+${ODIR}_enumlist_data.c: ${ODIR}hash-fch-generate-enums ${ODIR}gtkdata.enums.txt
+	@echo $@
+	@${ODIR}hash-fch-generate-enums ${ODIR}gtkdata.enums.txt > $@
+
+# -- possibly using different $HOSTCC --
+
+${ODIR}generate.o: src/generate.c
+	@echo $@
+	@${HOSTCC} ${CFLAGS} -c -o $@ -DHASHFUNC=hash_${HASHF} $<
+
+${ODIR}${HASH}-native.o: src/${HASH}.c
+	@echo $@
+	@${HOSTCC} ${CFLAGS} -c -o $@ $<
+
+${ODIR}generate: ${ODIR}generate.o ${ODIR}${HASH}-native.o
+	@echo $@
+	@${HOSTCC} -o $@ $^
+
+${ODIR}file2c: src/file2c.c
+	@echo $@
+	@${HOSTCC} -o $@ $^
+
+${ODIR}hash-fch-generate: src/hash-fch-generate.c src/hash-fch.h
+	@echo $@
+	@${HOSTCC} -g -o $@ -I ${CMPHDIR} $< -lcmph
+
+${ODIR}hash-fch-generate-funcs: ${ODIR}hash-fch-generate-funcs.o ${ODIR}hash-fch.o ${ODIR}_funclist_hash.o ${ODIR}hash-jenkins.o
+	@echo $@
+	@${HOSTCC} -g -o $@ $^
+
+${ODIR}hash-fch-generate-funcs.o: src/hash-fch-generate2.c
+	@echo $@
+	@${HOSTCC} -g -o $@ -DTYPE=funcs -c $^
+
+${ODIR}hash-fch-generate-enums: ${ODIR}hash-fch-generate-enums.o ${ODIR}hash-fch.o ${ODIR}_enumlist_hash.o ${ODIR}hash-jenkins.o
+	@echo $@
+	@${HOSTCC} -g -o $@ $^
+
+${ODIR}hash-fch-generate-enums.o: src/hash-fch-generate2.c
+	@echo $@
+	@${HOSTCC} -g -o $@ -DTYPE=enums -c $^
+
+# --
+
+${ODIR}%.o: src/%.c
+	@echo $@
+	@${CC} ${CFLAGS} -c -o $@ $<
+
+${ODIR}%.s: src/%.c
+	@echo $@
+	@${CC} ${CFLAGS} -S -o $@ $<
+
+${ODIR}%.luac: src/%.lua
+	@echo $@
+	@luac -s -o $@ $<
+
+clean:
+	rm -f ${ODIR}${ODLL} ${ODIR}generate ${ODIR}_*.c ${ODIR}*.o
+	rm -f ${ODIR}file2c ${ODIR}override.luac
+
+mrproper: clean
+	rm -f ${ODIR}/gtkdata.*
+	
+
+install: all
+	# you need to be root for this!
+	mkdir -p $(INDIR1)
+	cp ${ODIR}${ODLL} $(INDIR1)
+	mkdir -p $(INDIR2)/gtk
+	cp -a lib $(INDIR2)/gtk/
+
+tar:
+	(cd ..; ln -s lua-gtk2 lua-gtk2-${VERSION}; \
+	tar czvhf lua-gtk2-${VERSION}.tar.gz --exclude old \
+		--exclude "build-*" --exclude foreign --exclude lua5.1 \
+		--exclude test-dll --exclude cvs \
+		--exclude tags --exclude ".*.swp" lua-gtk2-${VERSION}; \
+	rm lua-gtk2-${VERSION})
+
+wc:
+	wc src/*.{c,h,lua} script/*
+
+tags:
+	ctags src/*.[ch]
+

@@ -1,0 +1,6 @@
+
+2005-07-24	first public release
+2005-07-31	handle GValue, override.lua, interfaces
+2007-06-17	Glade library, coroutines for HTTP, FTP, Socket I/O
+
+
