@@ -177,6 +177,14 @@ Son Jul 15 21:48:12 CEST 2007
 * debugging, bugfixes, some refactoring
 * require "gtk" instead of require "gtk2"
 * demo for http_co download (examples/request.lua)
-* release 0.6
+* release 0.5
 
+
+Son Jul 29 12:53:27 CEST 2007
+* simple testing framework in tests/run-test.sh
+
+
+Mon Jul 30 20:27:47 CEST 2007
+* better garbage collection of objects; call g_free() or an appropriate
+  free function.
 

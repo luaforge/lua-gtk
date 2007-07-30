@@ -9,7 +9,7 @@ HOSTCC	:=gcc
 VERSION	:=0.5
 # -- end general configuration --
 
-.PHONY:	tags wc tar install mrproper clean
+.PHONY:	tags wc tar install mrproper clean tests
 
 ifeq ($(LINK), 1)
 LIBS	:=${GTKLIB}
@@ -202,4 +202,7 @@ wc:
 
 tags:
 	ctags src/*.[ch]
+
+tests:
+	tests/run-tests.sh
 

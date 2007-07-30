@@ -20,13 +20,23 @@
 #ifdef DEBUG_TRACE_CALLS
 
 /**
- * For debugging purposes, trace all calls.
+ * For debugging purposes, trace all calls.  Print a line to stderr with the
+ * return value, function name, and all parameters.
  */
 void _call_trace(lua_State *L, struct func_info *fi, int index)
 {
     const unsigned char *s, *s_end;
     const struct ffi_type_map_t *arg_type;
     int arg_struct_nr, i, type;
+
+    /* Find out from where in the Lua code this library function has been
+     * called */
+    lua_Debug ar;
+    if (lua_getstack(L, 1, &ar)) {
+	if (lua_getinfo(L, "S", &ar)) {
+	    fprintf(stderr, "%s(%d): ", ar.source, ar.linedefined);
+	}
+    }
     
     s = fi->args_info;
     s_end = s + fi->args_len;
@@ -43,37 +53,38 @@ void _call_trace(lua_State *L, struct func_info *fi, int index)
 	type = lua_type(L, index+i);
 
 	if (i == -1) {
-	    printf("- %s %s(", arg_type->name, fi->name);
+	    fprintf(stderr, "- %s %s(", arg_type->name, fi->name);
 	} else {
-	    printf("%s%s", i == 0 ? "" : ", ", arg_type->name);
+	    fprintf(stderr, "%s%s", i == 0 ? "" : ", ", arg_type->name);
 	    switch (arg_type->at)  {
 		case AT_STRING:
 		    if (type == LUA_TSTRING)
-			printf("=%s", lua_tostring(L, index+i));
+			fprintf(stderr, "=%s", lua_tostring(L, index+i));
 		    else if (type == LUA_TNIL)
-			printf("=NIL");
+			fprintf(stderr, "=NIL");
 		    else
-			printf("=NOT A STRING!");
+			fprintf(stderr, "=NOT A STRING!");
 		    break;
+
 		case AT_LONG:
 		    if (lua_isnumber(L, index+i))
-			printf("=%f", (float) lua_tonumber(L, index+i));
+			fprintf(stderr, "=%f", (float) lua_tonumber(L, index+i));
 		    else
-			printf("=NOT A NUMBER");
+			fprintf(stderr, "=NOT A NUMBER");
 		    break;
 		case AT_BOOL:
 		    if (type == LUA_TBOOLEAN)
-			printf("=%s", lua_toboolean(L, index+i)
+			fprintf(stderr, "=%s", lua_toboolean(L, index+i)
 			    ? "true" : "false");
 		    else
-			printf("=NOT A BOOLEAN");
+			fprintf(stderr, "=NOT A BOOLEAN");
 		    break;
 		default:
 		    break;
 	    }
 	}
     }
-    printf(")\n");
+    fprintf(stderr, ")\n");
     // dump_stack(L, 0);
 }
 

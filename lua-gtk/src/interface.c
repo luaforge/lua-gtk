@@ -6,7 +6,7 @@
 #include "luagtk.h"
 #include <lauxlib.h>
 #include <string.h>	    // strcpy
-#include <malloc.h>
+// #include <malloc.h>
 #include <stdlib.h>	    // strtol
 
 int _make_gvalue(lua_State *L, GValue *gv, int type_nr, int index);
@@ -102,34 +102,39 @@ static int l_call(lua_State *L)
 
 /*
  * Allocate a structure, initialize with zero and return.
+ * This is NOT intended for widgets or structures that have specialized
+ * creator functions, like gtk_window_new and such.  Use it for simple
+ * structures like GtkTreeIter.
  *
- * The structure is allocated as a light user data; the convention is that
- * objects are stored as just a 4 byte pointer.  To avoid having another
- * block of memory, which wouldn't be freed, the userdata is allocated having
- * 4 bytes + the structure size, and setting the first 4 bytes as pointer
- * to just after itself.
+ * The widget is, as usual, a Lua wrapper in the form of a light user data,
+ * containing a pointer to the actual widget.  I used to allocate just one
+ * light userdata big enough for both the wrapper and the widget, but
+ * sometimes a special free function must be called, like gtk_tree_iter_free.
+ * So, this optimization is not possible.
+ *
+ * TODO
+ * - find out whether a specialized free function exists.  If so, allocate
+ *   a separate block of memory for the widget (as it is done now).  Otherwise,
+ *   allocate a larger userdata with enough space for the widget.  Do not
+ *   call g_free() in the GC function.
  */
 static int _allocate_structure(lua_State *L, const char *struct_name)
 {
     struct struct_info *si;
+    void *p;
 
     if (!(si=find_struct(struct_name))) {
 	printf("%s structure %s not found\n", msgprefix, struct_name);
 	return 0;
     }
 
-    /* allocate structure plus a pointer to it just before it */
-    /* I guess (hope) that this takes care of freeing it later */
-    struct widget *w = (struct widget*) lua_newuserdata(L,
-	sizeof(*w) + si->struct_size);
-    w->p = w+1;
-    w->refcounting = 0;	    // no reference counter in this structure.
-    w->class_name = struct_name;
-    get_widget_meta(L, si - struct_list, 0);
-    lua_setmetatable(L, -2);
+    /* allocate and initialize the object */
+    p = g_malloc(si->struct_size);
+    memset(p, 0, si->struct_size);
 
-    memset(w+1, 0, si->struct_size);
-
+    /* Make a Lua wrapper for it, push it on the stack.  Note that manage_mem
+     * is 1, i.e. call g_free later. */
+    get_widget(L, p, si - struct_list, 1);
     return 1;
 }
 
@@ -177,14 +182,14 @@ static int l_gtk_connect(lua_State *L)
 	return 0;
     }
 
-    cb_info = (struct callback_info*) malloc(sizeof *cb_info);
+    cb_info = (struct callback_info*) g_malloc(sizeof *cb_info);
     cb_info->L = L;
     g_signal_query(signal_id, &cb_info->query);
 
     if (cb_info->query.signal_id != signal_id) {
 	printf("%s invalid signal ID %d for signal %s\n", msgprefix,
 	    signal_id, signame);
-	free(cb_info);
+	g_free(cb_info);
 	return 0;
     }
 
@@ -192,7 +197,7 @@ static int l_gtk_connect(lua_State *L)
     if (n_params >= max_callback_args) {
 	printf("%s can't handle callback with %d parameters.\n", msgprefix,
 	    n_params);
-	free(cb_info);
+	g_free(cb_info);
 	return 0;
     }
 
@@ -294,8 +299,8 @@ static int l_g_object_get_class(lua_State *L)
 	return 0;
     }
 
-    // GObjectClass has no refcounting anyway, so don't care about is_new.
-    make_widget(L, c, si - struct_list, 0);
+    // manage_mem is 0, i.e. do not try to g_free(c) later on.
+    get_widget(L, c, si - struct_list, 0);
     return 1;
 }
 
@@ -646,8 +651,6 @@ static gboolean watch_handler(GIOChannel *gio, GIOCondition cond, gpointer data)
     lua_getfield(L, -2, "data");
     const struct struct_info *si = find_struct("GIOChannel");
 
-    // make_widget(L, gio, si - struct_list);
-
     // this object should already exist; anyway, it's not new.
     get_widget(L, gio, si - struct_list, 0);
     if (lua_isnil(L, -1)) {
@@ -908,7 +911,7 @@ int l_gtk_init(lua_State *L)
 int l_g_object_set_property(lua_State *L)
 {
     struct widget *w = (struct widget*) lua_topointer(L, 1);
-    if (!w || w->refcounting > 2) {
+    if (!w || w->refcounting > WIDGET_RC_MAX) {
 	printf("%s invalid object in l_g_object_set_property.\n", msgprefix);
 	return 0;
     }

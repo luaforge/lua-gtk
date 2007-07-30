@@ -23,15 +23,10 @@ TODO
 - refcounting on GIOChannel not OK.  Sometimes in-use channels are freed,
   which aborts communication.
 
-- maybe use the perfect hash function mph-1.2 instead of my own.
-
 - make sure my reference counting (g_object_ref/_unref) is correct.
   seems to be ok...
 
 - Gtk seems to be leaky...  how to minimize that?
-
-	gtk_tree_path_new_from_string allocates something. what it
-	returns must be freed eventually.
 
 - try LuaJIT - should speed everything up.  at least check that it works with
   it because in a larger project, somebody might want to use it.

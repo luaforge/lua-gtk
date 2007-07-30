@@ -121,6 +121,12 @@ void push_a_value(lua_State *L, GType type, union gtk_arg_types *data,
 	return;
     }
 
+    /**
+     * Find or create a Lua wrapper for the given object.  If it doesn't
+     * already exist, create it.  Be careful not to free the object on
+     * garbage collection, because it was allocated by the library
+     * itself and will therefore be freed.
+     */
     int struct_nr = si - struct_list;
     get_widget(L, data->p, struct_nr, 0);	// pushes nil on error.
 }
