@@ -1,5 +1,5 @@
 #! /usr/bin/lua
-require "gtk2"
+require "gtk"
 gtk.init(nil, nil)
 
 -- test that arbitrary values can be stored in a widget.
