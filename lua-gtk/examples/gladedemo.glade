@@ -199,6 +199,7 @@
 
 	  <child>
 	    <widget class="GtkCurve" id="curve1">
+	      <property name="curve_type">GTK_CURVE_TYPE_SPLINE</property>
 	      <property name="visible">True</property>
 	      <property name="min_x">0</property>
 	      <property name="max_x">1</property>
