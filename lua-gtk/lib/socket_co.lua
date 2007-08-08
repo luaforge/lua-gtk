@@ -6,6 +6,8 @@
 -- Copyright (C) 2007 Wolfgang Oertl
 --
 
+require "gtk.strict"
+
 local base = _G
 local string = string
 local coroutine = coroutine
