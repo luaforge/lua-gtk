@@ -95,8 +95,9 @@ local function parse_xy_options(s)
 
     if not s then return gtk.GTK_FILL + gtk.GTK_EXPAND end
 
-    for v in string.gmatch(s, "(%w+)") do
-	res = res + gtk["GTK_" .. string.upper(v)]
+    for v in string.gmatch(s, "([A-Z_]+)") do
+	if v:sub(1, 4) ~= "GTK_" then v = "GTK_" .. v end
+	res = res + gtk[string.upper(v)]
     end
 
     return res
@@ -133,7 +134,7 @@ end
 --
 -- Parse one line of the glade file
 --
-local function glade_line(stack, line)
+function glade_line(stack, line)
     local ni, i, j, c, label, xarg, empty, text
     local top = stack[#stack]
 
@@ -208,6 +209,10 @@ local function glade_transform_packing(items)
     return packing
 end
 
+--
+-- Look at the XML tree for one child.  Returns the child widget description,
+-- or nil if it is just a placeholder.
+--
 local function glade_transform_child(child)
     local widget, packing, k, v
 
@@ -217,8 +222,11 @@ local function glade_transform_child(child)
 	    widget = glade_transform_widget(v)
 	elseif v.label == "packing" then
 	    packing = glade_transform_packing(v.items)
+	elseif v.label == "placeholder" then
+--	    widget = { class="GtkLabel", p={visible=true, label="Placeholder"},
+--		id="" }
 	else
-	    base.error("invalid element " .. v.label .. " in child")
+	    base.error("invalid element '" .. v.label .. "' in child")
 	end
     end
 
@@ -255,18 +263,20 @@ function glade_transform_widget(item)
 	    widget.p[item2.name] = v
 	    for k, v in pairs(item2) do
 		if k ~= "label" and k ~= "name" and k ~= "text" and
-		    k ~= "translatable" then
+		    k ~= "translatable" and k ~= "comments" then
 		    print("WARNING: lost attribute " .. k)
 		end
 	    end
 	elseif item2.label == "child" then
 	    subwidget = glade_transform_child(item2.items)
-	    if not widget.children then
-		widget.children = {}
-		widget.childidx = {}
+	    if subwidget then
+		if not widget.children then
+		    widget.children = {}
+		    widget.childidx = {}
+		end
+		table.insert(widget.children, subwidget)
+		widget.childidx[subwidget.id] = #widget.children
 	    end
-	    table.insert(widget.children, subwidget)
-	    widget.childidx[subwidget.id] = #widget.children
 	elseif item2.label == "signal" then
 	    if not widget.signals then widget.signals = {} end
 	    table.insert(widget.signals, item2)
@@ -280,7 +290,8 @@ function glade_transform_widget(item)
 end
 
 --
--- Analyze the xml parse tree and extract the glade specific information.
+-- Analyze the xml parse tree and extract the glade specific information.  This
+-- creates one new table per widget.
 --
 local function transform(xml)
     if xml[1].label ~= "glade-interface" then
@@ -342,6 +353,7 @@ end
 -- be set.
 --
 function GtkWindow(el)
+    el.p.type = el.p.type or "GTK_WINDOW_TOPLEVEL"
     return gtk.window_new(gtk[el.p.type]), { type=1 }
 end
 
@@ -372,7 +384,7 @@ function GtkImageMenuItem(el)
 	w = gtk.image_menu_item_new_with_label(el.p.label)
     end
 
-    return w, { label=1, use_stock=1 }
+    return w, { label=1, use_stock=1, use_underline=1 }
 end
 
 --
@@ -391,6 +403,31 @@ function GtkComboBox(el)
     end
 
     return w, { items=1 }
+end
+
+--
+-- Optionally create a Text Combo Box and will with predefined items.
+--
+function GtkComboBoxEntry(el)
+    local w
+
+    if not el.p.items then
+	return gtk.combo_box_entry_new(), {}
+    end
+
+    w = gtk.combo_box_entry_new_text()
+    for s in string.gmatch(el.p.items, "([^\n]+)") do
+	w:append_text(s)
+    end
+
+    return w, { items=1 }
+end
+
+function set_adjustment_property(w, k, s)
+--    local a = w:get_property(k)
+    local a = gtk.adjustment_new(string.match(s, "(%d+) (%d+) (%d+) (%d+) (%d+) (%d+)"))
+    print("Adjustment", s, a)
+    w:set_property(k, a)
 end
 
 --
@@ -419,10 +456,11 @@ function make_widget(widgets, el)
     -- set all properties except for some.
     for k, v in pairs(el.p) do
 	if k ~= "visible" and not ignore_prop[k] then
---	-- all the rest
---	if k ~= "visible" and not (k == "type" and el.class == "GtkWindow")
---	    and not (el.class == 'GtkMenuItem' and (k == 'label' or k == 'use_underline')) then
-	    w:set_property(k, v)
+	    if k == 'adjustment' then
+		set_adjustment_property(w, k, v)
+	    else
+		w:set_property(k, v)
+	    end
 	end
     end
 
