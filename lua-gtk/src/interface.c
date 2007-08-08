@@ -6,10 +6,10 @@
 #include "luagtk.h"
 #include <lauxlib.h>
 #include <string.h>	    // strcpy
-// #include <malloc.h>
 #include <stdlib.h>	    // strtol
+#include <ctype.h>	    // isspace
 
-int _make_gvalue(lua_State *L, GValue *gv, int type_nr, int index);
+static int _fill_gvalue(lua_State *L, GValue *gv, int type_nr, int index);
 
 /**
  * When g_io_add_watch is called, a Lua stack has to be provided.  This must
@@ -58,7 +58,7 @@ static int l_gtk_lookup(lua_State *L)
     /* if it starts with an uppercase letter, it's probably an ENUM. */
     if (s[0] >= 'A' && s[0] <= 'Z') {
 	int val;
-	if (find_enum(s, &val)) {
+	if (find_enum(s, -1, &val)) {
 	    lua_pushnumber(L, val);
 	    return 1;
 	}
@@ -510,27 +510,79 @@ static double my_tonumber(lua_State *L, int index, int *ok)
     printf("%s Can't convert Lua type %d to double\n", msgprefix, type);
     return 0;
 }
-	
 
 
-int _make_gvalue(lua_State *L, GValue *gv, int type_nr, int index)
+/**
+ * The GValue should contain flags.  The given value may be a number, or
+ * a string; in this case split it by "|" and look up each item individually.
+ */
+static int _fill_gvalue_flags(lua_State *L, GValue *gv, int type, int index)
+{
+
+    switch (type) {
+	case LUA_TSTRING:;
+	    const char *s = lua_tostring(L, index), *s2;
+	    int val = 0, rc, len;
+
+	    for (;;) {
+
+		// skip whitespace
+		while (*s && *s == ' ')
+		    s ++;
+
+		// find separator; might not find one at end of string.
+		s2 = strchr(s, '|');
+		len = s2 ? s2 - s : strlen(s);
+
+		// trim whitespace at end
+		while (len > 0 && isspace(s[len-1]))
+		    len --;
+
+		// XXX might be a number after all?  this is not supported.
+
+		// The string should be an ENUM.  Look up the value.
+		if (!find_enum(s, len, &rc))
+		    return 0;
+		val |= rc;
+		if (!s2)
+		    break;
+		s = s2 + 1;
+	    }
+	    
+	    gv->data[0].v_int = val;
+	    break;
+
+	case LUA_TNUMBER:
+	    gv->data[0].v_int = lua_tointeger(L, index);
+	    break;
+
+	default:
+	    printf("%s Can't convert Lua type %d to enum.\n",
+		msgprefix, type);
+	    return 0;
+    }
+
+    return 1;
+}
+
+/**
+ * Fill the GValue at *gv with the data at stack position index.  The
+ * requested data type is type_nr, a GObject type.
+ */
+static int _fill_gvalue(lua_State *L, GValue *gv, int type_nr, int index)
 {
     int type = lua_type(L, index);
     int ok = 1;
     const char *s;
 
-    // printf("  Making a gvalue for type %d\n", type_nr);
-
     /* be optimistic that this type can actually be produced. */
     gv->g_type = type_nr;
 
-    /* This is not a fundamental type.  Try to find a base type that can
-     * be set.
-     */
+    /* This is not a fundamental type.  Try to find a base type that is. */
     if (!G_TYPE_IS_FUNDAMENTAL(type_nr)) {
 	while (type_nr) {
 	    type_nr = g_type_parent(type_nr);
-	    if (!type_nr || type_nr == G_TYPE_ENUM)
+	    if (!type_nr || G_TYPE_IS_FUNDAMENTAL(type_nr))
 		break;
 	}
     }
@@ -584,7 +636,7 @@ int _make_gvalue(lua_State *L, GValue *gv, int type_nr, int index)
 		case LUA_TSTRING:;
 		    const char *s = lua_tostring(L, index);
 		    gv->data[0].v_int = 0;
-		    if (!find_enum(s, &gv->data[0].v_int))
+		    if (!find_enum(s, -1, &gv->data[0].v_int))
 			printf("%s ENUM %s not found, using zero.\n",
 			    msgprefix, s);
 		    break;
@@ -599,6 +651,11 @@ int _make_gvalue(lua_State *L, GValue *gv, int type_nr, int index)
 		    return 0;
 	    }
 		    
+	    break;
+
+	// similar to ENUM, but can be a string like this: A | B | C
+	case G_TYPE_FLAGS:
+	    _fill_gvalue_flags(L, gv, type, index);
 	    break;
 	
 	case G_TYPE_STRING:
@@ -616,10 +673,29 @@ int _make_gvalue(lua_State *L, GValue *gv, int type_nr, int index)
 	case G_TYPE_DOUBLE:
 	    gv->data[0].v_double = my_tonumber(L, index, &ok);
 	    break;
+	
+	// an object of the correct type must be given.
+	case G_TYPE_OBJECT:;
+	    struct widget *w = (struct widget*) lua_topointer(L, index);
+	    if (!w || w->refcounting > WIDGET_RC_MAX) {
+		printf("%s _fill_gvalue: invalid object.\n", msgprefix);
+		ok = 0;
+		break;
+	    }
+	    // XXX check that this is actually a widget of the correct type.
+	    if (strcmp(g_type_name(gv->g_type), w->class_name)) {
+		printf("%s _fill_gvalue: expected an object of type %s, but it is %s\n",
+		    msgprefix, g_type_name(gv->g_type), w->class_name);
+		ok = 0;
+		break;
+	    }
+	    gv->data[0].v_pointer = w->p;
+	    break;
 
 	default:
-	    printf("%s make_gvalue type %d not supported\n",
-		msgprefix, (int) G_TYPE_FUNDAMENTAL(type_nr));
+	    printf("%s _fill_gvalue: type %d (%d = %s) not supported\n",
+		msgprefix, (int) G_TYPE_FUNDAMENTAL(type_nr), (int) gv->g_type,
+		    g_type_name(gv->g_type));
 	    ok = 0;
     }
 
@@ -908,7 +984,7 @@ int l_gtk_init(lua_State *L)
  *  Parameters: GObject, property_name, value
  *  Returns: nothing
  */
-int l_g_object_set_property(lua_State *L)
+static int l_g_object_set_property(lua_State *L)
 {
     struct widget *w = (struct widget*) lua_topointer(L, 1);
     if (!w || w->refcounting > WIDGET_RC_MAX) {
@@ -924,11 +1000,11 @@ int l_g_object_set_property(lua_State *L)
     const gchar *prop_name = lua_tostring(L, 2);
     GParamSpec *pspec = g_object_class_find_property(oclass, prop_name);
     if (!pspec) {
-	printf("no property named %s\n", prop_name);
+	printf("g_object_set_property: no property named %s\n", prop_name);
 	return 0;
     }
     GValue gvalue;
-    if (_make_gvalue(L, &gvalue, pspec->value_type, 3)) {
+    if (_fill_gvalue(L, &gvalue, pspec->value_type, 3)) {
 	g_object_set_property(object, prop_name, &gvalue);
     }
     g_type_class_unref(oclass);
