@@ -3,28 +3,30 @@
 # --- begin platform configuration ---
 #
 #  NOTE: compilation for Win32 using MinGW requires precompiled Gtk/Gdk
-#  libraries, and the lua51 library.
+#  libraries, and the lua51 library.  see doc/INSTALL for more info.
 
-# where to find the precompiled Gtk/Gdk etc. libraries.
-BINDIR	:=../build/
+# where to find the Lua-5.1 headers
+LUAINC	:=/usr/include/lua5.1
 
-# where to find the Lua-5.1 sources
-LUADIR	:=../lua-5.1/src
-#LUALIB	:=lua5.1/lib/dll/lua5.1.dll
-LUALIB	:=../build/liblua51.dll
+# where to find the precompiled Gtk/Gdk etc. libraries, and libffi
+GTKDIR	:=mingw/gtk/
+LUADIR	:=mingw/lua5.1
+FFIDIR	:=mingw/libffi-mingw
+
+LUALIB	:=$(LUADIR)/lua5.1.dll
 
 # -- other, not so interesting settings --
 
 LINK	:=1
 MINGW	:=i586-mingw32msvc-
 ODIR	:=build-win32/
-CFLAGS	:=-DWIN32 -DXTHREADS -I libffi-mingw -I $(LUADIR)
-GTKLIB	:=$(BINDIR)libgtk-win32-2.0-0.dll $(BINDIR)libgdk-win32-2.0-0.dll \
-	$(BINDIR)libgobject-2.0-0.dll $(BINDIR)libglib-2.0-0.dll \
-	$(BINDIR)libgdk_pixbuf-2.0-0.dll
+CFLAGS	:=-DWIN32 -DXTHREADS -I $(FFIDIR) -I $(LUAINC) -mms-bitfields
+GTKLIB	:=$(GTKDIR)libgtk-win32-2.0-0.dll $(GTKDIR)libgdk-win32-2.0-0.dll \
+	$(GTKDIR)libgobject-2.0-0.dll $(GTKDIR)libglib-2.0-0.dll \
+	$(GTKDIR)libgdk_pixbuf-2.0-0.dll
 CROSS	:=1
 ODLL	:=gtk.dll
-EXTRALIB:=$(LUALIB) libffi-mingw/libffi.a
+EXTRALIB:=$(LUALIB) $(FFIDIR)/libffi.a
 INDIR1	:=/usr/local/lib/lua/5.1
 INDIR2	:=/usr/local/share/lua/5.1
 # --- end platform configuration ---
@@ -32,6 +34,19 @@ INDIR2	:=/usr/local/share/lua/5.1
 all: checkluabin dirs ${ODIR}${ODLL}
 
 checkluabin:
-	@if test ! -d lua5.1; then echo "ERROR: please download Lua 5.1 binaries for Windows."; exit; fi
+	@if test ! -d $(LUADIR); then echo "ERROR: please download Lua 5.1 binaries for Windows into $(LUADIR)."; exit 1; fi
 
 include Makefile.common
+
+zip: all
+	(D=/tmp/lua-gtk-$(VERSION); rm -rf $$D /tmp/lua-gtk-$(VERSION).zip; \
+		mkdir -p $$D; \
+		cp $(ODIR)$(ODLL) $(LUADIR)/lua5.1.{dll,exe} $$D; \
+		strip $$D/$(ODLL); \
+		mkdir -p $$D/examples; \
+		cp examples/* $$D/examples/; \
+		mkdir -p $$D/gtk; \
+		cp lib/* $$D/gtk/; \
+		cp doc/README.win32.txt $$D/README.txt; \
+		cd /tmp; \
+		zip -r lua-gtk-$(VERSION).zip lua-gtk-$(VERSION))
