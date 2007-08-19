@@ -423,6 +423,14 @@ function GtkComboBoxEntry(el)
     return w, { items=1 }
 end
 
+--
+-- GtkButton with unknown property
+--
+function GtkButton(el)
+    local w = gtk.button_new()
+    return w, { response_id=1 }
+end
+
 function set_adjustment_property(w, k, s)
 --    local a = w:get_property(k)
     local a = gtk.adjustment_new(string.match(s, "(%d+) (%d+) (%d+) (%d+) (%d+) (%d+)"))
