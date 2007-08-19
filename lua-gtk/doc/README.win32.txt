@@ -2,48 +2,31 @@
 Lua-Gtk2
 ========
 
-You now have the gtk.dll, either by compiling it, or by downloading the
-precompiled library.  To use it, you need to download a lot of additional
-software:
+  I assume that you have downloaded the windows binary package for lua-gtk2.
+Unless you already have Gtk+2, download and run the newest version named
+gtk+-2.x.x-setup.exe [1].  Optionally get the current Lua binary and library
+[2], but the required files are already included in this package.
 
-  - Gtk2 from gtk.org.  Look for the newest version.  This was tested
-    with the files available on 2 June 2006.  Fetch following ZIP files
-    in their newest versions.
+  Now you can run "lua5.1 examples/button.lua".  Try the other examples.  More
+are available in the CVS repository on luaforge:
 
-    atk-1.10.3.zip
-    cairo-1.0.4.zip
-    dependencies/gettext-0.14.5.zip
-    glib-2.10.3.zip
-    gtk+-2.8.18.zip
-    dependencies/libiconv-1.9.1.bin.woe32.zip
-    dependencies/libpng-1.2.8-bin.zip
-    pango-1.12.3.zip
-    dependencies/zlib123-dll.zip
+	http://luaforge.net/plugins/scmcvs/cvsweb.php/?cvsroot=lua-gtk
+	http://luaforge.net/snapshots.php?group_id=121
 
-  - Lua 5.1.  You need these files from the LuaBinaries project on
-    luaforge.net.  If you compiled the library yourself, you already
-    had to download these.
-
-    lua5_1_Win32_bin.tar.gz
-    lua5_1_Win32_dll.tar.gz
-
-
-Installation Instructions
--------------------------
-
-1. Download the files listed above, or newer versions if available.
-2. Unpack the GTK related files to a directory, e.g. C:\GTK.  You
-   should then see C:\GTK\BIN filled with DLL files.
-3. move C:\GTK\zlib1.dll to C:\GTK\bin
-4. set the PATH variable to include C:\GTK\bin.
-5. unpack the Lua related files to a directory, and place gtk.dll from
-   this package there, too.
-
-Now you can run "lua5.1 examples/button.lua".  If a window opens, then
-everything is all right.  Try the examples, and start coding!  You probably
-want to download the documentation about GTK, and also the source package
-for lua-gtk2 for additional information (license, some documentation etc.).
+  You probably want to refer to the documentation about GTK [3], and also the
+source package for lua-gtk2 [4] for additional information (license, some
+documentation etc.).
 
 Cheers,
 Wolfgang Oertl
+
+
+Links:
+
+[1] http://gimp-win.sourceforge.net/stable.html
+[2] http://luabinaries.luaforge.net/download.html: Get the
+    "lua....._Win32_bin.zip" file.
+[3] http://gtk.org/api/,
+    http://developer.gnome.org/doc/API/2.0/gtk/index.html
+[4] http://luaforge.net/projects/lua-gtk/
 

@@ -3,25 +3,28 @@
 Installation Instructions for Linux
 ===================================
 
+My system is Debian/testing, where most of the required libraries are available
+as packages.  Prerequisites:
 
-I have not tested this much with Windows (or rather, Wine), so it is for Linux
-only so far.  Tested on Debian/testing.
-
-Requisites:
-
-  - Gtk2 (tested with 2.6.8 and 2.8.16) with devel files
+  - Gtk2 (tested with 2.6.8, 2.8.16, 2.10.13) with devel files
   - libffi
   - lua5
   - cmph (optional, at http://sf.net/projects/cmph)
   - gcc, binutils, make, ...
 
+Package names:
+
+	libgtk2.0-dev
+	libffi4-dev
+	liblua5.1-0-dev
+
 
 Prodecure:
 
- - edit Makefile.linux and/or Makefile.win32 to suit your installation.  This
-   is NOT an autoconf generated file.  Not many options are useful to change.
+ - edit Makefile.linux to suit your installation.  This is NOT an autoconf
+   generated file.  Not many options are useful to change.
  - run make
- - run make install
+ - run make install (as root)
 
 Now you should be ready to run the example scripts:
 
@@ -34,26 +37,30 @@ Installation Instructions for MingW32
 =====================================
 
 To build this package for Win32 please use MingW32.  The resulting binaries run
-on native Windows, too.  Therefore, install the mingw32 build environment, e.g.
-for Debian, try "apt-get install mingw32".
+on native Windows, too.  In other words, the build process is under Linux.
+Therefore, install the mingw32 build environment, e.g. for Debian, try
+"apt-get install mingw32".
 
 
 Step 1
 ------
 
-Build the package for Linux by typing "make".  This produces some intermediary
-files that are needed by the windows build, too.
-
+Download the latest Windows binaries from luaforge.net (project LuaBinaries
+[1]), and unpack into the directory mingw/lua5.1.
 
 
 Step 2
 ------
 
-Download the latest windows binaries from luaforge.net (project LuaBinaries),
-and unpack so that a lua5.1 directory appears:
+Download the latest Gtk+2 Runtime Environment for Windows [2] and install it
+on a Windows box.  Copy the following DLLs from wherever they are (e.g. [3])
+to mingw/gtk:
 
-	lua5_1_Win32_dll.tar.gz
-	lua5_1_Win32_bin.tar.gz
+	libgtk-win32-2.0-0.dll
+	libgdk-win32-2.0-0.dll
+	libgobject-2.0-0.dll
+	libglib-2.0-0.dll
+	libgdk_pixbuf-2.0-0.dll
 
 
 Step 3
@@ -63,9 +70,21 @@ Run the Makefile like this:
 
 	make -f Makefile.win32
 
-This builds the file gtk2.dll in build-win32.  You may want to "strip" the
-resulting DLL to save space.
+This builds the file build-win32/gtk.dll.  To obtain a ZIP file with all the
+required files, do this:
 
-To actually use this library, follow the instructions in README.win32.txt.
+	make -f Makefile.win32 zip
 
+This will create the tree /tmp/lua-gtk-$(VERSION), along with a suitable
+ZIP file.  Copy that to the windows box, and try it out.
+
+
+
+[1] http://luabinaries.luaforge.net/packaging.html,
+    http://luabinaries.luaforge.net/download.html
+    The file to get is lua...._Win32_bin.zip
+
+[2] http://gimp-win.sourceforge.net/stable.html
+
+[3] C:\Programme\Gemeinsame Dateien\GTK\2.0\bin
 

@@ -188,3 +188,9 @@ Mon Jul 30 20:27:47 CEST 2007
 * better garbage collection of objects; call g_free() or an appropriate
   free function.
 
+
+Son Aug 19 20:12:27 CEST 2007
+* for latest changes, see the CVS history.  This file will probably not be
+  updated anymore.
+
+
