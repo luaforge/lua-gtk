@@ -28,10 +28,11 @@ function on_spinbutton1_value_changed(spin)
 end
 
 function main()
-    local tree
+    local tree, file
 
     gtk.init(nil, nil)
-    tree = gtk.glade.read("demo2.glade")
+    file = string.gsub(arg[0], ".lua", ".glade")
+    tree = gtk.glade.read(file)
     widgets = gtk.glade.create(tree, "window1")
     gtk.main()
 end
