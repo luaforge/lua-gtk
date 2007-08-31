@@ -1,9 +1,11 @@
 #! /usr/bin/perl -w
 # vim:sw=4:sts=4
 # Generate a function list to be used by libluagtk2.
+#
 # Runs on Linux, but the resulting data file should be usable on other
-# platforms, too.
-# Copyright (C) 2005 Wolfgang Oertl
+# platforms, too, especially on Win32.
+#
+# Copyright (C) 2005, 2007 Wolfgang Oertl
 #
 # Revision history:
 #  2005-07-14	extract data types, function list and output.  Structure info
@@ -113,6 +115,7 @@ my %typedefs_override = (
 
 my $platform;
 my $platform_prefix;
+my $output_dir;
 
 # A list of data types as used in function arguments and in structures.
 # These types may have to be mapped multiple times via %typedefs to reach
@@ -163,7 +166,7 @@ my %structmap;
 # Create a simple C file, compile it, producing also an "aux info" file.
 #
 sub generate_objects() {
-    open TMP, ">$tmpfile" or die;
+    open TMP, ">$output_dir/$tmpfile" or die;
     print TMP "#define GTK_DISABLE_DEPRECATED 1\n";
     print TMP "#define GDK_PIXBUF_ENABLE_BACKEND\n";
     if ($platform eq "win32") {
@@ -174,9 +177,10 @@ sub generate_objects() {
     close TMP;
 
     system $platform_prefix . "cc \$(pkg-config --cflags gtk+-2.0) "
-	. "-gstabs -c -o $tmpo -aux-info $tmpfile2 $tmpfile";
+	. "-gstabs -c -o $output_dir/$tmpo -aux-info $output_dir/$tmpfile2 "
+	. "$output_dir/$tmpfile";
 	
-    unlink $tmpfile;
+    unlink "$output_dir/$tmpfile";
 }
 
 sub store_func_arg($) {
@@ -192,7 +196,7 @@ sub store_func_arg($) {
 sub read_functions() {
     my ($line, $func, $args, @w, $ret_type, $target, $arg);
 
-    open LIST, $tmpfile2 or die;
+    open LIST, "$output_dir/$tmpfile2" or die;
     while (<LIST>) {
 	chop;
 	next unless /:NC \*\/ extern (.*)$/;
@@ -255,7 +259,7 @@ sub read_functions() {
 	$functions{$func} = [ @w ];
     }
     close LIST;
-    unlink $tmpfile2;
+    unlink "$output_dir/$tmpfile2";
 }
 
 
@@ -522,7 +526,7 @@ sub read_types() {
 
     my ($rv, $fn, $s, $prefix);
 
-    open LIST, $platform_prefix . "objdump --debugging $tmpo|" or die;
+    open LIST, $platform_prefix . "objdump --debugging $output_dir/$tmpo|" or die;
     while (<LIST>) {
 	chop;
 
@@ -639,7 +643,7 @@ sub read_types() {
 	print STDERR "Cannot parse line $.: $_\n";
     }
     close LIST;
-    unlink $tmpo;
+    unlink "$output_dir/$tmpo";
 }
 
 
@@ -776,7 +780,8 @@ sub add_all_types() {
 sub generate_types() {
     my (%tmp, $w);
 
-    open OFILE, ">$ofile.types.c" or die;
+    open OFILE, ">$output_dir/$ofile.types.c" or die;
+    print OFILE "#include \"luagtk.h\"\n\n";
     print OFILE $const . "struct ffi_type_map_t ffi_type_map[] = {\n";
 
     # make a sortable list
@@ -831,7 +836,7 @@ sub try_to_make_luatype($) {
 sub generate_enums() {
     my $w;
 
-    open OFILE, ">$ofile.enums.txt" or die;
+    open OFILE, ">$output_dir/$ofile.enums.txt" or die;
     for $w (sort keys %enum) {
 	my $val = $enum{$w};
 	my $s = "";
@@ -1124,7 +1129,7 @@ sub generate_structs() {
     my $elem_nr = 0;
     my $max_struct_size = 0;
 
-    open OFILE, ">$ofile.structs.c" or die;
+    open OFILE, ">$output_dir/$ofile.structs.c" or die;
     print OFILE "#include \"luagtk.h\"\n";
     print OFILE $const . "struct struct_elem elem_list[] = {\n";
 
@@ -1212,7 +1217,7 @@ sub generate_functions() {
     my $args;
     my $func;
 
-    open OFILE, ">$ofile.funcs.txt" or die;
+    open OFILE, ">$output_dir/$ofile.funcs.txt" or die;
     for $func (sort keys %functions) {
 	$args = $functions{$func};
 	my @args = map {
@@ -1240,11 +1245,12 @@ sub generate_functions() {
 }
 
 ##
-# Determine the build platform.
+# Determine the build platform, and the output directory.
 #
-sub init_platform() {
-    if ($#ARGV != 0) {
-	print STDERR "Parameter = target platform.  Use linux or win32.\n";
+sub parse_arguments() {
+    if ($#ARGV != 1) {
+	print STDERR "Arguments: {target platform} {output directory}\n";
+	print STDERR "Known platforms: linux, win32.\n";
 	exit;
     }
 
@@ -1258,6 +1264,12 @@ sub init_platform() {
 	print STDERR "Unknown platform $platform.\n";
 	exit;
     }
+
+    $output_dir = $ARGV[1];
+    if (! -d $output_dir) {
+	print STDERR "Not a directory: $output_dir\n";
+	exit;
+    }
 }
 
 
@@ -1266,7 +1278,7 @@ sub init_platform() {
 # - read a list of types: enums, typedefs, structures.
 # - determine which types are actually used by at least one function.
 
-init_platform();
+parse_arguments();
 print STDERR "* generating object and debug files\n";
 generate_objects();
 print STDERR "* reading data\n";
