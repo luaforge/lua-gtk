@@ -2,12 +2,14 @@
 TODO
 ----
 
-- fix the Win32 build process
+- fix the build process.  It is a mess, not portable enough.  waf?  autofoo?
 
 - fix the cairo related errors in script/gen-list.pl
 
 - rework the source code for more clarity, better separation into modules,
   comments, refactor large functions.
+
+- rewrite gen-list.pl in Lua, to remove the dependency on Perl.
 
 - save some more space.
 	- src/luagtk.h

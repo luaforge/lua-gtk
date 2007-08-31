@@ -88,7 +88,8 @@ void push_a_value(lua_State *L, GType type, union gtk_arg_types *data,
 		printf("strange... an argument of type NONE?\n");
 		break;
 	    default:
-		printf("Warning: unhandled fundamental type %ld\n", type >> 2);
+		printf("Warning: unhandled fundamental type %ld\n",
+		    (long int) type >> 2);
 		lua_pushnumber(L, data->l);
 	}
 	return;
