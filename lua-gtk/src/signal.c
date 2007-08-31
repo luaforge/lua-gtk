@@ -7,6 +7,7 @@
 
 #include "luagtk.h"
 #include <malloc.h>	    // free
+#include <lauxlib.h>	    // luaL_unref
 
 
 /**
@@ -86,7 +87,7 @@ int do_callback(void *widget, struct callback_info *cbi, int arg_cnt, int *args)
 	// XXX handle more return types!
 	default:
 	    printf("%s unhandled callback return type %ld of callback %s\n",
-		msgprefix, return_type, cbi->query.signal_name);
+		msgprefix, (long int) return_type, cbi->query.signal_name);
     }
 
     /* make sure the stack is back to the original state */
@@ -140,7 +141,18 @@ int max_callback_args = sizeof(g_callbacks) / sizeof(g_callbacks[0]);
  */
 static void free_callback_info(gpointer data, GClosure *closure)
 {
-    free(data);
+    // data is a struct callback_info.  It contains references, free them.
+    // see interface.c:l_gtk_connect()
+    struct callback_info *cb_info = (struct callback_info*) data;
+
+    // remove the reference to the callback function (closure)
+    luaL_unref(cb_info->L, LUA_REGISTRYINDEX, cb_info->handler_ref);
+
+    // remove the reference to the table with the extra arguments
+    if (cb_info->args_ref)
+	luaL_unref(cb_info->L, LUA_REGISTRYINDEX, cb_info->args_ref);
+
+    g_free(data);
 }
 
 
