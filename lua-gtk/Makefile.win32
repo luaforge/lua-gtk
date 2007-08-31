@@ -5,8 +5,12 @@
 #  NOTE: compilation for Win32 using MinGW requires precompiled Gtk/Gdk
 #  libraries, and the lua51 library.  see doc/INSTALL for more info.
 
+PLATFORM:=WIN32
 # where to find the Lua-5.1 headers
 LUAINC	:=/usr/include/lua5.1
+
+# if you don't have cmph (http://sf.net/projects/cmph/), just comment this out.
+CMPHDIR	:=/build/cmph-0.6/src
 
 # where to find the precompiled Gtk/Gdk etc. libraries, and libffi
 GTKDIR	:=mingw/gtk/
@@ -19,8 +23,8 @@ LUALIB	:=$(LUADIR)/lua5.1.dll
 
 LINK	:=1
 MINGW	:=i586-mingw32msvc-
-ODIR	:=build-win32/
-CFLAGS	:=-DWIN32 -DXTHREADS -I $(FFIDIR) -I $(LUAINC) -mms-bitfields
+ODIR	:=build/win32/
+CFLAGS	:=-DXTHREADS -I $(FFIDIR) -I $(LUAINC) -mms-bitfields
 GTKLIB	:=$(GTKDIR)libgtk-win32-2.0-0.dll $(GTKDIR)libgdk-win32-2.0-0.dll \
 	$(GTKDIR)libgobject-2.0-0.dll $(GTKDIR)libglib-2.0-0.dll \
 	$(GTKDIR)libgdk_pixbuf-2.0-0.dll
@@ -31,7 +35,7 @@ INDIR1	:=/usr/local/lib/lua/5.1
 INDIR2	:=/usr/local/share/lua/5.1
 # --- end platform configuration ---
 
-all: checkluabin dirs ${ODIR}${ODLL}
+all: checkluabin dirs gtk2dll
 
 checkluabin:
 	@if test ! -d $(LUADIR); then echo "ERROR: please download Lua 5.1 binaries for Windows into $(LUADIR)."; exit 1; fi

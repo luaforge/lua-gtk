@@ -9,7 +9,8 @@ HOSTCC	:=gcc
 VERSION	:=0.5
 # -- end general configuration --
 
-.PHONY:	tags wc tar install mrproper clean tests
+.PHONY:	tags wc tar install mrproper clean tests config_h
+.PRECIOUS: ${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}%.keys
 
 ifeq ($(LINK), 1)
 LIBS	:=${GTKLIB}
@@ -28,22 +29,27 @@ HASHOBJ	:= ${ODIR}hash-fch.o ${ODIR}hash-jenkins.o \
 endif
 
 
-gtk2dll: ${ODIR}${ODLL}
+gtk2dll: config_h ${ODIR}${ODLL}
 
 dirs:
 	@mkdir -p ${ODIR}
 
+# Create the config.h file
+
+config_h:
+	@echo "#define HASHFUNC hash_${HASHF}" > ${ODIR}config.h.tmp
+	@echo -e "#ifndef ${PLATFORM}\n #define ${PLATFORM}\n#endif" >> ${ODIR}config.h.tmp
+	@if diff -q ${ODIR}config.h ${ODIR}config.h.tmp 2> /dev/null; then rm -f ${ODIR}config.h.tmp; else mv -f ${ODIR}config.h.tmp ${ODIR}config.h; fi
+
 # rule to build the library.
 
-${ODIR}${ODLL}: ${ODIR}gtk2.o ${ODIR}interface.o ${ODIR}data.o 	\
-	${ODIR}call.o ${ODIR}signal.o ${ODIR}debug.o ${ODIR}widget.o \
-	${ODIR}_structlist.o ${ODIR}_override.o \
-	${HASHOBJ}
+${ODIR}${ODLL}: $(addprefix ${ODIR}, gtk2.o interface.o data.o call.o signal.o \
+	debug.o widget.o gtkdata.structs.o _override.o gtkdata.types.o) $(HASHOBJ)
 	@echo $@
 	@${CC} -shared -o $@ $^ ${EXTRALIB} ${LIBS}
 
-${ODIR}gtk2.o: src/gtk2.c ${ODIR}_typelist.c src/luagtk.h src/hash.h src/link.h
-${ODIR}data.o: src/data.c src/luagtk.h src/link.h ${ODIR}_typelist.c
+${ODIR}gtk2.o: src/gtk2.c src/luagtk.h src/hash.h src/link.h
+${ODIR}data.o: src/data.c src/luagtk.h src/link.h
 ${ODIR}interface.o: src/interface.c src/luagtk.h src/link.h
 ${ODIR}call.o: src/call.c src/luagtk.h src/link.c src/link.h
 ${ODIR}widget.o: src/widget.c src/luagtk.h src/link.h
@@ -65,12 +71,6 @@ ${ODIR}_funclist.c: ${ODIR}gtkdata.funcs.txt ${ODIR}generate src/hash.h
 	@echo $@
 	@${ODIR}generate -s 4096 -o $@ -n hash_info_funcs -d -f $<
 
-${ODIR}_structlist.c: ${ODIR}gtkdata.structs.c
-	cp -f $< $@
-
-${ODIR}_typelist.c: ${ODIR}gtkdata.types.c
-	cp -f $< $@
-
 ${ODIR}_enumlist.c: ${ODIR}gtkdata.enums.txt ${ODIR}generate src/hash.h
 	@echo $@
 	@${ODIR}generate -s 1201 -o $@ -n hash_info_enums -d -f $<
@@ -81,7 +81,7 @@ ${ODIR}_override.c: ${ODIR}override.luac ${ODIR}file2c
 	
 ${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c: src/extra_enum.txt
 	@echo "Generating Gtk Data..."
-	@(cd ${ODIR}; ../script/gen-list.pl linux)
+	@script/gen-list.pl linux "${ODIR}"
 	@cat src/extra_enum.txt >> ${ODIR}gtkdata.enums.txt
 
 ${ODIR}%.o: ${ODIR}%.c
@@ -90,9 +90,9 @@ ${ODIR}%.o: ${ODIR}%.c
 
 # -- simple hash --
 
-${ODIR}hash-simple.o: src/hash-simple.c src/hash-simple.h src/hash.h
-	@echo $@
-	@${CC} ${CFLAGS} -DHASHFUNC=hash_$(HASHF) -c -o $@ $<
+#${ODIR}hash-simple.o: src/hash-simple.c src/hash-simple.h src/hash.h
+#	@echo $@
+#	@${CC} ${CFLAGS} -DHASHFUNC=hash_$(HASHF) -c -o $@ $<
 
 # -- fch hash --
 
@@ -126,7 +126,7 @@ ${ODIR}_enumlist_data.c: ${ODIR}hash-fch-generate-enums ${ODIR}gtkdata.enums.txt
 
 ${ODIR}generate.o: src/generate.c
 	@echo $@
-	@${HOSTCC} ${CFLAGS} -c -o $@ -DHASHFUNC=hash_${HASHF} $<
+	@${HOSTCC} ${CFLAGS} -c -o $@ $<
 
 ${ODIR}${HASH}-native.o: src/${HASH}.c
 	@echo $@
@@ -179,7 +179,7 @@ clean:
 	rm -f ${ODIR}file2c ${ODIR}override.luac
 
 mrproper: clean
-	rm -f ${ODIR}/gtkdata.*
+	rm -f ${ODIR}gtkdata.* ${ODIR}hash-fch-* ${ODIR}config.h
 	
 
 install: all
