@@ -766,23 +766,25 @@ int do_call(lua_State *L, struct func_info *fi, int index)
 
 /**
  * Given a pointer, a bit offset and a bit length, retrieve the value.
+ * XXX not portable to non-32 bit architectures.
  */
-long get_bits(const unsigned char *ptr, int bitofs, int bitlen)
+#define BITS_PER_INT (sizeof(int)*8)
+unsigned int get_bits(const unsigned char *ptr, int bitofs, int bitlen)
 {
-    unsigned int val;
+    unsigned int val, mask;
 
-    if (bitlen == 0 || bitlen > 32) {
+    if (bitlen == 0 || bitlen > BITS_PER_INT) {
 	printf("%s access to attribute of size %d not supported\n",
 	    msgprefix, bitlen);
 	return 0;
     }
 
+    // hm.... access is only byte aligned, which may not be enough for
+    // certain architectures?
     ptr += bitofs / 8;
     bitofs = bitofs % 8;
-    unsigned int mask = 0xffffffff;
-    if (bitlen < 32) {
-	mask = (1 << bitlen) - 1;
-    }
+
+    mask = (bitlen < BITS_PER_INT) ? (1 << bitlen) - 1 : -1;
 
     // XXX not tested for bitofs > 0
     // XXX possible problems with endianness
@@ -829,7 +831,7 @@ int _push_attribute(lua_State *L, const struct struct_elem *se,
     unsigned char *ptr)
 {
     const struct ffi_type_map_t *arg_type;
-    long int v;
+    unsigned int v;
 
     arg_type = &ffi_type_map[se->type - '0'];
     switch (arg_type->at) {

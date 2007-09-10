@@ -389,7 +389,7 @@ int l_dump_struct(lua_State *L)
 		break;
 
 	    case AT_LONG:;
-		long int v = get_bits(obj, se->bit_offset, se->bit_length);
+		unsigned int v = get_bits(obj, se->bit_offset, se->bit_length);
 		printf(", value=%ld\n", v);
 		break;
 
