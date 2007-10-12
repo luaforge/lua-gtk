@@ -602,10 +602,8 @@ function output_structs(ofname)
     print("In use:", #keys)
     table.sort(keys)
 
-    -- for i, k in ipairs(keys) do print(i,k) end
-
-    -- assign numbers to the structures
-    local struct_id = 0
+    -- assign numbers to the structures; don't use 0.
+    local struct_id = 1
     for i, name in ipairs(keys) do
 	tp = typedefs[name2id[name]]
 	tp.struct_id = struct_id
@@ -636,22 +634,24 @@ function output_structs(ofname)
 
     -- struct_list
 
-    local struct_count = 0
+    -- 0 is the undefined structure; therefore start with 1.
+--    local struct_count = 1
 
-    ofile:write("const struct struct_info struct_list[] = {\n")
+    ofile:write("const struct struct_info struct_list[] = {\n"
+	.. " { 0, 0, 0 }, /* placeholder for undefined structures */\n")
     for i, name in ipairs(keys) do
 	tp = typedefs[name2id[name]]
 	st = tp.struct or { elem_start=tp.elem_start, size=0 }
 	ofile:write(string.format(" { %d, %d, %d }, /* %s */\n",
 	    tp.name_ofs, st.elem_start, (st.size or 0)/8, name))
-	struct_count = struct_count + 1
+--	struct_count = struct_count + 1
     end
 
     -- Last entry to calculate the elem count of the real last entry.  This one
     -- isn't being counted in the struct_count.
     ofile:write(string.format(" { %d, %d, %d }\n};\n",
 	0, elem_start, 0))
-    ofile:write("const int struct_count = " .. struct_count .. ";\n\n")
+    ofile:write("const int struct_count = " .. max_struct_id .. ";\n\n")
 
     -- string table
     ofile:write("const char struct_strings[] = \n");
@@ -842,8 +842,7 @@ function output_types(ofname)
     local ofile, ffitype, type_code
 
     ofile = io.open(ofname, "w")
-    ofile:write("#include \"luagtk.h\"\n\n"
-	.. "struct ffi_type_map_t ffi_type_map[] = {\n"
+    ofile:write("struct ffi_type_map_t ffi_type_map[] = {\n"
 	.. "  { \"INVALID\", 0, NULL, 0 },\n")
 
     for i, v in ipairs(fundamental_ifo) do
