@@ -11,11 +11,11 @@ function on_quit1_activate()
 end
 
 function main()
-    local tree, widgets, file
+    local tree, widgets, fname
 
     gtk.init()
-    file = string.gsub(arg[0], ".lua", ".glade")
-    tree = gtk.glade.read(file)
+    fname = arg[1] or string.gsub(arg[0], ".lua", ".glade")
+    tree = gtk.glade.read(fname)
     widgets = gtk.glade.create(tree, "window1")
     gtk.main()
 end
