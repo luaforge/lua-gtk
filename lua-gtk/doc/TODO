@@ -2,22 +2,22 @@
 TODO
 ----
 
-- fix the build process.  It is a mess, not portable enough.  waf?  autofoo?
+- ENUM/FLAGS:
+  - SUB operation on flags - set and clear the bits.
 
-- fix the cairo related errors in script/gen-list.pl
+- parse-xml: override to many...
+
+- struct_nr 0 now means unset; don't use -1 anywhere.
+
+- call tracing should work again.  function to show an arbitrary function's
+  definition (parameter types and so forth)
+
+- fix the build process.  It is a mess, not portable enough.  waf?  autofoo?
 
 - rework the source code for more clarity, better separation into modules,
   comments, refactor large functions.
 
-- rewrite gen-list.pl in Lua, to remove the dependency on Perl.
-
 - save some more space.
-	- src/luagtk.h
-		- struct_info: maybe remove struct_size, see struct_elem
-			Saves about 1 kB
-		- struct name string: remove \000 separators?  Length is
-		  defined by next struct_list entry.  Saves about 450 Byte,
-		  but probably adds some code.
 
 - running Win executables with wine under Linux, and using glade.lua - font
   sizes are insanely large.
@@ -32,4 +32,7 @@ TODO
 
 - try LuaJIT - should speed everything up.  at least check that it works with
   it because in a larger project, somebody might want to use it.
+
+- exporting existing GTk objects to Lua, see
+  http://luaforge.net/forum/forum.php?thread_id=827&forum_id=536
 

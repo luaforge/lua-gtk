@@ -194,3 +194,21 @@ Son Aug 19 20:12:27 CEST 2007
   updated anymore.
 
 
+Fre Okt  5 17:46:13 CEST 2007
+* gen-list.pl rewritten in Lua.  Compiles again, but enum/flags handling
+  is not yet working.
+
+
+Mit Okt 10 18:42:34 CEST 2007
+* enum/flags handling now working somehow
+* most examples working again
+
+
+Fre Okt 12 00:27:04 CEST 2007
+* all examples working again, including pixmap, weather forecast and cms-admin.
+* force GtkFileChooserWidget to be available.
+* improvement to lib/glade.lua - correct handling of can_default/has_default
+* extensive refactoring and code cleanup
+* complete CVS commit
+
+
