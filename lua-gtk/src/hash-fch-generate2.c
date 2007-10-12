@@ -39,6 +39,7 @@
 #include <errno.h>
 #include <malloc.h>
 
+static buf_len = 200;
 
 
 /**
@@ -108,14 +109,13 @@ int build_hash_table(const char *fname, struct my_fch *fch)
     unsigned int data_offset=0, offset_size, hash_value;
     unsigned int *hash_table, *entry;
 
-
     f = fopen(fname, "r");
     if (!f) {
 	fprintf(stderr, "Can't open %s: %s\n", fname, strerror(errno));
 	return 2;
     }
 
-    buf = (char*) malloc(100);
+    buf = (char*) malloc(buf_len);
 
     hash_table = (unsigned int*) malloc(fch->m * sizeof(*hash_table));
     memset(hash_table, 0, fch->m * sizeof(*hash_table));
@@ -123,16 +123,28 @@ int build_hash_table(const char *fname, struct my_fch *fch)
     memset(data_table, 0, fch->m * sizeof(*data_table));
 
     for(;;) {
-	key = fgets(buf, 100, f);
+	key = fgets(buf, buf_len, f);
 	if (!key)
 	    break;
 	line ++;
 
+	// line should contain at least a newline!
 	len = strlen(key);
-	if (len > 0 && key[len-1] == '\n') {
-	    len --;
-	    key[len] = 0;
+	if (len == 0) {
+	    fprintf(stderr, "Nothing read on line %d\n", line);
+	    break;
 	}
+
+	// should end with "\n", else line was truncated.
+	if (key[len-1] != '\n') {
+	    fprintf(stderr, "Line truncated at line %d.  Please increase "
+		"the buffer size (currently %d)\n", line, buf_len);
+	    return 1;
+	}
+
+	// chop off the newline
+	len --;
+	key[len] = 0;
 
 	/* split into key and data part */
 	data = strchr(key, ',');
