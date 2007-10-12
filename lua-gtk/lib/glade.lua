@@ -1,7 +1,7 @@
 -- vim:sw=4:sts=4
 --
--- Read and interpret Glade-2 XML files to construct widgets automatically, and
--- autoconnect the signals.
+-- Read and interpret Glade-2/3 XML files to construct widgets automatically,
+-- and autoconnect the signals.
 --
 -- Interface functions:
 --
@@ -441,10 +441,13 @@ end
 --
 -- Given a subtree of the Glade tree, create all widgets in it.
 --
--- It returns the created widget, and inserts all created widgets into
--- the table "widgets".
+-- @param widgets  List of widgets (all of them)
+-- @param el       child_info
+-- @param parent   (optional) add new widgets to this parent
+-- @return         The created widget, and inserts all created widgets into the
+--                 table "widgets".
 --
-function make_widget(widgets, el)
+function make_widget(widgets, el, parent)
     local w, child, ignore_prop
 
     -- special handler?
@@ -461,6 +464,16 @@ function make_widget(widgets, el)
     -- gtk.luagtk_register_widget(w)
     widgets[el.id] = w
 
+    -- hack -- have to set can_default before has_default.  also, has to be
+    -- added to parent first
+    if parent then
+	parent:add_glade(w, el)
+    end
+
+    if el.p.can_default ~= nil then
+	w:set_property("can_default", el.p.can_default)
+    end
+
     -- set all properties except for some.
     for k, v in pairs(el.p) do
 	if k ~= "visible" and not ignore_prop[k] then
@@ -475,8 +488,8 @@ function make_widget(widgets, el)
     -- create children, if any, and add them to this widget
     if el.children then
 	for i, child_info in pairs(el.children) do
-	    child = make_widget(widgets, child_info)
-	    w:add_glade(child, child_info)
+	    child = make_widget(widgets, child_info, w)
+	    -- w:add_glade(child, child_info)
 	end
     end
 
@@ -516,7 +529,7 @@ function create(tree, path)
     -- Disable output buffering for stdout; else, on SEGV, not all output
     -- is displayed.
     base.io.stdout:setvbuf("no")
-    make_widget(widgets, w)
+    make_widget(widgets, w, nil)
     return widgets
 end
 
