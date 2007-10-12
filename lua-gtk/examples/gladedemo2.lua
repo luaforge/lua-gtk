@@ -30,7 +30,7 @@ end
 function main()
     local tree, file
 
-    gtk.init(nil, nil)
+    gtk.init()
     file = string.gsub(arg[0], ".lua", ".glade")
     tree = gtk.glade.read(file)
     widgets = gtk.glade.create(tree, "window1")

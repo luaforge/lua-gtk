@@ -9,5 +9,5 @@ require "gtk"
 
 -- print("gtk is", gtk)
 -- table.foreach(gtk, function(k,v) print(k,v) end)
-gtk.init(nil, nil)
+gtk.init()
 

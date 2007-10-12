@@ -51,6 +51,6 @@ function MainWin.new()
 end
    
 -- main --
-gtk.init(nil, nil)
+gtk.init()
 mw = MainWin.new()
 gtk.main()

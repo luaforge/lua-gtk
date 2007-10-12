@@ -86,7 +86,7 @@ end
 
 -- main --
 require "gtk"
-gtk.init(nil, nil)
+gtk.init()
 mainwin = Mainwin.new()
 print(gtk.widgets)
 gtk.main()

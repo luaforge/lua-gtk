@@ -4,7 +4,7 @@
 
 require "gtk"
 
-gtk.init(nil, nil)
+gtk.init()
 
 -- Does this leak memory?  Apparently not.  Don't try this with window_new(),
 -- as this is a special case (see documentation for GtkObject)

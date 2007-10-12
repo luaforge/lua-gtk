@@ -78,7 +78,7 @@ function CALC.new()
     local c = { stack={} }
     setmetatable(c, CALC)
 
-    c.win = gtk.window_new(0)
+    c.win = gtk.window_new(gtk.GTK_WINDOW_TOPLEVEL)
     c.win:connect('destroy', function() gtk.main_quit() end)
     c.win:set_title('Calculator')
 
@@ -121,7 +121,7 @@ function CALC.new()
     return c
 end
 
-gtk.init(nil, nil)
+gtk.init()
 local calc = CALC.new()
 gtk.main()
 

@@ -72,7 +72,7 @@ end
 --
 function build_gui()
 
-    local w = gtk.window_new(0)
+    local w = gtk.window_new(gtk.GTK_WINDOW_TOPLEVEL)
     w:set_title "HTTP Demo"
     w:connect('destroy', function() gtk.main_quit() end)
 
