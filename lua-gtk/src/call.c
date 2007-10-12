@@ -3,6 +3,11 @@
  * Copyright (C) 2005, 2007 Wolfgang Oertl
  *
  * This module contains the routines that call Gtk functions from Lua.
+ *
+ * Exported functions:
+ *   luagtk_call
+ *   call_info_alloc_item
+ *   call_info_warn
  */
 
 #include "luagtk.h"
@@ -119,7 +124,7 @@ static void call_info_free_pool()
 void call_info_warn(struct call_info *ci)
 {
     if (!ci->warnings)
-	_call_trace(ci->L, ci->fi, ci->index);
+	luagtk_call_trace(ci->L, ci->fi, ci->index);
     ci->warnings = 1;
 }
 
@@ -139,7 +144,7 @@ static inline void get_next_argument(const unsigned char **p, int *type_nr,
 	*struct_nr = * (unsigned short*) s;
 	s += 2;
     } else {
-	*struct_nr = -1;
+	*struct_nr = 0;
     }
 
     *p = s;
@@ -178,8 +183,6 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 
 	/* the first "argument" is actually the return value */
 	if (arg_nr == 0) {
-	    // ci->ret_type = ar.arg_type;
-	    // ci->ret_struct_nr = ar.arg_struct_nr;
 	    ci->argtypes[arg_nr] = ar.arg_type->type;
 	    continue;
 	}
@@ -296,7 +299,7 @@ static int _call_return_values(lua_State *L, struct call_info *ci)
  *
  * Stack: parameters starting at "index".
  */
-int do_call(lua_State *L, struct func_info *fi, int index)
+int luagtk_call(lua_State *L, struct func_info *fi, int index)
 {
     struct call_info *ci;
     ffi_cif cif;

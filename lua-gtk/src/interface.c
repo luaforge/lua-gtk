@@ -2,6 +2,9 @@
  * Lua Gtk2 binding.
  * This file contains most of the user-visible functions in the gtk table.
  * Copyright (C) 2007 Wolfgang Oertl
+ *
+ * Exported functions:
+ *   none (only gtk_methods)
  */
 
 #include "luagtk.h"
@@ -64,7 +67,7 @@ static int l_call(lua_State *L)
     struct func_info fi;
 
     if (find_func(func_name, &fi)) {
-	return do_call(L, &fi, 2);
+	return luagtk_call(L, &fi, 2);
     }
 
     printf("%s l_call: function %s not found.\n", msgprefix, func_name);
@@ -289,7 +292,7 @@ static int l_get_refcount(lua_State *L)
     if (lua_isnil(L, 3))
 	return 1;
 
-    lua_pushinteger(L, get_widget_refcount(w));
+    lua_pushinteger(L, luagtk_get_widget_refcount(w));
     return 1;
 }
 
@@ -305,8 +308,8 @@ static int l_gtk_tree_model_get_value(lua_State *L)
     GValue gvalue = { 0 };
 
     gtk_tree_model_get_value(model->p, iter->p, column, &gvalue);
-    push_a_value(L, gvalue.g_type,
-	(union gtk_arg_types*) &gvalue.data, NULL, 0);
+    luagtk_push_value(L, gvalue.g_type, (union gtk_arg_types*) &gvalue.data,
+	NULL, 0);
     return 1;
 }
 

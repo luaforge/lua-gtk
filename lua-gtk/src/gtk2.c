@@ -4,10 +4,20 @@
  * Copyright (C) 2005, 2007 Wolfgang Oertl
  * Use this software under the terms of the GPLv2.
  *
+ * Library initialization, and a few basic routines which could as well
+ * be in widget.c.
+ *
  * Revision history:
  *  2005-07-24	first public release
  *  2005-08-18	update for Lua 5.1-work6
- *  2007-02-02	no global Lua state; use luaL_ref
+ *  2007-02-02	(almost) no global Lua state; use luaL_ref
+ *  2007-10-12	improved modularization of the code; ENUM typechecking
+ *
+ * Exported functions:
+ *  luagtk_index
+ *  luagtk_newindex
+ *  luagtk_push_value
+ *  luaopen_gtk
  */
 
 #include "luagtk.h"
@@ -26,6 +36,7 @@ extern const luaL_reg gtk_methods[];
 extern char override_data[];
 extern int override_size;
 
+
 /**
  * A parameter for a callback must be pushed onto the stack.  The type to
  * use depends on the "type" (from the g_signal_query results).  A value
@@ -34,12 +45,12 @@ extern int override_size;
  * signal_name: to find overrides.
  * arg_nr: the argument number for thet signal.  It is used to find overrides.
  */
-void push_a_value(lua_State *L, GType type, union gtk_arg_types *data,
+void luagtk_push_value(lua_State *L, GType type, union gtk_arg_types *data,
     const char *signal_name, int arg_nr)
 {
 
     if (!data) {
-	printf("push_a_value called with NULL data.\n");
+	printf("luagtk_push_value called with NULL data.\n");
 	lua_pushnil(L);
 	return;
     }
@@ -144,7 +155,7 @@ static int l_call_func(lua_State *L)
 {
     struct meta_entry *me = (struct meta_entry*) lua_topointer(L,
 	lua_upvalueindex(1));
-    return do_call(L, &me->fi, 1);
+    return luagtk_call(L, &me->fi, 1);
 }
 
 /**
@@ -252,7 +263,7 @@ static int handle_write_entry(lua_State *L, int index)
  * Return value: 0=nothing found, 1=found a value
  * Output stack: last element is the value, if found.
  */
-int gtk_index(lua_State *L)
+int luagtk_index(lua_State *L)
 {
     int rc;
 
@@ -283,7 +294,7 @@ int gtk_index(lua_State *L)
  *
  * Input stack: 1=widget, 2=key, 3=value
  */
-int gtk_newindex(lua_State *L)
+int luagtk_newindex(lua_State *L)
 {
     /* check parameters */
     if (lua_gettop(L) != 3) {
@@ -342,6 +353,39 @@ int gtk_newindex(lua_State *L)
     return 0;
 }
 
+
+/**
+ * Given the address as lightuserdata of a widget, make a Lua widget object.
+ * This handles a lookup in gtk.widgets.  If the widget wasn't found,
+ * then create it and insert it into this table.
+ *
+ * Parameters: table, *w
+ */
+static int l_getwidget(lua_State *L)
+{
+    GtkWidget *widget = NULL;
+
+    if (lua_islightuserdata(L, 2)) {
+	widget = lua_touserdata(L, 2);
+
+	get_widget(L, (GObject*) widget, 0, 0);
+	if (lua_isnil(L, -1))
+	    return 0;
+
+	lua_pushvalue(L, -1);			// gtk *w w w
+	lua_insert(L, 2);			// gtk w *w w
+	lua_rawset(L, 1);			// gtk w
+	return 1;
+    }
+
+    printf("l_getwidget called with a param of type %d\n",
+	lua_type(L, 2));
+    return 0;
+}
+
+
+
+
 /**
  * Initialize the library, returns a table.  Note that the table is also stored
  * as the global "gtk", because within this library the global table is
@@ -349,7 +393,7 @@ int gtk_newindex(lua_State *L)
  */
 int luaopen_gtk(lua_State *L)
 {
-    if (!dl_init())
+    if (!luagtk_dl_init())
 	return 0;
 
     /* make the table to return, and make it global as "gtk" */
