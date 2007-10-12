@@ -147,6 +147,30 @@ static int l_call_func(lua_State *L)
     return do_call(L, &me->fi, 1);
 }
 
+/**
+ * Given a pointer to a structure and the description of the desired element,
+ * push a value onto the Lua stack with this item.
+ *
+ * Returns the number of pushed items, i.e. 1 on success, 0 on failure.
+ */
+static int _push_attribute(lua_State *L, const struct struct_info *si,
+    const struct struct_elem *se, unsigned char *ptr)
+{
+    const struct ffi_type_map_t *arg_type;
+
+    /*
+    printf("attribute %s(%d).%s\n", STRUCT_NAME(si), si - struct_list,
+	STRUCT_NAME(se));
+    */
+
+    arg_type = &ffi_type_map[se->ffi_type_id];
+    if (arg_type->struct2lua)
+	return arg_type->struct2lua(L, se, ptr);
+
+    luaL_error(L, "%s unhandled attribute type %s (%s.%s)\n",
+	msgprefix, arg_type->name, STRUCT_NAME(si), STRUCT_NAME(se));
+    return 0;
+}
 
 /**
  * A meta entry is on the top of the stack; use it to retrieve the method
@@ -163,7 +187,7 @@ static int handle_meta_entry(lua_State *L)
     /* For functions, set up a c closure with one upvalue, which is the pointer
      * to the meta entry. */
     const struct meta_entry *me = lua_topointer(L, -1);
-    if (me->type == 0) {
+    if (me->struct_nr == 0) {
 	lua_pushlightuserdata(L, (void*) me);
 	lua_pushcclosure(L, l_call_func, 1);
 	return 1;
@@ -171,8 +195,28 @@ static int handle_meta_entry(lua_State *L)
 
     /* otherwise, handle attribute access */
     struct widget *w = (struct widget*) lua_topointer(L, 1);
-    return _push_attribute(L, me->se, w->p);
+    return _push_attribute(L, struct_list + me->struct_nr, me->se, w->p);
 }
+
+/**
+ * Write an attribute (only numeric so far), i.e. a field of a Gtk structure.
+ *
+ * index: the Lua stack index where the data is to be found.
+ */
+static int _write_attribute(lua_State *L, const struct struct_elem *se,
+    unsigned char *ptr, int index)
+{
+    const struct ffi_type_map_t *arg_type;
+
+    arg_type = &ffi_type_map[se->ffi_type_id];
+    if (arg_type->lua2struct)
+	return arg_type->lua2struct(L, se, ptr, index);
+
+    printf("%s unhandled attribute write of type %s (attribute %s)\n",
+	msgprefix, arg_type->name, STRUCT_NAME(se));
+    return 0;
+}
+
 
 
 /**
@@ -185,7 +229,7 @@ static int handle_write_entry(lua_State *L, int index)
     const struct meta_entry *me = lua_topointer(L, -1);
     struct widget *w;
 
-    if (me->type == 0) {
+    if (me->struct_nr == 0) {
 	printf("%s overwriting method %s not supported.\n", msgprefix,
 	    "(unknown)");
 	return 0;
