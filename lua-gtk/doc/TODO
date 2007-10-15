@@ -9,15 +9,17 @@ TODO
 
 - struct_nr 0 now means unset; don't use -1 anywhere.
 
-- call tracing should work again.  function to show an arbitrary function's
-  definition (parameter types and so forth)
+- 64 bit port:
+	- working examples: gladedemo gladedemo2 iconview toolbar tree window notebook
+	  button combobox memory loadlib calculator
+	- working tests: 001 002 003
+	- pixmap segfaults
+	- request: luasocket not installed
+
+- call tracing should show the actual values of the arguments; would require
+  a new callback for each parameter type, some kind of tostring.
 
 - fix the build process.  It is a mess, not portable enough.  waf?  autofoo?
-
-- rework the source code for more clarity, better separation into modules,
-  comments, refactor large functions.
-
-- save some more space.
 
 - running Win executables with wine under Linux, and using glade.lua - font
   sizes are insanely large.

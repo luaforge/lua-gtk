@@ -8,18 +8,42 @@ as packages.  Prerequisites:
 
   - Gtk2 (tested with 2.6.8, 2.8.16, 2.10.13) with devel files
   - libffi
-  - lua5
+  - lua5.1, liblua-bit, liblua5.1-expat
   - cmph (optional, at http://sf.net/projects/cmph)
+  - gccxml
   - gcc, binutils, make, ...
+  - lua sockets - required for the http/ftp etc. library
 
-Package names:
+Package names in Debian:
 
 	libgtk2.0-dev
 	libffi4-dev
 	liblua5.1-0-dev
+	liblua5.1-expat0
+	liblua5.1-socket-dev
+	gccxml
+	gcc
+	make
 
 
-Prodecure:
+About the optional cmph library
+-------------------------------
+
+  This library can compute a minimal perfect hash function, which means that
+for a given set of keys, each key is mapped to an integer in the range 0 to
+n-1, n being the number of keys.  There are no hash collisions and no unused
+slots.
+
+  At runtime, cmph is not required.
+
+  If this library is not available at build time, a simple hash method is used
+instead.  There is probably little runtime difference, both size and speed
+wise, although I suppose the cmph generated hash will be faster.
+
+
+
+Procedure
+---------
 
  - edit Makefile.linux to suit your installation.  This is NOT an autoconf
    generated file.  Not many options are useful to change.
