@@ -25,7 +25,7 @@
  * Returns: a value to return to Gtk.
  */
 static int _callback(void *widget, struct callback_info *cbi, int arg_cnt,
-    int *args)
+    long int *args)
 {
     int i, n, val, return_count, stack_top, extra_args=0;
     lua_State *L = cbi->L;
@@ -114,19 +114,19 @@ static int _callback_0(void *widget, struct callback_info *cbi)
     return _callback(widget, cbi, 0, NULL);
 }
 
-static int _callback_1(void *widget, int data0, struct callback_info *cbi)
+static int _callback_1(void *widget, long int data0, struct callback_info *cbi)
 {
     return _callback(widget, cbi, 1, &data0);
 }
 
-static int _callback_2(void *widget, int data0, int data1,
+static int _callback_2(void *widget, long int data0, long int data1,
     struct callback_info *cbi)
 {
     return _callback(widget, cbi, 2, &data0);
 }
 
-static int _callback_3(void *widget, int data0, int data1, int data2,
-    struct callback_info *cbi)
+static int _callback_3(void *widget, long int data0, long int data1,
+    long int data2, struct callback_info *cbi)
 {
     return _callback(widget, cbi, 3, &data0);
 }
