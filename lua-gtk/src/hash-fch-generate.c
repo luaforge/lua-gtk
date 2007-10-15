@@ -45,7 +45,7 @@ static int buf_len = 200;
  * Required fields:
  *  h1, h2, m, b, p1, p2, g
  */
-void fch_dump(cmph_t *mphf, const char *prefix)
+static void fch_dump(cmph_t *mphf, const char *prefix)
 {
     if (mphf->algo != CMPH_FCH) {
 	fprintf(stderr, "Error: only the FCH algorithm is supported.\n");
