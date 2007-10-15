@@ -10,8 +10,8 @@
  */
 
 struct my_hash_state {
-	int hashfunc;		/* only the jenkins func supported = nr 2 */
-	int seed;		/* as read from data file */
+	int hashfunc;		/* all cmph hash functions are supported */
+	int seed;		/* as read from data file - only for jenkins */
 };
 
 struct my_fch {
@@ -43,12 +43,9 @@ struct hash_info {
 
 
 /* in hash-fch.c */
-unsigned int my_fch_hash(const struct my_fch *fch, const char *key, int keylen,
-    unsigned int *hash_value);
-const unsigned char *hash_search(const struct hash_info *hi, const char *key,
-    int keylen, int *datalen);
+unsigned int my_fch_hash(const struct my_fch *fch, const char *key,
+    int keylen, unsigned int *hash_value);
+const unsigned char *hash_search(const struct hash_info *hi,
+    const char *key, int keylen, int *datalen);
 
-/* in hash-jenkins.c */
-unsigned int hash_jenkins(const char *key, unsigned int keylen,
-    unsigned int seed);
 
