@@ -189,4 +189,6 @@ ${ODIR}debug.o: src/luagtk.h src/link.h
 ${ODIR}gvalue.o: src/luagtk.h src/link.h
 ${ODIR}types.o: ${ODIR}gtkdata.types.c src/luagtk.h src/link.h
 ${ODIR}hash-fch-generate.o: src/hash-fch.h
+${ODIR}hash-fch.o: src/hash-jenkins.c
+
 
