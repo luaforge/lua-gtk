@@ -2,10 +2,12 @@
 
 # --- begin platform configuration ---
 PLATFORM:=LINUX
-EXTRALIB:=/usr/lib/libffi.a
+EXTRALIB:=/usr/lib/libffi_pic.a
 
 # if you don't have cmph (http://sf.net/projects/cmph/), just comment this out.
 CMPHDIR	:=/build/cmph-0.6/src
+CMPHBIN	:=cmph
+CMPHLIB	:=-lcmph
 
 # Installation into these directories.
 INDIR1	:=/usr/local/lib/lua/5.1
