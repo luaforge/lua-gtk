@@ -3,26 +3,29 @@ Usage of hash tables in lua-gtk2
 ================================
 
   This wrapper library has to find the expected parameters for a given Gtk
-function before each call.  This information is not stored anywhere, so it has
-to be included and looked up.  Note that this is being used for ENUM values in
-the same way; just the data part of the entries is different.
+function before each call.  This information is not available from the Gtk
+library at runtime, but it can be determined at compile time and included in
+lua-gtk. Note that this is being used for ENUM values in the same way; just the
+data part of the entries is different.
 
   The simple approach is to have a sorted list of function names followed by
 the parameter information, and apply a binary search.  Unfortunately, this uses
 a lot of space, and the search is relatively expensive.
 
   Instead of such a list, a hash table is built as C data and compiled into the
-program.  If the "cmph" utility is available, then a minimal perfect hash
-function is created.  This maps each input key to a unique bucket number (no
-collisions), and there are no empty buckets.
+program.  If the "cmph" utility (from http://cmph.sourceforge.net/) is
+available, then a minimal perfect hash function is created.  This maps each
+input key to a unique bucket number (no collisions), and there are no empty
+buckets.
 
-  Otherwise, a regular hash function is used, with a certain percentage of
-empty buckets and collisions, i.e. buckets with more than one entry.
+  Otherwise, a less sophisticated hash function is used, with a certain
+percentage of empty buckets and collisions, i.e. buckets with more than one
+entry.
 
   Each entry contains the hash value (to verify a hit or miss), and the data
 associated with the key.  For the function table, this data is the type of
 the return value and of the expected parameters; for ENUMs, the value of the
-ENUM.
+ENUM and the type.
 
   If you can guarantee that only keys that actually exist will be looked up
 in the hash table, it is superfluous to store the hash value, unless it is a
@@ -40,7 +43,8 @@ As each bucket contains exactly one entry, not much information is required.
 	2/4 bytes	offset of the data in the data string
 
 To determine the end of the data value, look at the offset in the following
-bucket.
+bucket.  An offset is stored instead of a pointer, because each pointer would
+need a fixup when this library is loaded dynamically.
 
 
 Layout with full hash values
@@ -99,10 +103,10 @@ sz:   4000, d:  40193, i:   8000, t:  48193, c:   2357 - 0=1071 1=1403 2=935 3=4
  c	Number of collisions
  0=...	Histogram of bucket size: 0 keys, 1 keys etc.
 
-  In this case, the largest buckets are 11 with 6 entries each; 1071 buckets
-are empty.  This is far from an optimal hash, of course.  An optimal hash
-would have 0=0 1=n; this would be nice but I haven't had the time to use such
-an algorithm here - yet.
+  In this case, the largest buckets have 6 entries each, and there are 11 of
+them; 1071 buckets are empty.  This is far from an optimal hash, of course.  An
+optimal hash would have 0=0 1=n; this is what the minimal perfect hash
+functions are about, and as mentioned the cmph library provides just that.
 
   In order to try different sizes of hash tables, use the "-e" and "-i" command
 line parameters.  In this case, generate tries different table sizes and
