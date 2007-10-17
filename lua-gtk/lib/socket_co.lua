@@ -1,6 +1,8 @@
 #! /usr/bin/env lua
 -- vim:sw=4:sts=4
 --
+
+---
 -- Socket communication using coroutines, integrated with the Gtk message loop
 -- to allow background transfers.
 -- Copyright (C) 2007 Wolfgang Oertl
@@ -25,9 +27,13 @@ base.strict()
 -- for creating a new connection
 TIMEOUT = 60
 
+---
+-- A data source for upload which reads from a buffer in memory.
 --
--- The source for upload is a buffer.  Return the string in pieces of the
--- requested size.
+-- @param arg	The usual arg
+-- @param op    The operation, may be open, get-length, or read
+-- @param len	For read, how many bytes to return at most.
+-- @return      For read, the next <code>len</code> bytes; nil at EOF
 --
 function source_buffer(arg, op, len)
     local slice
@@ -53,9 +59,10 @@ function source_buffer(arg, op, len)
     end
 end
 
+---
+-- A data source that reads from a file.
 --
--- The source is a file.
--- XXX the file is read synchronously; it could be otherwise, yielding as
+-- XXX The file is read synchronously; it could be otherwise, yielding as
 -- required.
 --
 function source_file(arg, op, len)
@@ -87,7 +94,7 @@ function source_file(arg, op, len)
     end
 end
 
---
+---
 -- Implements a source that is a chain of multiple subsources.
 --
 -- set arg.source_parts as an array of { source=..., source_data=... }
@@ -141,7 +148,7 @@ end
 
 source = { file = source_file, buffer = source_buffer }
 
---
+---
 -- Connect to the server.
 --
 -- Returns the new GIOChannel and the socket.  Be sure to keep a reference
@@ -174,7 +181,7 @@ function connect(host, port, buffered)
     return create_io_channel(sock, buffered)
 end
 
---
+---
 -- Given a socket, construct a GIOChannel around it.
 --
 function create_io_channel(sock, buffered)
@@ -223,7 +230,7 @@ end
 --]]
 
 
---
+---
 -- Read a line from the server; if no input is available, yield.
 -- Buffering is done internally.
 --
@@ -264,7 +271,7 @@ function receive_line(ioc)
     return rc, msg
 end
 
---
+---
 -- Read some data from the server.  This has to take our own buffering
 -- into account.
 --
@@ -292,7 +299,7 @@ function read_chars(ioc, length)
     return rc, msg
 end
 
---
+---
 -- Read a reply from the server
 -- This is somewhat protocol specific, but works for FTP and HTTP.
 --
@@ -322,8 +329,8 @@ function get_reply(ioc)
 end
 
 
---
--- read a response from the server, and compare with allowed status codes.
+---
+-- Read a response from the server, and compare with allowed status codes.
 -- returns the response if OK, else NIL and an error message
 --
 function check(ioc, ...)
@@ -339,7 +346,7 @@ function check(ioc, ...)
     return nil, reply
 end
 
---
+---
 -- Send a block of data over the given socket.
 --
 function write_chars(ioc, data, do_flush)
@@ -364,7 +371,7 @@ function write_chars(ioc, data, do_flush)
 end
 
 
---
+---
 -- Make sure all the data is actually written to the socket.
 --
 -- NOTE:

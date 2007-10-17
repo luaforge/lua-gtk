@@ -1,6 +1,7 @@
 #! /usr/bin/env lua
 -- vim:sw=4:sts=4
 --
+---
 -- HTTP requests using the socket_co library.
 -- Copyright (C) 2007 Wolfgang Oertl
 --
@@ -18,7 +19,7 @@ base.strict()
 
 PORT = 80
 
---
+---
 -- Given a list of POST variables, produce a string suitable as body for
 -- a POST request.
 --
@@ -39,7 +40,7 @@ function build_post_request(arg)
     return s
 end
 
---
+---
 -- This sink collects the body in a variable.  It is the default, unless
 -- you specify another function like this: request{sink=...}.
 --
@@ -51,7 +52,7 @@ function sink_memory(arg, chunk)
     end
 end
 
---
+---
 -- Write the body to a file.  Each call provides some more data; when
 -- called with NIL, this means the end of input -> close the file.
 --
@@ -70,7 +71,7 @@ function sink_file(arg, chunk)
     arg.ofile:write(chunk)
 end
 
---
+---
 -- Start a request as new coroutine.  No return value is given; instead, set
 -- the callback function in arg and/or a sink function.  See request() for
 -- an explanation.
@@ -90,8 +91,10 @@ function request_co(arg)
 end
 
 
--- prepare parameters
-function _prepare_request_args(arg)
+---
+-- Prepare parameters for a request
+--
+local function _prepare_request_args(arg)
     local rc, msg
 
     arg.headers = arg.headers or {}
@@ -167,9 +170,12 @@ function _progress_function(arg, what, count, total_size)
     if arg.callback then arg:callback("progress", what, count, total_size) end
 end
 
---
+---
 -- Perform a complete HTTP request.  arg specifies all the parameters.
 --
+-- @param arg   A table with all the named parameters as given below.
+--
+-- @usage
 --  host	the host to contact
 --  uri		the URI to use in the GET/... request
 --
@@ -215,7 +221,8 @@ function request(arg)
     return rc, msg
 end
 
---
+
+---
 -- The channel is no longer needed, close it.
 --
 function _shutdown_channel(arg)
@@ -227,7 +234,7 @@ function _shutdown_channel(arg)
     arg.channel_socket = nil
 end
 
---
+---
 -- The connection has been established, now send the request and read the
 -- response.
 --
@@ -279,8 +286,9 @@ function request_2(arg)
     return "http ok"
 end
 
---
+---
 -- Send all the headers for this request in an unspecified order.
+--
 -- The first letter of the header names is converted to uppercase, this is
 -- more beautiful.
 --
@@ -298,7 +306,7 @@ function send_headers(ioc, ar)
     return socket_co.write_chars(ioc, hdr, false)
 end
 
---
+---
 -- Send the request body.
 --
 function send_body(ioc, arg)
@@ -318,6 +326,9 @@ function send_body(ioc, arg)
     return "ok"
 end
 
+---
+-- Read and parse an HTTP response
+--
 function receive_status_line(ioc)
     local rc, msg, _, code
 
@@ -330,7 +341,7 @@ function receive_status_line(ioc)
     return nil, "invalid response"
 end
 
---
+---
 -- Read the response headers.
 --
 function receive_headers(ioc, headers)
@@ -364,7 +375,7 @@ function receive_headers(ioc, headers)
     return headers
 end
 
---
+---
 -- Determine whether we should expect a body
 --
 function expect_body(arg, code)
@@ -373,9 +384,10 @@ function expect_body(arg, code)
 end
 
 
-
--- read data until the server closes the connection.
-function decode_identity(arg)
+--
+-- Read data until the server closes the connection.
+--
+local function decode_identity(arg)
     local length = 0
 
     while true do
@@ -391,9 +403,12 @@ function decode_identity(arg)
 end
 
 --
--- If a length is given, just read that size
+-- A length for the response is given; read up to this number of bytes.
 --
-function decode_length(arg, length)
+-- @param arg     Request structure
+-- @param length  bytes to read
+--
+local function decode_length(arg, length)
     local count, rc, msg = 0
 
     while count < length do
@@ -410,10 +425,11 @@ end
 --
 -- Read one chunk at a time.
 --
--- arg	    the request arg structure
--- param    { length, count }
+-- @param arg	   The request arg structure
+-- @param param    { length, count }
+-- @return         1 on OK, (nil, msg) on error, (nil, nil) on end of input
 --
-function decode_chunked(arg, param)
+local function decode_chunked(arg, param)
     local rc, msg, size, chunk
     local ioc = arg.channel
 
@@ -452,11 +468,14 @@ function decode_chunked(arg, param)
     if not rc then return rc, msg end
 
     arg:sink(chunk)
-    return "ok"
+    return 1
 end
 
+---
+-- Read the whole body, using the appropriate decode function.
 --
--- Read the whole body
+-- @param arg     Request structure
+-- @return        1 or (nil, msg)
 --
 function receive_body(arg)
     local rc, msg, t, length
@@ -475,18 +494,20 @@ function receive_body(arg)
 	if msg then return rc, msg end
 	return 1
     elseif length then
-	-- print "- receiving with fixed length decoder"
 	return decode_length(arg, length)
-    else
-	-- print "- receiving with identity decoder"
-	return decode_identity(arg)
     end
 
+    -- default
+    return decode_identity(arg)
 end
 
---
+---
 -- Given the response of a request, try to identify cookies. 
--- If there are any, they are added to the provided cookie jar (a table).
+--
+-- @param arg    Request arguments
+-- @param jar    A table what will be filled with cookies from the response
+--               headers in arg. key=name, value=value of cookie.
+-- @return       nil
 --
 function get_cookies(arg, jar)
     if not arg.response_headers then return end
