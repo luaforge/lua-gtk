@@ -16,7 +16,12 @@ require "gtk.http_co"
 -- Just one download at a time.  Multiple requests can be running in 
 -- parallel, but my simple GUI is just for one.
 local download_running = 0
-local progress_label
+local result_buf, statusbar, statusbar_ctx
+
+function set_status(s)
+    statusbar:pop(statusbar_ctx)
+    statusbar:push(statusbar_ctx, s)
+end
 
 --
 -- This callback is invoked on each event during the download.
@@ -26,14 +31,17 @@ local progress_label
 -- data1..3: depends on the event.
 --
 function download_callback(arg, ev, data1, data2, data3)
-    print(ev, data1, data2, data3)
+    -- print(ev, data1, data2, data3)
     if ev == 'done' then
 	download_running = 0
-	progress_label:set_text("Done, got " .. #arg.sink_data .. " bytes.")
+	set_status("Done, got " .. #arg.sink_data .. " bytes.")
+	local buf, read, written, err = gtk.g_convert(arg.sink_data,
+	    -1, "utf8", "latin1", nil, nil, nil)
+	result_buf:set_text(buf, #buf)
 	return
     elseif ev == 'error' then
 	download_running = 0
-	progress_label:set_text("Error: " .. data2)
+	set_status("Error: " .. data2)
     end
 end
 
@@ -59,7 +67,7 @@ function start_download(entry)
     if not host then return end
     if path == "" then path = "/" end
 
-    progress_label:set_text("Downloading " .. host .. path)
+    set_status("Downloading " .. host .. path)
 
     download_running = 1
     gtk.http_co.request_co{ host = host, uri = path,
@@ -77,21 +85,29 @@ function build_gui()
     w:connect('destroy', function() gtk.main_quit() end)
 
     local vbox = gtk.vbox_new(false, 10)
-    vbox:set_property('border-width', 10)
+--    vbox:set_property('border-width', 10)
     w:add(vbox)
+
+    local sw = gtk.scrolled_window_new(nil, nil)
+    vbox:pack_start(sw, true, true, 10)
+
+    local txt = gtk.text_view_new()
+    txt:set_property('editable', false)
+    txt:set_property('cursor-visible', false)
+    txt:set_property('wrap-mode', gtk.GTK_WRAP_WORD)
+    sw:add(txt)
+    result_buf = txt:get_buffer()
+
+    local hbox = gtk.hbox_new(false, 10)
+    hbox:set_property('border-width', 10)
+    vbox:pack_start(hbox, false, false, 10)
 
     local entry = gtk.entry_new()
     entry:set_text("www.google.at")
     entry:set_activates_default(true)
-    vbox:add(entry)
-
-    progress_label = gtk.label_new("idle")
-    vbox:add(progress_label)
+    hbox:add(entry)
 
     -- button box with two buttons
-    local hbox = gtk.hbox_new(true, 10)
-    vbox:add(hbox)
-
     local btn = gtk.button_new_with_label("Start")
     btn:connect('clicked', function() start_download(entry) end)
     hbox:add(btn)
@@ -101,6 +117,13 @@ function build_gui()
     btn = gtk.button_new_with_mnemonic("_Quit")
     btn:connect('clicked', function() gtk.main_quit() end)
     hbox:add(btn)
+
+    -- status bar
+    statusbar = gtk.statusbar_new()
+    statusbar:set_has_resize_grip(true)
+    statusbar_ctx = statusbar:get_context_id("progress")
+    statusbar:push(statusbar_ctx, "idle")
+    vbox:pack_start(statusbar, false, false, 0)
 
     w:show_all()
 end
