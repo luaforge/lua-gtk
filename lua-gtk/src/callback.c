@@ -11,53 +11,86 @@
 
 #include "luagtk.h"
 #include <lauxlib.h>	    // luaL_check*, luaL_ref/unref
+#include <stdarg.h>
+
+/**
+ * Handle return values from the Lua handler to pass back to Gtk.
+ *
+ * @param return_type     The GType of the expected return value
+ * @param cbi             callback_info of this signal
+ * @return                An integer to return to Gtk.
+ */
+static int _callback_return_value(lua_State *L, int return_type,
+    struct callback_info *cbi)
+{
+    int val = 0;
+
+    switch (return_type) {
+	case G_TYPE_NONE:
+	    break;
+	case G_TYPE_BOOLEAN:
+	    val = lua_toboolean(L, -1);
+	    break;
+	// XXX handle more return types!
+	default:
+	    printf("%s unhandled callback return type %ld of callback %s\n",
+		msgprefix, (long int) return_type, cbi->query.signal_name);
+    }
+
+    return val;
+}
+
 
 /**
  * Gtk calls a signal handler; find the proper Lua callback, build the
  * parameters, call, and optionally return something to Gtk.
  *
- * Note: this runs in the lua_State that the init function was called with.
+ * This runs in the lua_State that was used to call luagtk_connect with.  No
+ * assumptions can be made about how the parameters for the callback arrive,
+ * i.e. on the stack, or in registers, or some mixture.
  *
- * Note 2: no assumptions can be made about the contents of the stack, as
- *  this is a callback it may be invoked any time (just my guess to be on the
- *  safe side).
+ * Note 2: no assumptions can be made about the contents of the Lua stack, as
+ * this is a callback it may be invoked any time (just my guess to be on the
+ * safe side).  Care is taken not to modify the Lua stack.
  *
- * Returns: a value to return to Gtk.
+ * @param data   a pointer to a struct callback_info
+ * @param ...    Variable arguments, and finally the widget pointer.
+ * @return       A value to return to Gtk.
  */
-static int _callback(void *widget, struct callback_info *cbi, int arg_cnt,
-    long int *args)
+static int _callback(void *data, ...)
 {
-    int i, n, val, return_count, stack_top, extra_args=0;
-    lua_State *L = cbi->L;
+    va_list ap;
+    int i, arg_cnt, return_count, stack_top, extra_args=0;
+    lua_State *L;
 
+    struct callback_info *cbi = (struct callback_info*) data;
+    L = cbi->L;
     stack_top = lua_gettop(L);
 
     /* get the handler function */
     lua_rawgeti(L, LUA_REGISTRYINDEX, cbi->handler_ref);
 
-    /* get the widget - no type hint given; not a new object. */
+    /* push all the signal arguments to the Lua stack */
+    arg_cnt = cbi->query.n_params;
+
+    va_start(ap, data);
+    for (i=0; i<arg_cnt; i++) {
+	GType type = cbi->query.param_types[i] & ~G_SIGNAL_TYPE_STATIC_SCOPE;
+	// XXX might need to differentiate between 4 and 8 byte arguments,
+	// which can be derived from the type.
+	long int val = va_arg(ap, long int);
+	(void) luagtk_push_value(L, type, (char*) &val);
+    }
+
+    /* the widget is the last parameter to this function.  The Lua callback
+     * gets it as the first parameter, though. */
+    void *widget = va_arg(ap, void*);
     get_widget(L, widget, 0, 0);
+    va_end(ap);
 
     if (lua_isnil(L, -1))
 	printf("Warning: _callback couldn't find widget %p\n", widget);
-
-    /* stack: function, widget.  Now add the signal's arguments.  Note that
-     * the implicit first parameter always is the widget itself, this is
-     * not included in query.n_params.
-     */
-    n = cbi->query.n_params;
-    if (n != arg_cnt) {
-	printf("%s callback parameter count doesn't match for %s (%d vs %d).\n",
-	    msgprefix, cbi->query.signal_name, arg_cnt, n);
-	return 0;
-    }
-
-    /* push all the arguments to the Lua stack */
-    for (i=0; i<arg_cnt; i++) {
-	GType type = cbi->query.param_types[i] & ~G_SIGNAL_TYPE_STATIC_SCOPE;
-	luagtk_push_value(L, type, (union gtk_arg_types*) &args[i],
-	    cbi->query.signal_name, i);
-    }
+    lua_insert(L, stack_top + 2);
 
     /* copy all the extra arguments (user provided) to the stack. */
     if (cbi->args_ref) {
@@ -76,70 +109,16 @@ static int _callback(void *widget, struct callback_info *cbi, int arg_cnt,
     return_count = (return_type == G_TYPE_NONE) ? 0 : 1;
 
     /* Call the callback! */
-    lua_call(L, n+extra_args+1, return_count);
+    lua_call(L, arg_cnt+extra_args+1, return_count);
 
     /* Determine the return value (default is zero) */
-    val = 0;
-
-    switch (return_type) {
-	case G_TYPE_NONE:
-	    break;
-	case G_TYPE_BOOLEAN:
-	    val = lua_toboolean(L, -1);
-	    break;
-	// XXX handle more return types!
-	default:
-	    printf("%s unhandled callback return type %ld of callback %s\n",
-		msgprefix, (long int) return_type, cbi->query.signal_name);
-    }
+    int val = _callback_return_value(L, return_type, cbi);
 
     /* make sure the stack is back to the original state */
     lua_settop(L, stack_top);
 
     return val;
 }
-
-
-/**
- * Callbacks with different number of parameters.  This is called directly
- * by Gtk; the _last_ parameter is the "data" that was passed to
- * g_signal_connect.  Unfortunately, _callback needs this last parameter
- * to know how many parameters there are.
- *
- * NOTE: sometimes a return value is expected!  Look at callback info for
- * more information.
- */
-static int _callback_0(void *widget, struct callback_info *cbi)
-{
-    return _callback(widget, cbi, 0, NULL);
-}
-
-static int _callback_1(void *widget, long int data0, struct callback_info *cbi)
-{
-    return _callback(widget, cbi, 1, &data0);
-}
-
-static int _callback_2(void *widget, long int data0, long int data1,
-    struct callback_info *cbi)
-{
-    return _callback(widget, cbi, 2, &data0);
-}
-
-static int _callback_3(void *widget, long int data0, long int data1,
-    long int data2, struct callback_info *cbi)
-{
-    return _callback(widget, cbi, 3, &data0);
-}
-
-static const void (*g_callbacks[]) = {
-    _callback_0,
-    _callback_1,
-    _callback_2,
-    _callback_3
-};
-
-static const int max_callback_args = sizeof(g_callbacks)
-    / sizeof(g_callbacks[0]);
 
 
 /**
@@ -221,14 +200,43 @@ int luagtk_connect(lua_State *L)
 	return 0;
     }
 
+
+    // Find out how many bytes of arguments there are, and how much
+    // space they occupy.
+    /*
+    int n_bytes = 0;
     int n_params = cb_info->query.n_params;
-    if (n_params >= max_callback_args) {
-	printf("%s can't handle callback with %d parameters.\n", msgprefix,
-	    n_params);
-	g_free(cb_info);
-	return 0;
+
+    for (i=0; i<n_params; i++) {
+	GType t = cb_info->query.param_types[i];
+	int sz;
+
+	t = G_TYPE_FUNDAMENTAL(t);
+	printf("fundamental is %d\n", t);
+
+	switch (t) {
+	    case G_TYPE_LONG:
+	    case G_TYPE_ULONG:
+		sz = sizeof(long int);
+		break;
+
+	    case G_TYPE_POINTER:
+	    case G_TYPE_BOXED:
+	    case G_TYPE_OBJECT:
+		sz = sizeof(void*);
+		break;
+
+	    default:
+		sz = sizeof(int);
+	}
+
+	n_bytes += sz;
     }
 
+    printf("signal %s receives %d parameters = %d bytes\n",
+	signame, n_params, n_bytes);
+    cb_info->args_bytes = n_bytes;
+    */
 
     /* stack: widget - signame - func - .... */
 
@@ -256,10 +264,19 @@ int luagtk_connect(lua_State *L)
     /* stack: widget - signame - func - cbinfo */
     lua_settop(L, 2);
 
-    handler_id = g_signal_connect_data(widget, signame,
-	g_callbacks[n_params], cb_info, _free_callback_info, 0);
+    /*
+    printf("connect for widget %p, signal %s to %p with info %p\n",
+	widget, signame, _callback, cb_info);
+    */
 
-    // handler_id = _connect(widget, signame, n_params, cb_info);
+    // verify the readability of this address
+    // int foo = * (int*) widget;
+    // foo = foo + 1;
+
+    handler_id = g_signal_connect_data(widget, signame,
+	(GCallback) _callback, cb_info, _free_callback_info,
+	G_CONNECT_SWAPPED);
+
     lua_pushnumber(L, handler_id);
 
     return 1;
