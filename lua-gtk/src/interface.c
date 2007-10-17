@@ -251,7 +251,7 @@ static int l_gtk_init(lua_State *L)
 static int l_g_object_set_property(lua_State *L)
 {
     struct widget *w = (struct widget*) lua_topointer(L, 1);
-    if (!w || w->refcounting > WIDGET_RC_MAX) {
+    if (!w || w->refcounting >= WIDGET_RC_LAST) {
 	printf("%s invalid object in l_g_object_set_property.\n", msgprefix);
 	return 0;
     }
@@ -308,8 +308,7 @@ static int l_gtk_tree_model_get_value(lua_State *L)
     GValue gvalue = { 0 };
 
     gtk_tree_model_get_value(model->p, iter->p, column, &gvalue);
-    luagtk_push_value(L, gvalue.g_type, (union gtk_arg_types*) &gvalue.data,
-	NULL, 0);
+    luagtk_push_value(L, gvalue.g_type, (void*) &gvalue.data);
     return 1;
 }
 
