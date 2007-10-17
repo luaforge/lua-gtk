@@ -830,6 +830,22 @@ function fundamental_to_ffi(ft)
     return nil
 end
 
+local _type_names = {}
+local _type_name_offset = 0
+
+function _type_name_add(s)
+    local ofs = _type_name_offset
+    _type_name_offset = ofs + string.len(s) + 1	    -- +1 because of NUL byte
+    table.insert(_type_names, '"' .. s .. '\\0"')
+    return ofs
+end
+
+function _type_names_flush(ofile)
+    s = "const char ffi_type_names[] = \n"
+	.. table.concat(_type_names, "\n")
+	.. ";\n\n";
+    ofile:write(s)
+end
 
 ---
 -- Write the list of fundamental types to an output file, which can be compiled
@@ -839,29 +855,35 @@ end
 --  it exists.
 --
 function output_types(ofname)
-    local ofile, ffitype, type_code
+    local ofile, ffitype, type_code, ofs
 
     ofile = io.open(ofname, "w")
-    ofile:write("struct ffi_type_map_t ffi_type_map[] = {\n"
-	.. "  { \"INVALID\", 0, NULL, 0 },\n")
+    ofs = _type_name_add("INVALID")
+    ofile:write(string.format("struct ffi_type_map_t ffi_type_map[] = {\n"
+	.. "  { %d, 0, 0, 0, NULL},\n", ofs))
 
     for i, v in ipairs(fundamental_ifo) do
 	ffitype = fundamental_to_ffi(v) or { nil, 0, nil, nil, nil, nil }
 
-	ofile:write(string.format("  { \"%s\", %d, %s, %d, %d, %s, %s, %s, %s },\n",
-		v.name,
-		v.pointer,
-		ffitype[1] and "&ffi_type_" .. ffitype[1] or "NULL",
-		ffitype[2], -- flags
-		v.bit_len or 0,  -- bit_len
-		ffitype[3] and "lua2ffi_" .. ffitype[3] or "NULL",
-		ffitype[4] and "ffi2lua_" .. ffitype[4] or "NULL",
-		ffitype[5] and "lua2struct_" .. ffitype[5] or "NULL",
-		ffitype[6] and "struct2lua_" .. ffitype[6] or "NULL"
-		))
+	ofs = _type_name_add(v.name)
+	ofile:write(string.format("  { %d, %d, %d, %d, %s, %s, %s, %s, %s },\n",
+	    ofs,		-- name_ofs
+	    v.bit_len or 0,	-- bit_len
+	    v.pointer,		-- indirections
+	    ffitype[2],		-- flags
+	    ffitype[1] and "&ffi_type_" .. ffitype[1] or "NULL",
+	    ffitype[3] and "lua2ffi_" .. ffitype[3] or "NULL",
+	    ffitype[4] and "ffi2lua_" .. ffitype[4] or "NULL",
+	    ffitype[5] and "lua2struct_" .. ffitype[5] or "NULL",
+	    ffitype[6] and "struct2lua_" .. ffitype[6] or "NULL"
+	))
     end
 
-    ofile:write("};\n")
+    -- number of entries; +1 because of the first INVALID which is not
+    -- in the fundamental_ifo table.
+    ofile:write(string.format("};\nconst int ffi_type_count = %d;\n",
+	#fundamental_ifo + 1))
+    _type_names_flush(ofile)
     ofile:close()
 end
 
