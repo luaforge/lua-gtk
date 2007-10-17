@@ -4,7 +4,9 @@
  * into a compileable C file.  When compiled, it exports one symbol,
  * which is hash_info_{prefix}.
  *
- * This only works for the FCH algorithm of cmph.
+ * It uses the CMPH library available at http://cmph.sourceforge.net/ by
+ * Davi de Castro Reis and Fabiano Cupertino Botelho.  Only the FCH
+ * algorithm is supported.
  *
  * Given the generated (and compiled) FCH function, read the list of keys
  * the associated value, and write the hash table.  Each bucket contains
@@ -25,14 +27,15 @@
  *  - write an index table with one offset per bucket
  *
  * Copyright (C) 2007 Wolfgang Oertl
+ * This program is free software and can be used under the terms of the
+ * GNU Lesser General Public License version 2.1.  You can find the
+ * full text of this license here:
+ *
+ * http://opensource.org/licenses/lgpl-license.php.
  */
 
 #include "cmph_structs.h"   // cmph_t definition
 #include "fch_structs.h"    // jenkins_state_t, __fch_data_t
-
-#define INLINE
-#include "hash-fch.h"	    // hash_$(HASHFCH)
-
 #include <string.h>	    // strlen, strchr, strdup, memset
 #include <errno.h>	    // errno
 
@@ -47,32 +50,32 @@ static int buf_len = 200;
  */
 static void fch_dump(cmph_t *mphf, const char *prefix)
 {
-    if (mphf->algo != CMPH_FCH) {
-	fprintf(stderr, "Error: only the FCH algorithm is supported.\n");
-	return;
-    }
-
     struct __fch_data_t *f = (struct __fch_data_t*) mphf->data;
     jenkins_state_t *js;
     int i, g_size, cnt=0;
     unsigned int maxval = 0;
 
-    /* analyze the "g" table to find the maximum value. */
 
+    if (mphf->algo != CMPH_FCH) {
+	fprintf(stderr, "Error: only the FCH algorithm is supported.\n");
+	return;
+    }
+
+    /* analyze the "g" table to find the maximum value. */
     for (i=0; i<f->b; i++)
 	if (maxval < f->g[i])
 	    maxval = f->g[i];
     g_size = maxval < 65536 ? 16 : 32;
-	
+
     printf("/* max. value in g is %d */\n", maxval);
 
-    printf("#include \"hash-fch.h\"\n");
+    printf("#include \"hash-fch.h\"\n\n");
     printf("static const struct my_fch _%s_fch = {\n", prefix);
     printf("  m: %d,\n", f->m);
     printf("  b: %d,\n", f->b);
     printf("  g_size: %d,\n", g_size);
-    printf("  p1: %f,\n", f->p1);
-    printf("  p2: %f,\n", f->p2);
+    printf("  p1: %u,\n", (unsigned int) f->p1);
+    printf("  p2: %u,\n", (unsigned int) f->p2);
     js = (jenkins_state_t*) f->h1;
     printf("  h1: { %d, %d },\n", js->hashfunc, js->seed);
     js = (jenkins_state_t*) f->h2;
@@ -152,7 +155,8 @@ void print_hash_entry(unsigned int hash_value, unsigned int data_offset,
 	data_offset >>= 8;
     }
 
-    if (cnt > 20) {
+    // add line breaks to make it prettier
+    if (cnt > 16) {
 	printf("\"\n \"");
 	cnt = 0;
     }
@@ -238,7 +242,8 @@ int build_hash_table(cmph_t *mphf, const char *fname, const char *prefix)
 	    return 1;
 	}
 
-	// which must be empty.
+	// The bucket must be empty - that's the point about the perfect hash
+	// function.
 	entry = hash_table + bucket_nr;
 	if (*entry) {
 	    fprintf(stderr, "Collision at %d\n", bucket_nr);
@@ -267,9 +272,9 @@ int build_hash_table(cmph_t *mphf, const char *fname, const char *prefix)
     }
     printf(";\n\n");
 
-    /* output the hash table */
+    /* output the index table (i.e. the buckets) */
     offset_size = (data_offset < 65536) ? 2 : 4;
-    printf("static const unsigned char _%s_hash[] = \n \"", prefix);
+    printf("static const unsigned char _%s_index[] = \n \"", prefix);
 	
     data_offset = 0;
     for (i=0; i<keys; i++) {
@@ -279,15 +284,17 @@ int build_hash_table(cmph_t *mphf, const char *fname, const char *prefix)
     }
 
     // Sentry so that the data size calculation will work for the last bucket.
-    print_hash_entry(0, data_offset, offset_size);
+    // Because the offset is always read as integer (4 bytes) from memory,
+    // make sure the last entry has a 4 byte offset.
+    print_hash_entry(0, data_offset, 4);
     printf("\";\n\n");
 
     // Output the master structure.
     printf(
 	"const struct hash_info hash_info_%s = {\n"
 	"  hash_func: &_%s_fch,\n"
-	"  data_table: _%s_data,\n"
-	"  hash_table: _%s_hash,\n"
+	"  index: _%s_index,\n"
+	"  data: _%s_data,\n"
 	"  offset_size: %d,\n"
 	"};\n", prefix, prefix, prefix, prefix, offset_size);
 
