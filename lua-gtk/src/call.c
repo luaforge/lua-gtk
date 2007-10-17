@@ -190,7 +190,7 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 	if (index+arg_nr > stack_top) {
 	    // if the current (probably last) argument is vararg, this is OK,
 	    // because a vararg doesn't need any extra arguments.
-	    if (strcmp(ar.arg_type->name, "vararg")) {
+	    if (strcmp(LUAGTK_TYPE_NAME(ar.arg_type), "vararg")) {
 		call_info_warn(ci);
 		printf("  Warning: more arguments expected -> nil used\n");
 	    }
@@ -221,7 +221,7 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 	} else {
 	    call_info_warn(ci);
 	    printf("  Argument %d (type %s) not handled\n", arg_nr+1,
-		ar.arg_type->name);
+		LUAGTK_TYPE_NAME(ar.arg_type));
 	    ci->ffi_args[arg_nr].l = 0;
 	}
     }
@@ -256,6 +256,7 @@ static int _call_return_values(lua_State *L, struct call_info *ci)
     ffi2lua_t func;
 
     ar.L = L;
+    ar.ci = ci;
 
     /* Return the return value and output arguments.  This requires another
      * pass at parsing the argument spec.
@@ -283,7 +284,7 @@ static int _call_return_values(lua_State *L, struct call_info *ci)
 	    // all direct return values must be handled.
 	    call_info_warn(ci);
 	    luaL_error(L, "%s unhandled return type %s\n",
-		msgprefix, arg_type->name);
+		msgprefix, LUAGTK_TYPE_NAME(arg_type));
 	}
     }
 
