@@ -42,17 +42,20 @@ extern int override_size;
  * use depends on the "type" (from the g_signal_query results).  A value
  * is always pushed; in the case of error, NIL.
  *
+ * @param type        GType of the parameter to be pushed
+ * @param data	      pointer to the location of this data
+ * @return            The number of bytes of the type
+ *
+ * Obsolete - overrides for signals.
  * signal_name: to find overrides.
  * arg_nr: the argument number for thet signal.  It is used to find overrides.
  */
-void luagtk_push_value(lua_State *L, GType type, union gtk_arg_types *data,
-    const char *signal_name, int arg_nr)
+int luagtk_push_value(lua_State *L, GType type, void *data)
 {
-
     if (!data) {
 	printf("luagtk_push_value called with NULL data.\n");
 	lua_pushnil(L);
-	return;
+	return 0;
     }
 
     // see /usr/include/glib-2.0/gobject/gtype.h for type numbers.
@@ -65,45 +68,66 @@ void luagtk_push_value(lua_State *L, GType type, union gtk_arg_types *data,
     if (G_TYPE_IS_FUNDAMENTAL(type)) {
 	switch (G_TYPE_FUNDAMENTAL(type)) {
 	    case G_TYPE_BOOLEAN:
-		lua_pushboolean(L, data->l);
-		break;
+		lua_pushboolean(L, * (int*) data);
+		return sizeof(int);
+
 	    case G_TYPE_INT:
+		lua_pushnumber(L, * (int*) data);
+		return sizeof(int);
+
 	    case G_TYPE_LONG:
+		lua_pushnumber(L, * (long int*) data);
+		return sizeof(long int);
+
 	    case G_TYPE_INT64:
+		lua_pushnumber(L, * (gint64*) data);
+		return sizeof(gint64);
+
+	    // XXX might be possible to find out which ENUM it is?
 	    case G_TYPE_ENUM:
-		lua_pushnumber(L, data->l);
-		break;
+		lua_pushnumber(L, * (int*) data);
+		return sizeof(int);
+
 	    case G_TYPE_UINT:
+		lua_pushnumber(L, * (unsigned int*) data);
+		return sizeof(unsigned int);
+
 	    case G_TYPE_ULONG:
+		lua_pushnumber(L, * (unsigned long int*) data);
+		return sizeof(unsigned long int);
+
 	    case G_TYPE_UINT64:
-		lua_pushnumber(L, (unsigned long) data->l);
-		break;
+		lua_pushnumber(L, * (guint64*) data);
+		return sizeof(guint64);
+
 	    case G_TYPE_FLOAT:
-		lua_pushnumber(L, data->f);
-		break;
+		lua_pushnumber(L, * (float*) data);
+		return sizeof(float);
+
 	    case G_TYPE_DOUBLE:
-		lua_pushnumber(L, data->d);
-		break;
+		lua_pushnumber(L, * (double*) data);
+		return sizeof(double);
+
 	    case G_TYPE_POINTER:
 		// Some opaque structure.  This is very seldom and it is
 		// not useful to try to override it.  There's a reason for
 		// parameters being opaque...
-		lua_pushlightuserdata(L, data->p);
+		lua_pushlightuserdata(L, * (void**) data);
+		return sizeof(void*);
 
-		break;
 	    case G_TYPE_STRING:
-		lua_pushstring(L, data->p);
-		break;
+		lua_pushstring(L, * (char**) data);
+		return sizeof(char*);
+
 	    // XXX handle more fundamental types
 	    case G_TYPE_NONE:
 		printf("strange... an argument of type NONE?\n");
-		break;
+		return 0;
+
 	    default:
-		printf("Warning: unhandled fundamental type %ld\n",
-		    (long int) type >> 2);
-		lua_pushnumber(L, data->l);
+		luaL_error(L, "%s unhandled fundamental type %ld\n",
+		    msgprefix, (long int) type >> 2);
 	}
-	return;
     }
 
 
@@ -112,7 +136,7 @@ void luagtk_push_value(lua_State *L, GType type, union gtk_arg_types *data,
     if (!name) {
 	printf("%s callback argument is not a valid type!\n", msgprefix);
 	lua_pushnil(L);
-	return;
+	return sizeof(void*);
     }
 
     /* If this type is actually derived from GObject, then let make_widget
@@ -121,8 +145,8 @@ void luagtk_push_value(lua_State *L, GType type, union gtk_arg_types *data,
      */
     int type_of_gobject = g_type_from_name("GObject");
     if (g_type_is_a(type, type_of_gobject)) {
-	get_widget(L, data->p, 0, 0);	    // pushes nil on error.
-	return;
+	get_widget(L, * (void**) data, 0, 0);	    // pushes nil on error.
+	return sizeof(void*);
     }
     
     struct struct_info *si = find_struct(name);
@@ -130,7 +154,7 @@ void luagtk_push_value(lua_State *L, GType type, union gtk_arg_types *data,
 	printf("%s structure not found for callback arg: %s\n",
 	    msgprefix, name);
 	lua_pushnil(L);
-	return;
+	return sizeof(void*);
     }
 
     /**
@@ -140,7 +164,8 @@ void luagtk_push_value(lua_State *L, GType type, union gtk_arg_types *data,
      * itself and will therefore be freed.
      */
     int struct_nr = si - struct_list;
-    get_widget(L, data->p, struct_nr, 0);	// pushes nil on error.
+    get_widget(L, * (void**) data, struct_nr, 0);	// pushes nil on error.
+    return sizeof(void*);
 }
 
 
@@ -179,7 +204,8 @@ static int _push_attribute(lua_State *L, const struct struct_info *si,
 	return arg_type->struct2lua(L, se, ptr);
 
     luaL_error(L, "%s unhandled attribute type %s (%s.%s)\n",
-	msgprefix, arg_type->name, STRUCT_NAME(si), STRUCT_NAME(se));
+	msgprefix, LUAGTK_TYPE_NAME(arg_type), STRUCT_NAME(si),
+	STRUCT_NAME(se));
     return 0;
 }
 
@@ -224,7 +250,7 @@ static int _write_attribute(lua_State *L, const struct struct_elem *se,
 	return arg_type->lua2struct(L, se, ptr, index);
 
     printf("%s unhandled attribute write of type %s (attribute %s)\n",
-	msgprefix, arg_type->name, STRUCT_NAME(se));
+	msgprefix, LUAGTK_TYPE_NAME(arg_type), STRUCT_NAME(se));
     return 0;
 }
 
