@@ -489,7 +489,6 @@ function make_widget(widgets, el, parent)
     if el.children then
 	for i, child_info in pairs(el.children) do
 	    child = make_widget(widgets, child_info, w)
-	    -- w:add_glade(child, child_info)
 	end
     end
 
@@ -504,7 +503,9 @@ function make_widget(widgets, el, parent)
 --		base.error(string.format("no handler for signal %s:%s - %s",
 --		    el.id, v.name, v.handler))
 	    else
-		w:connect(v.name, __handler)
+		__object = v.object and (widgets[v.object] or base[v.object]
+		    or v.object)
+		w:connect(v.name, __handler, __object)
 	    end
 	end
     end
