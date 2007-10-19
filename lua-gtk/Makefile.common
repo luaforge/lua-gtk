@@ -4,6 +4,8 @@ CFLAGS	+=-g -Wall `pkg-config --cflags gtk+-2.0 lua5.1` -I ${ODIR} -I src
 HASHF	:=hsieh
 HASH	:=hash-$(HASHF)
 LD	:=${MINGW}ld
+# -fPIC required for position indendent code in shared objects; besides,
+#  shrinks the library size somewhat.
 CC	:=${MINGW}gcc -Wall -fPIC
 HOSTCC	:=gcc -Wall
 VERSION	:=0.6
@@ -46,7 +48,7 @@ ${ODIR}${ODLL}: $(addprefix ${ODIR}, types.o gtk2.o interface.o data.o \
 	debug.o widget.o gtkdata.structs.o _override.o) \
 	$(HASHOBJ)
 	@echo $@
-	@${CC} -shared -o $@ $^ ${EXTRALIB} ${LIBS}
+	@${CC} -shared -o $@ $^ ${LIBFFI} ${LUALIB} ${LIBS}
 
 ${ODIR}debug.o: src/debug.c
 	@echo $@
@@ -76,6 +78,16 @@ ${ODIR}types.xml: script/make-xml.lua
 ${ODIR}%.o: ${ODIR}%.c
 	@echo $@
 	@${CC} ${CFLAGS} -c -o $@ $<
+
+# -- ffi magic --
+
+${ODIR}luagtk_ffi.h: ${ODIR}ffi-types
+	@echo $@
+	@${ODIR}ffi-types > $@
+
+${ODIR}ffi-types: src/ffi-types.c
+	@echo $@
+	@${HOSTCC} -o $@ $< $(LIBFFI)
 
 # -- fch hash --
 
@@ -145,6 +157,7 @@ ${ODIR}%.luac: src/%.lua
 clean:
 	rm -f ${ODIR}${ODLL} ${ODIR}generate ${ODIR}_*.c ${ODIR}*.o
 	rm -f ${ODIR}file2c ${ODIR}override.luac ${ODIR}hash-fch-generate
+	rm -f ${ODIR}ffi-types
 
 mrproper: clean
 	rm -f ${ODIR}gtkdata.* ${ODIR}hash-fch-* ${ODIR}config.h \
@@ -183,13 +196,13 @@ doc:
 ${ODIR}gtk2.o: src/luagtk.h src/link.h
 ${ODIR}data.o: src/luagtk.h src/link.h
 ${ODIR}interface.o: src/luagtk.h src/link.h
-${ODIR}call.o: src/luagtk.h src/link.c src/link.h
+${ODIR}call.o: src/luagtk.h src/link.c src/link.h ${ODIR}luagtk_ffi.h
 ${ODIR}callback.o: src/luagtk.h src/link.c src/link.h
 ${ODIR}channel.o: src/luagtk.h src/link.c src/link.h
 ${ODIR}widget.o: src/luagtk.h src/link.h
 ${ODIR}debug.o: src/luagtk.h src/link.h
 ${ODIR}gvalue.o: src/luagtk.h src/link.h
-${ODIR}types.o: ${ODIR}gtkdata.types.c src/luagtk.h src/link.h
+${ODIR}types.o: ${ODIR}gtkdata.types.c src/luagtk.h src/link.h ${ODIR}luagtk_ffi.h
 ${ODIR}hash-fch-generate.o: src/hash-fch.h
 ${ODIR}hash-fch.o: src/hash-jenkins.c
 

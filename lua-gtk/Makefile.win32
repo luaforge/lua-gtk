@@ -30,7 +30,7 @@ GTKLIB	:=$(GTKDIR)libgtk-win32-2.0-0.dll $(GTKDIR)libgdk-win32-2.0-0.dll \
 	$(GTKDIR)libgdk_pixbuf-2.0-0.dll
 CROSS	:=1
 ODLL	:=gtk.dll
-EXTRALIB:=$(LUALIB) $(FFIDIR)/libffi.a
+LIBFFI	:=$(FFIDIR)/libffi.a
 INDIR1	:=/usr/local/lib/lua/5.1
 INDIR2	:=/usr/local/share/lua/5.1
 # --- end platform configuration ---

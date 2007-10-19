@@ -2,7 +2,7 @@
 
 # --- begin platform configuration ---
 PLATFORM:=LINUX
-EXTRALIB:=/usr/lib/libffi_pic.a
+LIBFFI	:=/usr/lib/libffi_pic.a
 
 # if you don't have cmph (http://sf.net/projects/cmph/), just comment this out.
 CMPHDIR	:=/build/cmph-0.6/src
