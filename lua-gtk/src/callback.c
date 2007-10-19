@@ -200,44 +200,6 @@ int luagtk_connect(lua_State *L)
 	return 0;
     }
 
-
-    // Find out how many bytes of arguments there are, and how much
-    // space they occupy.
-    /*
-    int n_bytes = 0;
-    int n_params = cb_info->query.n_params;
-
-    for (i=0; i<n_params; i++) {
-	GType t = cb_info->query.param_types[i];
-	int sz;
-
-	t = G_TYPE_FUNDAMENTAL(t);
-	printf("fundamental is %d\n", t);
-
-	switch (t) {
-	    case G_TYPE_LONG:
-	    case G_TYPE_ULONG:
-		sz = sizeof(long int);
-		break;
-
-	    case G_TYPE_POINTER:
-	    case G_TYPE_BOXED:
-	    case G_TYPE_OBJECT:
-		sz = sizeof(void*);
-		break;
-
-	    default:
-		sz = sizeof(int);
-	}
-
-	n_bytes += sz;
-    }
-
-    printf("signal %s receives %d parameters = %d bytes\n",
-	signame, n_params, n_bytes);
-    cb_info->args_bytes = n_bytes;
-    */
-
     /* stack: widget - signame - func - .... */
 
     /* The callback is either a function, or a table with the function and
@@ -263,11 +225,6 @@ int luagtk_connect(lua_State *L)
 
     /* stack: widget - signame - func - cbinfo */
     lua_settop(L, 2);
-
-    /*
-    printf("connect for widget %p, signal %s to %p with info %p\n",
-	widget, signame, _callback, cb_info);
-    */
 
     // verify the readability of this address
     // int foo = * (int*) widget;
