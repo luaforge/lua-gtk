@@ -73,6 +73,12 @@ next_fid = #fundamental_ifo + 1
 -- {ffi_type, flags, lua2ffi, ffi2lua, lua2struct, struct2lua}
 --
 fundamental_map = {
+    -- Note: ffi_type for vararg is "void".  This is not exactly true, as
+    -- a vararg will be replaced by zero or more arguments of variable type in
+    -- an actual function call.  types.c:lua2ffi_vararg will replace it anyway
+    -- so it could be anything, but it can't be nil, because then
+    -- call.c:_call_build_parameters would complain about using a type with
+    -- undefined ffi_type.
     ["vararg"] = { "void", 0, "vararg", nil, nil, nil },
     ["void"] = { "void", 0, nil, "void", nil, nil },
     ["enum"] = { "uint", 3, "enum", "enum", "enum", "enum" },
@@ -860,7 +866,7 @@ function output_types(ofname)
     ofile = io.open(ofname, "w")
     ofs = _type_name_add("INVALID")
     ofile:write(string.format("struct ffi_type_map_t ffi_type_map[] = {\n"
-	.. "  { %d, 0, 0, 0, NULL},\n", ofs))
+	.. "  { %d, },\n", ofs))
 
     for i, v in ipairs(fundamental_ifo) do
 	ffitype = fundamental_to_ffi(v) or { nil, 0, nil, nil, nil, nil }
@@ -871,11 +877,11 @@ function output_types(ofname)
 	    v.bit_len or 0,	-- bit_len
 	    v.pointer,		-- indirections
 	    ffitype[2],		-- flags
-	    ffitype[1] and "&ffi_type_" .. ffitype[1] or "NULL",
-	    ffitype[3] and "lua2ffi_" .. ffitype[3] or "NULL",
-	    ffitype[4] and "ffi2lua_" .. ffitype[4] or "NULL",
-	    ffitype[5] and "lua2struct_" .. ffitype[5] or "NULL",
-	    ffitype[6] and "struct2lua_" .. ffitype[6] or "NULL"
+	    ffitype[3] and "LUA2FFI_" .. string.upper(ffitype[3]) or 0,
+	    ffitype[4] and "FFI2LUA_" .. string.upper(ffitype[4]) or 0,
+	    ffitype[5] and "LUA2STRUCT_" .. string.upper(ffitype[5]) or 0,
+	    ffitype[6] and "STRUCT2LUA_" .. string.upper(ffitype[6]) or 0,
+	    ffitype[1] and "LUAGTK_FFI_TYPE_" .. string.upper(ffitype[1]) or 0
 	))
     end
 

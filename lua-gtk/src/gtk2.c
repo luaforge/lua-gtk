@@ -200,8 +200,8 @@ static int _push_attribute(lua_State *L, const struct struct_info *si,
     */
 
     arg_type = &ffi_type_map[se->ffi_type_id];
-    if (arg_type->struct2lua)
-	return arg_type->struct2lua(L, se, ptr);
+    if (arg_type->struct2lua_idx)
+	return ffi_type_struct2lua[arg_type->struct2lua_idx](L, se, ptr);
 
     luaL_error(L, "%s unhandled attribute type %s (%s.%s)\n",
 	msgprefix, LUAGTK_TYPE_NAME(arg_type), STRUCT_NAME(si),
@@ -246,8 +246,8 @@ static int _write_attribute(lua_State *L, const struct struct_elem *se,
     const struct ffi_type_map_t *arg_type;
 
     arg_type = &ffi_type_map[se->ffi_type_id];
-    if (arg_type->lua2struct)
-	return arg_type->lua2struct(L, se, ptr, index);
+    if (arg_type->lua2struct_idx)
+	return ffi_type_lua2struct[arg_type->lua2struct_idx](L, se, ptr, index);
 
     printf("%s unhandled attribute write of type %s (attribute %s)\n",
 	msgprefix, LUAGTK_TYPE_NAME(arg_type), STRUCT_NAME(se));

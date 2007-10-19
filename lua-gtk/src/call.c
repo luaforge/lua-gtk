@@ -15,6 +15,8 @@
 #include <malloc.h>	    // free
 #include <string.h>	    // memset, strcmp, memcpy
 
+#include "luagtk_ffi.h"	    // FFI_TYPE() macro
+
 #ifdef MANUAL_LINKING
 # include "link.c"
 #endif
@@ -165,7 +167,7 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 {
     const unsigned char *s, *s_end;
     struct lua2ffi_arg_t ar;
-    int arg_nr, stack_top = lua_gettop(L);
+    int arg_nr, stack_top = lua_gettop(L), idx;
 
     /* build the call stack by parsing the parameter list */
     ar.L = L;
@@ -181,14 +183,22 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 	get_next_argument(&s, &ar.ffi_type_nr, &ar.arg_struct_nr);
 	ar.arg_type = &ffi_type_map[ar.ffi_type_nr];
 
-	/* the first "argument" is actually the return value */
-	if (arg_nr == 0) {
-	    ci->argtypes[arg_nr] = ar.arg_type->type;
-	    continue;
+	idx = ar.arg_type->ffi_type_idx;
+	if (idx == 0) {
+	    call_info_warn(ci);
+	    printf("   Error: argument %d (type %s) has no ffi type.\n",
+		arg_nr, LUAGTK_TYPE_NAME(ar.arg_type));
+	    luaL_error(L, "call error\n");
 	}
+	ci->argtypes[arg_nr] = LUAGTK_FFI_TYPE(idx);
 
+	/* the first "argument" is actually the return value; no more work. */
+	if (arg_nr == 0)
+	    continue;
+
+	// No more arguments available?
 	if (index+arg_nr > stack_top) {
-	    // if the current (probably last) argument is vararg, this is OK,
+	    // If the current (probably last) argument is vararg, this is OK,
 	    // because a vararg doesn't need any extra arguments.
 	    if (strcmp(LUAGTK_TYPE_NAME(ar.arg_type), "vararg")) {
 		call_info_warn(ci);
@@ -198,17 +208,18 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 	} else 
 	    ar.lua_type = lua_type(L, index+arg_nr);
 
-	ci->argtypes[arg_nr] = ar.arg_type->type;
 	ci->argvalues[arg_nr] = &ci->ffi_args[arg_nr].l;
 
-	lua2ffi_t func = ar.arg_type->lua2ffi;
-	if (func) {
+	idx = ar.arg_type->lua2ffi_idx;
+
+	if (idx) {
 	    ar.index = index + arg_nr;
 	    ar.arg = &ci->ffi_args[arg_nr];
 	    ar.func_arg_nr = arg_nr;
 	    int st_pos_1 = lua_gettop(L);
-	    func(&ar);
+	    ffi_type_lua2ffi[idx](&ar);
 
+	    // Shouldn't happen.  Can be fixed, but complain anyway
 	    if (lua_gettop(L) != st_pos_1) {
 		call_info_warn(ci);
 		printf("  Internal warning: lua2ffi changed stack\n");
@@ -220,7 +231,7 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 	    arg_nr = ar.func_arg_nr;
 	} else {
 	    call_info_warn(ci);
-	    printf("  Argument %d (type %s) not handled\n", arg_nr+1,
+	    printf("  Argument %d (type %s) not handled\n", arg_nr,
 		LUAGTK_TYPE_NAME(ar.arg_type));
 	    ci->ffi_args[arg_nr].l = 0;
 	}
@@ -253,7 +264,6 @@ static int _call_return_values(lua_State *L, struct call_info *ci)
     const unsigned char *s, *s_end;
     const struct ffi_type_map_t *arg_type;
     struct ffi2lua_arg_t ar;
-    ffi2lua_t func;
 
     ar.L = L;
     ar.ci = ci;
@@ -274,12 +284,12 @@ static int _call_return_values(lua_State *L, struct call_info *ci)
 	    continue;
 	
 	// return all arguments that look like output arguments.
-	func = arg_type->ffi2lua;
-	if (func) {
+	int idx = arg_type->ffi2lua_idx;
+	if (idx) {
 	    ar.func_arg_nr = arg_nr;
 	    ar.arg = &ci->ffi_args[arg_nr];
 	    ar.arg_struct_nr = arg_struct_nr;
-	    func(&ar);
+	    ffi_type_ffi2lua[idx](&ar);
 	} else if (arg_nr == 0) {
 	    // all direct return values must be handled.
 	    call_info_warn(ci);
