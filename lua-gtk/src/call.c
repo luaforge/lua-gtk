@@ -17,10 +17,6 @@
 
 #include "luagtk_ffi.h"	    // FFI_TYPE() macro
 
-#ifdef MANUAL_LINKING
-# include "link.c"
-#endif
-
 
 /* extra arguments that have to be allocated are kept in this list. */
 struct call_info_list {
