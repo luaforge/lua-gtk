@@ -104,3 +104,12 @@ mywin1 = mywin_new("One")
 mywin2 = mywin_new("Two")
 gtk.main()
 
+mywin1 = nil
+mywin2 = nil
+
+collectgarbage("collect")
+
+print "WIDGETS"
+for k,v in pairs(gtk.widgets) do print(k,v) end
+for k,v in pairs(gtk.widgets_aliases) do print(k,v) end
+
