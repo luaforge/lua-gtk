@@ -454,6 +454,12 @@ int luaopen_gtk(lua_State *L)
     lua_setmetatable(L, -2);		// gtk "widgets" t
     lua_rawset(L, -3);			// gtk
 
+    /* gtk.widgets_aliases.  Can't have aliases in gtk.widgets, because of
+     * the automatic garbage collection there. */
+    lua_pushstring(L, "widgets_aliases");
+    lua_newtable(L);
+    lua_rawset(L, -3);
+
     /* default attribute table of a widget */
 #if 1
     lua_pushstring(L, "emptyattr");	// gtk "emptyattr"
