@@ -118,6 +118,10 @@ ${ODIR}_enumlist_fch.c: ${ODIR}hash-fch-generate ${ODIR}gtkdata.enums.mph
 	@${ODIR}hash-fch-generate ${ODIR}gtkdata.enums.mph \
 		${ODIR}gtkdata.enums.txt "enums" > $@
 
+${ODIR}hash-fch.o: src/hash-fch.c
+	@echo $@
+	@${CC} ${CFLAGS} -c -o $@ -I ${CMPHDIR} $<
+
 # -- helper programs for fch hash, to be compiled with HOSTCC --
 
 ${ODIR}generate.o: src/generate.c
