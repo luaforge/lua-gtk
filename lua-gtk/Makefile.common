@@ -14,18 +14,27 @@ VERSION	:=0.6
 .PHONY:	tags wc tar install mrproper clean tests config_h doc
 .PRECIOUS: ${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}%.keys
 
+OFILES	:=types.o gtk2.o interface.o data.o \
+	call.o callback.o channel.o gvalue.o \
+	debug.o widget.o gtkdata.structs.o _override.o
+CONFIG_H:=
+LH	:=src/luagtk.h ${ODIR}config.h
+
+# -- runtime linking? --
 ifeq ($(LINK), 1)
 LIBS	:=${GTKLIB}
 else
-CFLAGS	+=-DMANUAL_LINKING
+CONFIG_H+=\#define MANUAL_LINKING\n
+# CFLAGS	+=-DMANUAL_LINKING
+OFILES	+=link.o
+LH	+=${ODIR}link.h
 endif
 
 # -- is cmph available? --
 ifeq ($(CMPHDIR),)
-HASHOBJ	:= ${ODIR}hash-simple.o ${ODIR}${HASH}.o \
-	${ODIR}_funclist.o ${ODIR}_enumlist.o
+OFILES	+=hash-simple.o ${HASH}.o _funclist.o _enumlist.o
 else
-HASHOBJ	:= ${ODIR}hash-fch.o ${ODIR}_funclist_fch.o ${ODIR}_enumlist_fch.o
+OFILES	+=hash-fch.o _funclist_fch.o _enumlist_fch.o
 endif
 
 
@@ -39,14 +48,12 @@ dirs:
 config_h:
 	@echo "#define HASHFUNC hash_${HASHF}" > ${ODIR}config.h.tmp
 	@echo -e "#ifndef ${PLATFORM}\n #define ${PLATFORM}\n#endif" >> ${ODIR}config.h.tmp
+	@echo -e "${CONFIG_H}" >> ${ODIR}config.h.tmp
 	@if diff -q ${ODIR}config.h ${ODIR}config.h.tmp 2> /dev/null; then rm -f ${ODIR}config.h.tmp; else mv -f ${ODIR}config.h.tmp ${ODIR}config.h; fi
 
 # rule to build the library.
 
-${ODIR}${ODLL}: $(addprefix ${ODIR}, types.o gtk2.o interface.o data.o \
-	call.o callback.o channel.o gvalue.o \
-	debug.o widget.o gtkdata.structs.o _override.o) \
-	$(HASHOBJ)
+${ODIR}${ODLL}: $(addprefix ${ODIR}, ${OFILES})
 	@echo $@
 	@${CC} -shared -o $@ $^ ${LIBFFI} ${LUALIB} ${LIBS}
 
@@ -133,6 +140,12 @@ ${ODIR}hash-fch-generate.o: src/hash-fch-generate.c
 	@echo $@
 	@${HOSTCC} -g -o $@ -I ${CMPHDIR} -c $< 
 
+# -- dynamic runtime linking --
+${ODIR}link.c ${ODIR}link.h: src/linklist.txt script/make-link.lua \
+	${ODIR}types.xml
+	@echo $@
+	@script/make-link.lua ${ODIR}types.xml src/linklist.txt \
+		${ODIR}link.h ${ODIR}link.c
 
 # -- general rules --
 
@@ -147,6 +160,9 @@ ${ODIR}%.o: src/%.c
 ${ODIR}%.s: src/%.c
 	@echo $@
 	@${CC} ${CFLAGS} -S -o $@ $<
+
+${ODIR}%.c: src/%.c
+	${CC} ${CFLAGS} -E -o $@ $<
 
 ${ODIR}%.luac: src/%.lua
 	@echo $@
@@ -193,17 +209,17 @@ doc:
 
 # -- dependencies --
 
-${ODIR}gtk2.o: src/luagtk.h src/link.h
-${ODIR}data.o: src/luagtk.h src/link.h
-${ODIR}interface.o: src/luagtk.h src/link.h
-${ODIR}call.o: src/luagtk.h src/link.c src/link.h ${ODIR}luagtk_ffi.h
-${ODIR}callback.o: src/luagtk.h src/link.c src/link.h
-${ODIR}channel.o: src/luagtk.h src/link.c src/link.h
-${ODIR}widget.o: src/luagtk.h src/link.h
-${ODIR}debug.o: src/luagtk.h src/link.h
-${ODIR}gvalue.o: src/luagtk.h src/link.h
-${ODIR}types.o: ${ODIR}gtkdata.types.c src/luagtk.h src/link.h ${ODIR}luagtk_ffi.h
-${ODIR}hash-fch-generate.o: src/hash-fch.h
-${ODIR}hash-fch.o: src/hash-jenkins.c
+${ODIR}gtk2.o: ${LH}
+${ODIR}data.o: ${LH}
+${ODIR}interface.o: ${LH}
+${ODIR}call.o: ${ODIR}luagtk_ffi.h ${LH}
+${ODIR}callback.o: ${LH}
+${ODIR}channel.o: ${LH}
+${ODIR}widget.o: ${LH}
+${ODIR}debug.o: ${LH}
+${ODIR}gvalue.o: ${LH}
+${ODIR}types.o: ${ODIR}gtkdata.types.c ${ODIR}luagtk_ffi.h ${LH}
+${ODIR}hash-fch-generate.o: src/hash-fch.h ${LH}
+${ODIR}hash-fch.o: src/hash-jenkins.c ${LH}
 
 
