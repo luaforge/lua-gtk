@@ -15,12 +15,13 @@
 #include <malloc.h>	    // free
 #include <string.h>	    // memset, strcmp, memcpy
 
-#include "luagtk_ffi.h"	    // FFI_TYPE() macro
+#include "luagtk_ffi.h"	    // LUAGTK_FFI_TYPE() macro
 
 
 /* extra arguments that have to be allocated are kept in this list. */
 struct call_info_list {
     struct call_info_list *next;
+    /* payload starts here */
 };
 
 /* already allocated, but discarded structures */
@@ -84,9 +85,6 @@ static void call_info_free(struct call_info *ci)
     if (ci->warnings == 1)
 	printf("\n");
 
-    // first & next are a union.
-    // ci->first = NULL;
-
     // XXX lock spinlock
     ci->next = ci_pool;
     ci_pool = ci;
@@ -130,6 +128,10 @@ void call_info_warn(struct call_info *ci)
 /**
  * Retrieve the next argument spec from the binary representation (data from
  * the hash table).
+ *
+ * As you can see, the data consists of a type number; if the high bit is set,
+ * then two more bytes follow with a structure number.  The caller must take
+ * care not to read past the end of the data.
  */
 static inline void get_next_argument(const unsigned char **p, int *type_nr,
     int *struct_nr)
@@ -149,10 +151,9 @@ static inline void get_next_argument(const unsigned char **p, int *type_nr,
 }
 
 
-
 /**
  * Prepare to call the Gtk function by converting all the parameters into
- * the required format.
+ * the required format as required by libffi.
  *
  * @param index    Lua stack position of first parameter
  * @param ci       call_info structure with lots more data
@@ -189,8 +190,10 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 	ci->argtypes[arg_nr] = LUAGTK_FFI_TYPE(idx);
 
 	/* the first "argument" is actually the return value; no more work. */
-	if (arg_nr == 0)
+	if (arg_nr == 0) {
+	    ci->argvalues[0] = NULL;	    // just to be sure
 	    continue;
+	}
 
 	// No more arguments available?
 	if (index+arg_nr > stack_top) {
@@ -206,8 +209,8 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 
 	ci->argvalues[arg_nr] = &ci->ffi_args[arg_nr].l;
 
+	// if there's a handler to convert the argument, do it
 	idx = ar.arg_type->lua2ffi_idx;
-
 	if (idx) {
 	    ar.index = index + arg_nr;
 	    ar.arg = &ci->ffi_args[arg_nr];
@@ -232,6 +235,11 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 	    ci->ffi_args[arg_nr].l = 0;
 	}
     }
+
+    // just to be sure
+    if (arg_nr > MAX_FUNC_ARGS)
+	luaL_error(L, "max. number of arguments to Gtk function exceeded"
+	    " (%d > %d)", arg_nr, MAX_FUNC_ARGS);
 
     // The return value doesn't count, therefore -1.
     ci->arg_count = arg_nr - 1;
@@ -265,8 +273,7 @@ static int _call_return_values(lua_State *L, struct call_info *ci)
     ar.ci = ci;
 
     /* Return the return value and output arguments.  This requires another
-     * pass at parsing the argument spec.
-     */
+     * pass at parsing the argument spec. */
     s = ci->fi->args_info;
     s_end = s + ci->fi->args_len;
 
@@ -313,7 +320,6 @@ int luagtk_call(lua_State *L, struct func_info *fi, int index)
     int rc = 0;
 
     ci = call_info_alloc();
-
     ci->fi = fi;
     ci->L = L;
     ci->index = index;
@@ -324,34 +330,23 @@ int luagtk_call(lua_State *L, struct func_info *fi, int index)
 	ci->warnings = 2;
     }
 
-    /*
-     * ffi_args	    array of values passed to the function; [0] = retval
-     * argtypes	    array of types for ffi_call, [0] = type of retval
-     * argvalues    array of pointers to the values
-     */
-
-    do {
-
-	if (!_call_build_parameters(L, index, ci))
-	    break;
-
-	/* call the function */
+    /* call the function */
+    if (_call_build_parameters(L, index, ci)) {
 	if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, ci->arg_count,
-	    ci->argtypes[0],
-	    ci->argtypes + 1) != FFI_OK) {
+	    ci->argtypes[0], ci->argtypes + 1) == FFI_OK) {
+
+	    // A trace function displaying the argument values could be called
+	    // from here.  This doesn't exist yet.
+	    // XXX call_info_trace(ci);
+
+	    ffi_call(&cif, fi->func, &ci->ffi_args[0], ci->argvalues + 1);
+
+	    /* evaluate the return values */
+	    rc = _call_return_values(L, ci);
+	} else {
 	    printf("FFI call to %s couldn't be initialized\n", fi->name);
-	    break;
 	}
-
-	// A trace function displaying the argument values could be called
-	// from here.  This doesn't exist yet.
-	// XXX call_info_trace(ci);
-
-	ffi_call(&cif, fi->func, &ci->ffi_args[0], ci->argvalues + 1);
-
-	/* evaluate the return values */
-	rc = _call_return_values(L, ci);
-    } while (0);
+    }
 
     call_info_free(ci);
     return rc;
