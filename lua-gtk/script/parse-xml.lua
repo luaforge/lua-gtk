@@ -33,6 +33,7 @@ enum_values = {}    -- [name] = { val, context }
 max_bit_offset = 0
 max_bit_length = 0
 max_struct_id = 0
+max_func_args = 0
 fundamental_name2id = {}
 
 type_override = {
@@ -84,6 +85,8 @@ fundamental_map = {
     ["enum"] = { "uint", 3, "enum", "enum", "enum", "enum" },
     ["struct"] = { "pointer", 0, nil, nil, nil, "struct" },
 	    -- for globals XXX may be wrong
+    ["union"] = { "pointer", 0, nil, nil, nil, "struct" },
+	    -- same as struct, actually
 
     ["short unsigned int"] = { "ushort", 3, "long", "long", "long", "long" },
     ["short int"] = { "sshort", 3, "long", "long", "long", "long" },
@@ -726,11 +729,14 @@ end
 ---
 -- Mark all types that are forced to be visible.
 --
+-- Note: because the leading underscore is removed (see xml_struct_union) one
+-- entry in used_overide may activate a structure declaration and the
+-- corresponding typedef, but that doesn't matter.
+--
 function mark_override()
-
     for k, v in pairs(typedefs) do
 	if used_override[v.name] then
-	    print("Override in use", k, v.name)
+	    -- print("Override in use", k, v.name)
 	    _mark_in_use(v)
 	end
     end
@@ -807,6 +813,9 @@ function _function_signature(fname)
 	    s = s .. format_2bytes(tp.detail.struct_id)
 	end
     end
+
+    -- determine maximum number of function arguments (including return value)
+    max_func_args = math.max(max_func_args, #funclist[fname])
 
     return s
 end
@@ -1021,5 +1030,6 @@ print("max_bit_length", max_bit_length)
 print("max string offset in structure strings", string_offset)
 print("max type_id", next_fid - 1)
 print("max struct id", max_struct_id)
+print("max function args", max_func_args)
 
 
