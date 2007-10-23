@@ -168,9 +168,10 @@ ${ODIR}%.s: src/%.c
 ${ODIR}%.c: src/%.c
 	${CC} ${CFLAGS} -E -o $@ $<
 
+# could use -s to remove debugging info
 ${ODIR}%.luac: src/%.lua
 	@echo $@
-	@luac -s -o $@ $<
+	@luac -o $@ $<
 
 # -- special targets --
 
