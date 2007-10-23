@@ -141,7 +141,7 @@ static void _free_callback_info(gpointer data, GClosure *closure)
 	luaL_unref(cb_info->L, LUA_REGISTRYINDEX, cb_info->args_ref);
 
     // Is this required? I guess so.
-    g_free(data);
+    g_slice_free(struct callback_info, cb_info);
 }
 
 
@@ -188,15 +188,14 @@ int luagtk_connect(lua_State *L)
     const char *signame = lua_tostring(L, 2);
     signal_id = g_signal_lookup(signame, G_OBJECT_TYPE(w->p));
     if (!signal_id)
-	luaL_error(L, "Can't find signal %s::%s\n",
-	    w->class_name, signame);
+	luaL_error(L, "Can't find signal %s::%s\n", w->class_name, signame);
 
-    cb_info = (struct callback_info*) g_malloc(sizeof *cb_info);
+    cb_info = g_slice_new(struct callback_info);
     cb_info->L = L;
     g_signal_query(signal_id, &cb_info->query);
 
     if (cb_info->query.signal_id != signal_id) {
-	g_free(cb_info);
+	g_slice_free(struct callback_info, cb_info);
 	luaL_error(L, "invalid signal ID %d for signal %s::%s\n",
 	    signal_id, w->class_name, signame);
     }
