@@ -48,11 +48,16 @@ static int l_gtk_lookup(lua_State *L)
     }
 
     /* A function has been found, so return a closure that can call it. */
-    lua_pushstring(L, func_name);
-    lua_pushlightuserdata(L, fi.func);
-    lua_pushlightuserdata(L, (void*) fi.args_info);
-    lua_pushinteger(L, fi.args_len);
-    lua_pushcclosure(L, luagtk_call_wrapper, 4);
+    // NOTE: need to duplicate the name, fi.name points to the local variable
+    // fund_name.  So, allocate a new func_info with some space after it large
+    // enough to hold the function name.
+    int name_len = strlen(fi.name) + 1;
+    struct func_info *fi2 = (struct func_info*) lua_newuserdata(L,
+	sizeof(*fi2) + name_len);
+    memcpy(fi2, &fi, sizeof(*fi2));
+    memcpy(fi2+1, fi.name, name_len);
+    fi2->name = (char*) (fi2+1);
+    lua_pushcclosure(L, luagtk_call_wrapper, 1);
     return 1;
 }
 
@@ -114,6 +119,7 @@ static int l_new(lua_State *L)
     return 1;
 }
 
+#if 0
 
 /**
  * Store information about a Gtk widget.
@@ -136,6 +142,7 @@ static int l_register_widget(lua_State *L)
     return 0;
 }
 
+#endif
 
 /**
  * g_type_from_name fails unless the type has been initialized before.  Use
@@ -185,12 +192,11 @@ static int l_dump_stack(lua_State *L)
  * 
  * Parameters: pixbuf, type, args...
  * Returns: buffer (or nil)
- *
- * XXX leaky, leaky...
  */
 static int l_gdk_pixbuf_save_to_buffer(lua_State *L)
 {
-    GdkPixbuf *pixbuf = * (GdkPixbuf**) lua_topointer(L, 1);
+    struct widget *w = (struct widget*) lua_topointer(L, 1);
+    GdkPixbuf *pixbuf = (GdkPixbuf*) w->p;
     gchar *buffer = NULL;
     gsize buffer_size = 0;
     const char *type = lua_tostring(L, 2);
@@ -201,6 +207,7 @@ static int l_gdk_pixbuf_save_to_buffer(lua_State *L)
 	NULL);
     if (buffer) {
 	lua_pushlstring(L, buffer, buffer_size);
+	g_free(buffer);
 	return 1;
     }
 
@@ -296,6 +303,7 @@ static int l_get_refcount(lua_State *L)
     return 1;
 }
 
+#if 0
 /**
  * args: model, iter, column
  * returns: GValue
@@ -311,6 +319,7 @@ static int l_gtk_tree_model_get_value(lua_State *L)
     luagtk_push_value(L, gvalue.g_type, (void*) &gvalue.data);
     return 1;
 }
+#endif
 
 
 /**
@@ -354,7 +363,7 @@ const luaL_reg gtk_methods[] = {
     {"get_refcount",	l_get_refcount },
 
     // these function will probably change
-    {"luagtk_register_widget", l_register_widget },
+    // {"luagtk_register_widget", l_register_widget },
     {"my_g_io_add_watch",	l_g_io_add_watch },
     {"forget_widget",	l_forget_widget },
 
@@ -376,7 +385,7 @@ const luaL_reg gtk_methods[] = {
     {"g_io_channel_write_chars", l_g_io_channel_write_chars },
     {"g_io_channel_flush", l_g_io_channel_flush },
     {"gdk_pixbuf_save_to_buffer", l_gdk_pixbuf_save_to_buffer },
-    {"gtk_tree_model_get_value", l_gtk_tree_model_get_value },
+    // {"gtk_tree_model_get_value", l_gtk_tree_model_get_value },
 
     { NULL, NULL }
 };
