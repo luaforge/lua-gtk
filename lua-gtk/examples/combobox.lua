@@ -21,10 +21,6 @@ function MainWin.new()
 	local vbox = gtk.vbox_new(false, 3)
 	self.w:add(vbox)
 
---	local sw = gtk.scrolled_window_new(nil, nil)
---	sw:set_policy(gtk.GTK_POLICY_NEVER, gtk.GTK_POLICY_AUTOMATIC)
---	self.w:add(sw)
-
 	self.combobox = gtk.combo_box_new()
 	vbox:add(self.combobox)
 
@@ -37,24 +33,20 @@ function MainWin.new()
 	local r = gtk.cell_renderer_text_new()
 	self.combobox:pack_start(r, false)
 	self.combobox:set_attributes(r, 'text', 1, 'foreground', 3, nil)
---	self.combobox:set_attributes(r, 'foreground', 3, nil)
 
 	r = gtk.cell_renderer_text_new()
 	self.combobox:pack_start(r, false)
 	self.combobox:set_attributes(r, 'text', 2, nil)
 
---	c = gtk.tree_view_column_new_with_attributes("Info",
---		r, "text", 2, "foreground", 3, nil)
---	self.combobox:pack_start(r, false)
-
 
 	-- add some items
+	local iter1, iter2 = gtk.new "GtkTreeIter", gtk.new "GtkTreeIter"
 	for i = 1, 10 do
-		local iter = self.store:append(nil, i, "Item " .. i,
+		self.store:append1(iter1, nil, i, "Item " .. i,
 			"Info " .. i, "green")
 		for j = 1, 10 do
-			self.store:append(iter, i*10+j-1, "Subitem " .. j,
-				"Subinfo " .. j, "blue")
+			self.store:append1(iter2, iter1, i*10+j-1,
+				"Subitem " .. j, "Subinfo " .. j, "blue")
 		end
 
 	end

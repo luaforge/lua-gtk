@@ -1,4 +1,5 @@
 #! /usr/bin/env lua
+-- vim:sw=4:sts=4
 
 -- demonstration of a tree view
 
@@ -41,12 +42,13 @@ function MainWin.new()
 
 
 	-- add some items
+	local iter1, iter2 = gtk.new "GtkTreeIter", gtk.new "GtkTreeIter"
 	for i = 1, 10 do
-		local iter = self.store:append(nil, i, "Item " .. i,
+		self.store:append1(iter1, nil, i, "Item " .. i,
 			"Info " .. i, "green")
 		for j = 1, 10 do
-			self.store:append(iter, i*10+j-1, "Subitem " .. j,
-				"Subinfo " .. j, "blue")
+			self.store:append1(iter2, iter1, i*10+j-1,
+				"Subitem " .. j, "Subinfo " .. j, "blue")
 		end
 
 	end
