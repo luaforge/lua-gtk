@@ -60,13 +60,16 @@ int luagtk_push_value(lua_State *L, GType type, void *data)
 
     // see /usr/include/glib-2.0/gobject/gtype.h for type numbers.
     /*
-    printf("push a value %s:%d, type is %d, is fundamental: %d\n",
-	signal_name, arg_nr,
+    printf("push a glib value: type is %d, is fundamental: %d\n",
 	(unsigned int) type, G_TYPE_IS_FUNDAMENTAL(type));
     */
 	
     if (G_TYPE_IS_FUNDAMENTAL(type)) {
 	switch (G_TYPE_FUNDAMENTAL(type)) {
+	    case G_TYPE_INVALID:
+		lua_pushnil(L);
+		return sizeof(void*);
+
 	    case G_TYPE_BOOLEAN:
 		lua_pushboolean(L, * (int*) data);
 		return sizeof(int);
@@ -125,8 +128,8 @@ int luagtk_push_value(lua_State *L, GType type, void *data)
 		return 0;
 
 	    default:
-		luaL_error(L, "%s unhandled fundamental type %ld\n",
-		    msgprefix, (long int) type >> 2);
+		luaL_error(L, "luagtk_push_value: unhandled fundamental "
+		    "type %d\n", (int) type >> 2);
 	}
     }
 
@@ -379,6 +382,7 @@ int luagtk_newindex(lua_State *L)
     return 0;
 }
 
+#if 0
 
 /**
  * Given the address as lightuserdata of a widget, make a Lua widget object.
@@ -409,8 +413,7 @@ static int l_getwidget(lua_State *L)
     return 0;
 }
 
-
-
+#endif
 
 /**
  * Initialize the library, returns a table.  Note that the table is also stored
@@ -422,27 +425,27 @@ int luaopen_gtk(lua_State *L)
     if (!luagtk_dl_init())
 	return 0;
 
-    /* make the table to return, and make it global as "gtk" */
+    // new environment
     lua_newtable(L);
+    lua_replace(L, LUA_ENVIRONINDEX);
 
-    lua_pushvalue(L, -1);
-    lua_setglobal(L, "gtk");
+    /* make the table to return, and make it global as "gtk" */
+    luaL_register(L, "gtk", gtk_methods);
 
-    /* gtk._meta_tables */
-    lua_pushstring(L, "_meta_tables");	// gtk "_mt"
-    lua_newtable(L);			// gtk "_mt" t
-    lua_newtable(L);			// gtk "_mt" t mt
-    lua_pushstring(L, "v");		// gtk "_mt" t mt "v"
-    lua_setfield(L, -2, "__mode");	// gtk "_mt" t mt
-    lua_setmetatable(L, -2);		// gtk "_mt" t
-    lua_rawset(L, -3);			// gtk
+    // Table with all widget metatables; [name] = table
+    lua_newtable(L);			// gtk t
+    lua_newtable(L);			// gtk t mt
+    lua_pushstring(L, "v");		// gtk t mt "v"
+    lua_setfield(L, -2, "__mode");	// gtk t mt
+    lua_setmetatable(L, -2);		// gtk t
+    lua_setfield(L, LUA_ENVIRONINDEX, LUAGTK_METATABLES);
     
     /* gtk.widgets */
     lua_pushstring(L, "widgets");	// gtk "widgets"
     lua_newtable(L);			// gtk "widgets" t
     lua_newtable(L);			// gtk "widgets" t mt
-    lua_pushcfunction(L, l_getwidget);
-    lua_setfield(L, -2, "__index");
+//    lua_pushcfunction(L, l_getwidget);
+//    lua_setfield(L, -2, "__index");
 
     /**
      * Automatically remove unused widgets.  Be sure to keep references
@@ -474,7 +477,6 @@ int luaopen_gtk(lua_State *L)
     /* define meta table (itself) and functions */
     lua_pushvalue(L, -1);
     lua_setmetatable(L, -2);
-    luaL_openlib(L, NULL, gtk_methods, 0);
 
     /* one retval on the stack: gtk.  This is usually not used anywhere,
      * but you have to use the global variable "gtk". */
