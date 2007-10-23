@@ -24,10 +24,16 @@ function generate_object(ofname)
 	return
     end
 
-    s = "#define GTK_DISABLE_DEPRECATED 1\n"
-    s = s .. "#define GDK_PIXBUF_ENABLE_BACKEND 1\n"
-    s = s .. "#include <gtk/gtk.h>\n"
-    s = s .. "#include <cairo/cairo.h>\n"
+    -- #undef __OPTIMIZE_: Avoid trouble with -O regarding __builtin_clzl.
+    -- Seems to have no other side effects (XML file exactly the same).
+    -- Suggested by Michael Kolodziejczyk on 2007-10-23
+
+    s = [[#undef __OPTIMIZE__
+#define GTK_DISABLE_DEPRECATED 1
+#define GDK_PIXBUF_ENABLE_BACKEND 1
+#include <gtk/gtk.h>
+#include <cairo/cairo.h>
+]]
 
     ofile:write(s)
     ofile:close()
