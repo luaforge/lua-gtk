@@ -212,3 +212,15 @@ Fre Okt 12 00:27:04 CEST 2007
 * complete CVS commit
 
 
+Mit Okt 17 10:15:17 CEST 2007
+* Added proper attribution and license information for cmph
+* some minor improvements of the fch code
+
+
+Sam Okt 20 23:42:40 CEST 2007
+* Aliases for widgets, i.e. can have multiple structures at the same memory
+  location.
+
+
+Die Okt 23 16:20:39 CEST 2007
+* various code cleanup and improvements; unchanged features.

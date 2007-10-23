@@ -2,24 +2,30 @@
 TODO
 ----
 
-- ENUM/FLAGS:
-  - SUB operation on flags - set and clear the bits.
+- review all the code for improvements and maybe some bugs, esp. the
+  segfaults when not optimized on amd64.
+	- struct_nr 0 now means unset; don't use -1 anywhere.
 
-- parse-xml: override to many...
+- amd64 port:
+	- fix segfaults when compiled without -O
+	- fix spurious segfaults in weather demo
 
-- struct_nr 0 now means unset; don't use -1 anywhere.
+- widget aliases:
+	- check refcounting usage
+	- unref an alias - not collected by garbage collection?
 
-- 64 bit port:
-	- working examples: gladedemo gladedemo2 iconview toolbar tree window notebook
-	  button combobox memory loadlib calculator
-	- working tests: 001 002 003
-	- pixmap segfaults
-	- request: luasocket not installed
+- modularize channel.c so that it contains everything related to channels.
+  This should make it easier to add more modules later.
+
+- more documentation
+	- homepage with documentation on luaforge.net
+	- how to generate it?  any lua based systems? cgilua?
+
+- use luadoc to generate some documentation.  A taglet is required for
+  parsing C instead of Lua.
 
 - call tracing should show the actual values of the arguments; would require
   a new callback for each parameter type, some kind of tostring.
-
-- fix the build process.  It is a mess, not portable enough.  waf?  autofoo?
 
 - running Win executables with wine under Linux, and using glade.lua - font
   sizes are insanely large.
