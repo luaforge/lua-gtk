@@ -1,7 +1,8 @@
 #! /usr/bin/lua
 -- vim:sw=4:sts=4:encoding=utf8
 --
--- Demonstration program to download and display weather information from weather.com.
+-- Demonstration program to download and display weather information from
+-- weather.com.  Similar to xfce4-weather-plugin.
 -- by Wolfgang Oertl
 --
 -- Revisions:
@@ -22,6 +23,7 @@ require "gtk.http_co"
 require "gtk.strict"
 
 local forecast_days = 5
+local gladefile = string.gsub(arg[0], ".lua", ".glade")
 
 -- handler for the mainwin.destroy signal
 function on_mainwin_destroy()
@@ -36,11 +38,12 @@ function on_location_changed(box)
     local store = box:get_model()
     local iter = gtk.new "GtkTreeIter"
     box:get_active_iter(iter)
-    local code = store:get_value(iter, 1)
+    local code = store:get_value(iter, 1, nil)
 
     gtk.http_co.request_co{
 	host = "xoap.weather.com",
-	uri = "/weather/local/" .. code .. "?cc=*&unit=m&dayf="..forecast_days,
+	uri = "/weather/local/" .. tostring(code)
+	    .. "?cc=*&unit=m&dayf="..forecast_days,
 	callback = weather_info_callback,
     }
 end
@@ -219,8 +222,8 @@ end
 
 function main()
 
-    gtk.init(nil, nil)
-    tree = gtk.glade.read("weather.glade")
+    gtk.init()
+    tree = gtk.glade.read(gladefile)
     mainwin = gtk.glade.create(tree, "mainwin")
 
     -- setup location selector
@@ -251,6 +254,8 @@ function main()
     mainwin.mainwin:show()
     gtk.main()
 end
+
+-- MAIN --
 
 main()
 tree = nil
