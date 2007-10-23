@@ -274,10 +274,9 @@ static int l_g_object_set_property(lua_State *L)
 	printf("g_object_set_property: no property named %s\n", prop_name);
 	return 0;
     }
-    GValue gvalue;
-    if (luagtk_fill_gvalue(L, &gvalue, pspec->value_type, 3)) {
+    GValue gvalue = {0};
+    if (luagtk_fill_gvalue(L, &gvalue, pspec->value_type, 3))
 	g_object_set_property(object, prop_name, &gvalue);
-    }
     g_type_class_unref(oclass);
     return 0;
 }
