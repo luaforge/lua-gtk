@@ -94,7 +94,7 @@ ${ODIR}luagtk_ffi.h: ${ODIR}ffi-types
 
 ${ODIR}ffi-types: src/ffi-types.c
 	@echo $@
-	@${HOSTCC} -o $@ $< $(LIBFFI)
+	@${HOSTCC} ${CFLAGS} -o $@ $< $(LIBFFI)
 
 # -- fch hash --
 
