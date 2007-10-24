@@ -14,6 +14,7 @@
 #include <lauxlib.h>	    // luaL_error
 #include <malloc.h>	    // free
 #include <string.h>	    // memset, strcmp, memcpy
+#include <stdarg.h>	    // va_start etc.
 
 #include "luagtk_ffi.h"	    // LUAGTK_FFI_TYPE() macro
 
@@ -124,6 +125,31 @@ void call_info_warn(struct call_info *ci)
     ci->warnings = 1;
 }
 
+const static char *_call_info_messages[] = {
+    "  Debug",
+    "  Info",
+    "  Warning",
+    "  Error"
+};
+
+/**
+ * Display a warning or an error about a function call.
+ *
+ * @param level    Error level; 0=debug, 1=info, 2=warning, 3=error
+ */
+void call_info_msg(struct call_info *ci, enum luagtk_msg_level level,
+    const char *format, ...)
+{
+    call_info_warn(ci);
+    if (level > 3)
+	luaL_error(ci->L, "call_info_msg(): Invalid level %d\n", level);
+    puts(_call_info_messages[level]);
+    va_list ap;
+    va_start(ap, format);
+    vprintf(format, ap);
+    va_end(ap);
+}
+
 
 /**
  * Retrieve the next argument spec from the binary representation (data from
@@ -182,8 +208,8 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 
 	idx = ar.arg_type->ffi_type_idx;
 	if (idx == 0) {
-	    call_info_warn(ci);
-	    printf("   Error: argument %d (type %s) has no ffi type.\n",
+	    call_info_msg(ci, LUAGTK_ERROR,
+		"Argument %d (type %s) has no ffi type.\n",
 		arg_nr, LUAGTK_TYPE_NAME(ar.arg_type));
 	    luaL_error(L, "call error\n");
 	}
@@ -200,8 +226,8 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 	    // If the current (probably last) argument is vararg, this is OK,
 	    // because a vararg doesn't need any extra arguments.
 	    if (strcmp(LUAGTK_TYPE_NAME(ar.arg_type), "vararg")) {
-		call_info_warn(ci);
-		printf("  Warning: more arguments expected -> nil used\n");
+		call_info_msg(ci, LUAGTK_WARNING,
+		    "More arguments expected -> nil used\n");
 	    }
 	    ar.lua_type = LUA_TNIL;
 	} else 
@@ -220,8 +246,7 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 
 	    // Shouldn't happen.  Can be fixed, but complain anyway
 	    if (lua_gettop(L) != st_pos_1) {
-		call_info_warn(ci);
-		printf("  Internal warning: lua2ffi changed stack\n");
+		call_info_msg(ci, LUAGTK_DEBUG, "lua2ffi changed the stack\n");
 		lua_settop(L, st_pos_1);
 	    }
 
@@ -229,8 +254,8 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 	    // handling a vararg.
 	    arg_nr = ar.func_arg_nr;
 	} else {
-	    call_info_warn(ci);
-	    printf("  Argument %d (type %s) not handled\n", arg_nr,
+	    call_info_msg(ci, LUAGTK_WARNING,
+		"Argument %d (type %s) not handled\n", arg_nr,
 		LUAGTK_TYPE_NAME(ar.arg_type));
 	    ci->ffi_args[arg_nr].l = 0;
 	}
@@ -247,8 +272,8 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
     // Warn about unused arguments.
     int n = stack_top - (index+arg_nr-1);
     if (n > 0) {
-	call_info_warn(ci);
-	printf("  Warning: %d superfluous argument%s\n", n, n==1?"":"s");
+	call_info_msg(ci, LUAGTK_WARNING,
+	    "%d superfluous argument%s\n", n, n==1?"":"s");
     }
 
     return 1;
