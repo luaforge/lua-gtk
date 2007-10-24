@@ -45,10 +45,6 @@ extern int override_size;
  * @param type        GType of the parameter to be pushed
  * @param data	      pointer to the location of this data
  * @return            The number of bytes of the type
- *
- * Obsolete - overrides for signals.
- * signal_name: to find overrides.
- * arg_nr: the argument number for thet signal.  It is used to find overrides.
  */
 int luagtk_push_value(lua_State *L, GType type, void *data)
 {
@@ -362,14 +358,13 @@ int luagtk_newindex(lua_State *L)
 
 	/* Is this the default empty table?  If so, create a new one private to
 	 * this object. */
-	lua_getglobal(L, "gtk");	    // w k v env gtk
-	lua_getfield(L, -1, "emptyattr");   // w k v env gtk emptyattr
-	if (lua_topointer(L, -1) == lua_topointer(L, -3)) {
-	    lua_newtable(L);		    // w k v env gtk emptyattr t
-	    lua_pushvalue(L, -1);	    // w k v env gtk emptyattr t t
-	    lua_setfenv(L, 1);		    // w k v env gtk emptyattr t
+	lua_getfield(L, LUA_ENVIRONINDEX, LUAGTK_EMPTYATTR);
+	if (lua_equal(L, -1, -2)) {	    // w k v env emptyattr
+	    lua_newtable(L);		    // w k v env emptyattr t
+	    lua_pushvalue(L, -1);	    // w k v env emptyattr t t
+	    lua_setfenv(L, 1);		    // w k v env emptyattr t
 	} else {
-	    lua_pop(L, 2);		    // w k v env
+	    lua_pop(L, 1);		    // w k v env
 	}
     }
 #endif
@@ -382,38 +377,6 @@ int luagtk_newindex(lua_State *L)
     return 0;
 }
 
-#if 0
-
-/**
- * Given the address as lightuserdata of a widget, make a Lua widget object.
- * This handles a lookup in gtk.widgets.  If the widget wasn't found,
- * then create it and insert it into this table.
- *
- * Parameters: table, *w
- */
-static int l_getwidget(lua_State *L)
-{
-    GtkWidget *widget = NULL;
-
-    if (lua_islightuserdata(L, 2)) {
-	widget = lua_touserdata(L, 2);
-
-	get_widget(L, (GObject*) widget, 0, 0);
-	if (lua_isnil(L, -1))
-	    return 0;
-
-	lua_pushvalue(L, -1);			// gtk *w w w
-	lua_insert(L, 2);			// gtk w *w w
-	lua_rawset(L, 1);			// gtk w
-	return 1;
-    }
-
-    printf("l_getwidget called with a param of type %d\n",
-	lua_type(L, 2));
-    return 0;
-}
-
-#endif
 
 /**
  * Initialize the library, returns a table.  Note that the table is also stored
@@ -425,49 +388,46 @@ int luaopen_gtk(lua_State *L)
     if (!luagtk_dl_init())
 	return 0;
 
-    // new environment
+    // new, empty environment
     lua_newtable(L);
     lua_replace(L, LUA_ENVIRONINDEX);
 
     /* make the table to return, and make it global as "gtk" */
     luaL_register(L, "gtk", gtk_methods);
 
-    // Table with all widget metatables; [name] = table
-    lua_newtable(L);			// gtk t
-    lua_newtable(L);			// gtk t mt
-    lua_pushstring(L, "v");		// gtk t mt "v"
-    lua_setfield(L, -2, "__mode");	// gtk t mt
-    lua_setmetatable(L, -2);		// gtk t
-    lua_setfield(L, LUA_ENVIRONINDEX, LUAGTK_METATABLES);
-    
-    /* gtk.widgets */
-    lua_pushstring(L, "widgets");	// gtk "widgets"
-    lua_newtable(L);			// gtk "widgets" t
-    lua_newtable(L);			// gtk "widgets" t mt
-//    lua_pushcfunction(L, l_getwidget);
-//    lua_setfield(L, -2, "__index");
+    // a metatable to use for widgets and metatables
+    lua_newtable(L);			// gtk mt
+    lua_pushstring(L, "v");		// gtk mt "v"
+    lua_setfield(L, -2, "__mode");	// gtk mt
 
-    /**
-     * Automatically remove unused widgets.  Be sure to keep references
-     * to those you need, especially those that have additional data,
-     * i.e. an environment attached.
-     */
-    lua_pushstring(L, "v");		// gtk "widgets" t mt "v"
-    lua_setfield(L, -2, "__mode");	// gtk "widgets" t mt
-    lua_setmetatable(L, -2);		// gtk "widgets" t
-    lua_rawset(L, -3);			// gtk
+    // Table with all widget metatables; [name] = table.  When no widgets
+    // of the given type exist anymore, they may be removed.
+    lua_newtable(L);			// gtk mt t
+    lua_pushvalue(L, -2);		// gtk mt t mt
+    lua_setmetatable(L, -2);		// gtk mt t
+    lua_setfield(L, LUA_ENVIRONINDEX, LUAGTK_METATABLES);   // gtk mt
+    
+    /* widgets.  Values are "weak", widgets are therefore removed
+     * automatically.  Be sure to keep references to those you need, especially
+     * those that have additional data, i.e. an environment attached. */
+    lua_newtable(L);			// gtk mt t
+    lua_pushvalue(L, -2);		// gtk mt t mt
+    lua_setmetatable(L, -2);		// gtk mt t
+    lua_setfield(L, LUA_ENVIRONINDEX, LUAGTK_WIDGETS);	    // gtk mt
+
+    lua_pop(L, 1);
 
     /* gtk.widgets_aliases.  Can't have aliases in gtk.widgets, because of
      * the automatic garbage collection there. */
-    lua_pushstring(L, "widgets_aliases");
     lua_newtable(L);
-    lua_rawset(L, -3);
+    lua_setfield(L, LUA_ENVIRONINDEX, LUAGTK_ALIASES);
 
     /* default attribute table of a widget */
 #if 1
-    lua_pushstring(L, "emptyattr");	// gtk "emptyattr"
+    // lua_pushstring(L, "emptyattr");	// gtk "emptyattr"
     lua_newtable(L);			// gtk "emptyattr" t
-    lua_rawset(L, -3);			// gtk
+    lua_setfield(L, LUA_ENVIRONINDEX, LUAGTK_EMPTYATTR);
+    // lua_rawset(L, -3);			// gtk
 #endif
 
     /* execute the glue library (compiled in) */
