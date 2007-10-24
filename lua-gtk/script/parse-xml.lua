@@ -110,6 +110,7 @@ fundamental_map = {
     ["unsigned char*"] = { "pointer", 0, "char_ptr", "char_ptr", nil, "char_ptr" },
     ["void*"] = { "pointer", 0, nil, "void_ptr", nil, nil },
     ["int*"] = { "pointer", 0, "int_ptr", "int_ptr", nil, nil },
+    ["unsigned int*"] = { "pointer", 0, "int_ptr", "int_ptr", nil, nil },
 }
 
 ---
