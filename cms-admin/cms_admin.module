@@ -1,0 +1,652 @@
+<?php
+// vim:sw=4:sts=4:filetype=php
+
+/**
+ * Drupal Glue code
+ */
+function cms_admin_help($section = 'admin/help#cms_admin') {
+    switch ($section) {
+	case 'admin/modules#description':
+	    return t('Allow remote administration using an efficient protocol.');
+	case 'admin/cms_admin':
+	    return t('Remote Admin Interface');
+    }
+}
+
+function cms_admin_menu($may_cache) {
+    $items = array();
+    if ($may_cache) {	    // may help to set this always.
+	$items[] = array('path' => 'cms_admin',  
+	'callback' => '_cms_admin_interface',
+	'title' => t('Image Upload Interface'),
+	'access' => true,
+	'type' => MENU_CALLBACK);
+    }
+
+    return $items;
+}
+
+
+/**
+ * Perform the creation of the various nodes.
+ *
+ * Parameters are passed as GET or POST values.
+ *  file	    the path and name of the already uploaded file
+ *  langs	    list of languages, comma separated
+ *  title_{lang}    title in this language
+ *  descr_{lang}    description in this language
+ *  taxonomy	    ID of the taxonomy entry to use.
+ *
+ * Target directory should be files/images.
+ */
+function _cms_admin_add_image($req) {
+    global $user;
+    $req_nr = $req['nr'];
+
+    /* check file */
+    $tmp_file_name = $req['tmpfile'];
+    if (!file_exists($tmp_file_name)) {
+	print "$req_nr ERR file $tmp_file_name not found.\n";
+	return;
+    }
+
+    /* the final name should be like the original file name. */
+    $real_file_name = basename($req['file']);
+
+    /* check language list */
+    if (isset($req['langs'])) {
+	$lang_list = explode(",", $req['langs']);
+    } else {
+	print "$req_nr ERR no language list provided.\n";
+	return;
+    }
+    if (count($lang_list) == 0) {
+	print "$req_nr ERR language list is empty.\n";
+	return;
+    }
+
+    /* check the language dependent parameters title and descr */
+    $errors = 0;
+    foreach ($lang_list as $lang) {
+	if (!isset($req["title_$lang"])) {
+	    print "$req_nr ERR missing title_$lang\n";
+	    $errors ++;
+	}
+	if (!isset($req["descr_$lang"])) {
+	    print "$req_nr ERR missing descr_$lang\n";
+	    $errors ++;
+	}
+	if (!isset($req["album_$lang"])) {
+	    print "$req_nr ERR missing album_$lang\n";
+	    $errors ++;
+	}
+	$album_nr = $req["album_$lang"];
+	$res = db_query("SELECT language, name FROM term_data "
+	    . "WHERE tid=%d", $album_nr);
+	$row = $res ? db_fetch_object($res) : NULL;
+	if (!$row) {
+	    print "$req_nr ERR album nr. $album_nr for language $lang "
+		. "doesn't exist.\n";
+	    $errors ++;
+	} elseif ($row->language != $lang) {
+	    print "$req_nr ERR album given for language $lang ($row->name) "
+		. "is actually for language $row->language.\n";
+	    $errors ++;
+	}
+    }
+    if ($errors > 0)
+	return;
+
+    print "$req_nr INFO data is complete.\n";
+
+    $first_nid = 0;
+
+    foreach ($lang_list as $lang) {
+	$node = new StdClass();
+	// unset($node->nid);
+	$node->uid = $user->uid;
+	$node->name = $user->name;		// published by
+	$node->type = 'image';
+	$node->title = $req["title_$lang"];
+	$node->body = $req["descr_$lang"];
+	$node->format = 1;			// XXX the format of body?
+	$node->comment = 2;			// comment reading/writing ok ?
+	$node->status = 1;			// ??? published?
+	$node->taxonomy = array($req["album_$lang"]);
+	// $node->teaser = ?;
+	// $node->moderate = ?;
+
+	// fill the $node->teaser from $node->body
+	node_teaser($node, $node->format);
+
+	// print_r($node);
+	// print "$req_nr INFO saving a node.\n";
+
+	/* not much to be expected here */
+	node_invoke($node, 'submit');
+	node_invoke_nodeapi($node, 'submit');
+
+	/* create tuples in node and node_revisions; invokes insert hooks */
+	node_save($node);
+
+	/* Now make the images - afterwards.  This is in order to have
+	 * the nid already set. */
+	if (!$first_nid) {
+	    print "$req_nr INFO original file location is $tmp_file_name\n";
+	    $node->images['_original'] = $tmp_file_name;
+
+	    /* create the derived images in the image temporary dir. */
+	    _image_build_derivatives($node, true);
+
+	    /* move them to the final directory, and create the entries
+	     * in the tables files and file_revisions.  This is from
+	     * the hook image_insert() */
+	    foreach ($node->images as $label => $image)
+		_image_insert($node, $label, file_create_path($image));
+
+	    /* prevent that the image_insert hook fires */
+	    /* unset($node->images); */
+
+	    $first_nid = $node->nid;
+	    $first_vid = $node->vid;
+
+	    /* create an entry in i18n_node */
+	    $first_trid = db_next_id('{i18n_node}_trid');
+	    db_query("INSERT INTO {i18n_node}(trid,nid,status,language) "
+		. "VALUES(%d,%d,%d,'%s')",
+		$first_trid, $node->nid, TRANSLATION_STATUS_SOURCE, $lang);
+	} else {
+	    /* memorize which file ID of the first language maps to which
+	     * file ID of this translation. */
+	    $fid2fid = array();
+
+	    /* just copy the file settings from the first node. */
+	    $res = db_query("SELECT * FROM files WHERE nid=%d", $first_nid);
+	    while ($row = db_fetch_object($res)) {
+		$fid = db_next_id('{files}_fid');
+		db_query("INSERT INTO {files} (fid, nid, filename, filepath, "
+		    . "filemime, filesize) "
+		    . "VALUES (%d, %d, '%s', '%s', '%s', '%s')",
+		    $fid, $node->nid, $row->filename, $row->filepath,
+		    $row->filemime, $row->filesize);
+		$fid2fid[$row->fid] = $fid;
+	    }
+
+	    $res = db_query("SELECT * FROM {file_revisions} WHERE vid=%d",
+		$first_vid);
+	    while ($row = db_fetch_object($res)) {
+		db_query("INSERT INTO {file_revisions} (fid, vid, description, "
+		    . "list) VALUES (%d, %d, '%s', %d)",
+		    $fid2fid[$row->fid], $node->vid, $row->description,
+			$row->list);
+	    }
+
+	    /* create an entry in i18n_node, giving the language and
+	     * translation status. */
+	    db_query("INSERT INTO {i18n_node}(trid,nid,status,language) "
+		. "VALUES(%d,%d,%d,'%s')",
+		$first_trid, $node->nid, TRANSLATION_STATUS_TRANSLATED, $lang);
+	}
+
+
+	/* revert new fields for saving as new node in other languages */
+	/*
+	unset($node->is_new);
+	unset($node->nid);
+	unset($node->vid);
+	unset($node->created);
+	unset($node->changed);
+	*/
+    }
+
+    /* delete the temporary file */
+    unlink($tmp_file_name);
+
+    print "$req_nr OK\n";
+}
+
+/**
+ * Try to login.  This results in a valid $user object and a session cookie,
+ * which will automatically be sent to the client.
+ *
+ * XXX for some reason, further requests in the same HTTP request will not
+ * succeed, as the authentication mechanism apparently isn't fully
+ * executed by user_authenticate.
+ */
+function _cms_admin_login($req) {
+    global $user;
+
+    $nr = $req['nr'];
+    $u = $req['user'];
+    $p = $req['password'];
+
+    $user = user_authenticate($u, $p);
+    if (!$user->uid) {
+	print "$nr ERR Login failed.\n";
+	return;
+    }
+
+    print "$nr OK Login successful.\n";
+}
+
+/**
+ * Return the list of languages of the site.
+ */
+function _cms_admin_get_language_list($req) {
+    $req_nr = $req['nr'];
+
+    $s = "{ languages = {";
+    $sep = '';
+    $langlist = locale_supported_languages();
+    foreach ($langlist['name'] as $lang => $name) {
+	$s .= sprintf('%s"%s"', $sep, $lang);
+	$sep = ', ';
+    }
+    $s .= " } }\n";
+
+    print "$req_nr LUA " . strlen($s) . " langinfo\n";
+    print $s;
+    print "$req_nr OK\n";
+}
+
+	
+
+/**
+ * Handle the upload of a file through a POST request.
+ *
+ * The uploaded file is moved to a temporary location, and this path and name
+ * are returned.
+ */
+function _cms_admin_upload($req) {
+    $req_nr = $req['nr'];
+
+    if (count($_FILES) == 0) {
+	print "$req_nr ERR no file has been sent.\n";
+	return;
+    }
+
+    /* let Drupal check the uploaded file, and move it from the PHP upload
+     * directory to the Drupal temporary directory. */
+    $file = file_check_upload("file$req_nr");
+    if (!$file) {
+	print "$req_nr ERR something is wrong with the uploaded file.\n";
+	return;
+    }
+
+    /* try to rename the file to its original basename */
+    $full_name = $file->filepath;
+    $path = dirname($full_name);
+
+    $desired_name = basename($_FILES["edit"]["name"]["file$req_nr"]);
+    if (preg_match("/^(.*?)(\.[^.]+)$/", $desired_name, $matches) == 0) {
+	$basename = $desired_name;
+	$extension = '';
+    } else {
+	$basename = $matches[1];
+	$extension = $matches[2];
+    }
+    $extra = "";
+    $nr = 0;
+
+    for (;;) {
+	$final_name = "$path/$basename$extra$extension";
+	if (!file_exists($final_name)) {
+	    if (rename($full_name, $final_name))
+		break;
+	}
+	print "$req_nr INFO $final_name already exists, trying another\n";
+	$extra = sprintf("-%04d", ++$nr);
+    }
+
+    print "$req_nr INFO image accepted, now in $final_name.\n";
+
+    $s = "{ tmpfile=\"$final_name\" }\n";
+    print "$req_nr LUA " . strlen($s) . " fileinfo\n";
+    print $s;
+    print "$req_nr OK\n";
+}
+
+/**
+ * Create a list of image gallery vocabulary IDs
+ */
+function _cms_admin_get_image_gallery_vids() {
+
+    $res = db_query("SELECT vid FROM {vocabulary} WHERE module='image_gallery'");
+    $vids = array();
+    while ($row = db_fetch_object($res))
+	$vids[] = $row->vid;
+    return $vids;
+}
+
+
+/**
+ * Get the list of albums.
+ *
+ * I don't use the taxonomy_get_tree function, because it would be limited
+ * to just one language by the rewrite system.
+ */
+function _cms_admin_get_image_taxonomy($vids) {
+    $res = db_query("SELECT tid, name, language, trid "
+	. "FROM {term_data} t "
+	. "WHERE vid IN (" . join(",", $vids) . ")");
+    $albums = array();
+    while ($row = db_fetch_object($res))
+	$albums[] = $row;
+    return $albums;
+}
+
+
+/**
+ * Retrieve a list of albums, each with the language.
+ * NOTE: this does not support a hierarchy of albums.
+ */
+function _cms_admin_album_list($req) {
+    $req_nr = $req['nr'];
+
+    /* There usually is just one vocabulary for all images, regardless
+     * of the language.  But, in theory, there could be multiple. */
+    $vids = _cms_admin_get_image_gallery_vids();
+    print "$req_nr INFO vids = " . join(", ", $vids) . "\n";
+
+    $albums = _cms_admin_get_image_taxonomy($vids);
+
+    $s = "{\n";
+
+    foreach ($albums as $item) {
+	$s .= sprintf(" { id=%d, name=\"%s\", lang=\"%s\", trid=%d },\n",
+	    $item->tid, $item->name, $item->language, $item->trid);
+    }
+
+    $s .= "}\n";
+
+    print("$req_nr LUA " . strlen($s) . " album_list\n");
+    print $s;
+    print "$req_nr OK\n";
+}
+
+
+/**
+ * Get a list of images in the album.
+ * Returns an array of image nodes.
+ */
+function _cms_admin_album_images($tid) {
+    $nodes = array();
+
+    $sql = "SELECT n.nid FROM {node} n "
+	. "INNER JOIN {term_node} t ON t.nid = n.nid "
+	. "WHERE t.tid = $tid AND n.type = 'image'";
+    $res = db_query($sql);
+
+    while ($term = db_fetch_object($res)) {
+	$nodes[] = node_load(array('nid' => $term->nid));
+    }
+
+    return $nodes;
+}
+
+
+/**
+ * Return a list of images in the given album.
+ */
+function _cms_admin_get_album_images($req) {
+    $req_nr = $req['nr'];
+
+    $album_nr = isset($req['album_nr']) ? $req['album_nr'] : '';
+    if (!$album_nr) {
+	print "$req_nr ERR missing album_nr\n";
+	return;
+    }
+
+    $album_name = taxonomy_get_term($album_nr);
+    if (!$album_name) {
+	print "$req_nr ERR invalid album_nr\n";
+	return;
+    }
+
+    $nodes = _cms_admin_album_images($album_nr);
+
+    if (!$nodes) {
+	print "$req_nr ERR query of album failed\n";
+	return;
+    }
+
+    print "$req_nr INFO found " . count($nodes) . " images\n";
+
+
+    $s = "{\n";
+
+    foreach ($nodes as $node) {
+	$full = _image_pub_get_imageinfo($node);
+	$preview = _image_pub_get_imageinfo($node, "preview");
+	$thumb = _image_pub_get_imageinfo($node, "thumbnail");
+
+	$s .= sprintf(' { id=%d, full = { width=%d, height=%d, size=%d }, '
+	    . 'preview = { width=%d, height=%d, size=%d }, '
+	    . 'thumb = { width=%d, height=%d, size=%d }, '
+	    . 'title="%s", description="%s", date="%s" },'."\n",
+	    $node->nid,
+	    // _image_pub_get_imagefilename($node),
+	    $full['width'], $full['height'], $full['filesize'],
+	    // _image_pub_get_imagefilename($node, "preview"),
+	    $preview['width'], $preview['height'], $preview['filesize'],
+	    // _image_pub_get_imagefilename($node, "thumbnail"),
+	    $thumb['width'], $thumb['height'], $thumb['filesize'],
+	    _lua_string($node->title),
+	    _lua_string($node->teaser),
+	    date("Y-m-d H:i:s", $node->created));
+    }
+
+    $s .= "}\n";
+
+    print "$req_nr LUA " . strlen($s) . " image_list\n";
+    print $s;
+    print "$req_nr OK\n";
+}
+
+function _lua_string($s) {
+    $s = str_replace(array("\n", '"', "\r"), array('\\n', '\"', ''), $s);
+    return $s;
+}
+
+
+/**
+ * Retrieve an image in the specified size.
+ *
+ * req parameters:
+ *  id	    ID of the image
+ *  size    "t" (Thumbnail), "p" (Preview) or "f" (Full).
+ */
+function _cms_admin_get_image($req) {
+    $req_nr = $req['nr'];
+
+
+    /* first, validate the image id */
+    $image_id = isset($req['id']) ? $req['id'] : '';
+    if (!$image_id) {
+	print "$req_nr ERR image id missing.\n";
+	return;
+    }
+
+    if (!is_numeric($image_id)) {
+	print "$req_nr ERR invalid image ID $image_id\n";
+	return;
+    }
+
+    /* even in case of error, inform the client which image_id is concerned. */
+    print "$req_nr VAR id $image_id\n";
+
+    /* now validate the size */
+    $size =  isset($req['size']) ? $req['size'] : '';
+    if (!$size) {
+	print "$req_nr ERR image size missing.\n";
+	return;
+    }
+
+    $sizes = array('t' => 'thumbnail', 'p' => 'preview', 'f' => '_original');
+
+    if (!isset($sizes[$size])) {
+	print "$req_nr ERR invalid size $size for image $image_id\n";
+	return;
+    }
+
+    /* fetch and validate the node */
+    $node = node_load(array('nid' => $image_id));
+    if (!$node) {
+	print "$req_nr ERR no image with ID $image_id\n";
+	return;
+    }
+    if ($node->type != 'image') {
+	print "$req_nr ERR the node with ID $image_id is not an image.\n";
+	return;
+    }
+
+    /* this is an image all right. */
+    $file_name = _image_pub_get_imagefilename($node, $sizes[$size]);
+    if (!$file_name) {
+	print "$req_nr ERR the image $image_id has no valid filename.\n";
+	return;
+    }
+
+    $file_info = _image_pub_get_imageinfo($node, $sizes[$size]);
+
+    print "$req_nr VAR size $file_info[filesize]\n";
+    // print "$req_nr VAR filename $file_name\n";
+
+    $full_name = 'files/' . variable_get('image_default_path', 'images')
+	. '/' . $file_name;
+
+    $length = filesize($full_name);
+    print "$req_nr DATA $length $file_name\n";
+    readfile($full_name);
+    print "$req_nr OK\n";
+}
+
+/**
+ * Handler for accesses to this page.
+ *
+ * There can be multiple requests in on the page.
+ */
+function _cms_admin_interface() {
+
+    header("Content-type: text/plain");
+
+    if (!isset($_REQUEST["r"])) {
+	print "ERR no requests found.\n";
+	return;
+    }
+
+    /* Process the requests in order; also works for >= 10 requests. */
+    ksort($_REQUEST["r"]);
+
+    foreach ($_REQUEST["r"] as $req_nr => $req)
+	_cms_admin_handle_request($req_nr, $req);
+
+    if (isset($_SESSION['messages'])) {
+	print "0 INFO Drupal messages:\n";
+	foreach ($_SESSION['messages'] as $type => $list) {
+	    foreach ($list as $line)
+		print("0 INFO " . str_replace("\n", '\\n', $line) . "\n");
+	}
+	unset($_SESSION['messages']);
+    }
+}
+
+/**
+ * Delete an image
+ */
+function _cms_admin_delete_image($req) {
+    $req_nr = $req['nr'];
+    print "$req_nr VAR id $req[id]\n";
+
+    $nid = $req['id'];
+    $node = node_load(array('nid' => $nid));
+    if (!$node) {
+	print "$req_nr ERR invalid image_id\n";
+	return;
+    }
+
+    if ($node->type != 'image') {
+	print "$req_nr ERR this image_id refers to a non-image.\n";
+	return;
+    }
+
+    /* Need to get all translations.  When deleting one translation, the image
+     * files are deleted, so that the remaining translations are invalid. */
+    $delnid = array();
+    $res = db_query("SELECT n2.nid FROM {i18n_node} n1, {i18n_node} n2 "
+	. "WHERE n1.nid=%d AND n1.trid != 0 AND n1.trid=n2.trid", $nid);
+    while ($row = db_fetch_object($res)) {
+	print "$req_nr INFO Deleting node $row->nid (translations)\n";
+	node_delete($row->nid);
+	$delnid[$row->nid] = true;
+    }
+
+    if (!$delnid[$nid]) {
+	print "$req_nr INFO Deleting node $nid (single)\n";
+	node_delete($nid);
+	$delnid[$nid] = true;
+    }
+
+    $cnt = count($delnid);
+    if ($cnt > 0) {
+	print "$req_nr OK $cnt translations deleted.\n";
+    } else {
+	print "$req_nr ERR the image node $nid couldn't be deleted.\n";
+    }
+}
+
+
+/**
+ * Handle one of the logical requests in an HTTP request.
+ */
+function _cms_admin_handle_request($req_nr, $req) {
+    global $user;
+
+    $cmd = $req['cmd'];
+    $req['nr'] = $req_nr;
+
+    /* while not yet logged in, only allow login. */
+    if ($cmd != 'login' && (!$user || $user->uid == 0)) {
+	print "$req_nr ERR please login first.\n";
+	return;
+    }
+
+    switch ($cmd) {
+	case 'login':
+	    _cms_admin_login($req);
+	    break;
+	
+	case 'get-language-list':
+	    _cms_admin_get_language_list($req);
+	    break;
+
+	case 'get-album-list':
+	    _cms_admin_album_list($req);
+	    break;
+	
+	case 'get-album-images':
+	    _cms_admin_get_album_images($req);
+	    break;
+	
+	case 'get-image':
+	    _cms_admin_get_image($req);
+	    break;
+	
+	case 'upload':
+	    _cms_admin_upload($req);
+	    break;
+	
+	case 'add-image':
+	    _cms_admin_add_image($req);
+	    break;
+
+	case 'delete-image':
+	    _cms_admin_delete_image($req);
+	    break;
+	
+	default:
+	    print "ERR Unknown command $cmd\n";
+    }
+}
+
+

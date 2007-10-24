@@ -1,0 +1,6 @@
+
+
+Mit Jul 18 00:17:56 CEST 2007
+* settings.lua: new file, shows the dialog with the current values; doesn't
+  save the settings yet.
+
