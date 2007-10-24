@@ -8,25 +8,32 @@ local gtk = require "gtk"
 local os = gtk.get_osname()
 module "gtk.watches"
 
--- Watches
+---
+-- Watches.  These are used to run network communication in the background.
+-- A coroutine that needs to wait on input or output, calls coroutine.yield
+-- with appropriate parameters.
+--
 
-local _watches = {}		-- key = thread/channel/flags, true
+_watches = {}		-- key = thread/channel/cond, true
 
 --
--- Callback when a watch fired.  Resume the coroutine waiting for this event.
+-- Callback when a watch fired; it is normally called via _watch_handler
+-- in src/channel.c.  Resume the coroutine waiting for this event.  It can also
+-- be used to start a thread.
 --
-local function my_watch_func(thread, channel, condition)
-    -- print("resume", thread)
-    local rc, msg, channel, flags = coroutine.resume(thread, channel, condition)
+-- Note: it is called in the global Lua state (thread) for callbacks, or
+-- in any thread when called from start_watch().
+--
+function _watch_func(thread, channel, cond)
+    local rc, msg
 
-    -- print("yield", thread, rc, msg, channel, flags)
+    -- Run the coroutine (thread) until it has to block; it either calls
+    -- yield(), exits normally or calls error().
+    -- print("run", thread)
+    rc, msg, channel, cond = coroutine.resume(thread, channel, condition)
+    -- print("done", thread, rc, msg, channel, cond)
 
-    -- blocked on a channel? if the IOWait doesn't exist yet, add it.
-    if rc and msg == "iowait" then
-	add_watch(thread, channel, flags)
-    end
-    --
-    -- exit gracefully; should not be required.
+    -- if resume returns false, then an error was raised in the thread.
     if not rc then
 	print "WARNING: thread died unexpectedly:"
 	print(msg)
@@ -35,36 +42,55 @@ local function my_watch_func(thread, channel, condition)
 	    gtk.main_quit()
 	end
 	remove_watch(thread, nil, nil)
+	return rc
     end
 
-    return rc
+    -- Blocked on a channel? if the IOWait doesn't exist yet, add it.
+    if msg == "iowait" then
+	add_watch(thread, channel, cond)
+	return rc
+    end
+
+    -- XXX some other reasons to block (besides iowait) might be added later.
+
+    print "Thread exited."
+    remove_watch(thread, nil, nil)
+    if not msg then print(channel) end
+    return false
 end
 
 
 --
 -- Return a key for the _watches table
 --
-local function _watch_key(thread, channel, flags)
+function _watch_key(thread, channel, cond)
     local s = (thread and base.tostring(thread) or ".-") .. ","
     s = s .. (channel and base.tostring(channel) or ".-") .. ","
-    s = s .. (flags and base.tostring(flags) or ".-")
+    s = s .. (cond and base.tostring(cond) or ".-")
     return s
 end
 
+---
+-- Watch a channel.
 --
--- Watch a channel
+-- When an appropriate event (specified by cond) happens, The function
+-- _watch_func will be invoked, which then resumes the given thread.
 --
-function add_watch(thread, channel, flags)
-    local key = _watch_key(thread, channel, flags)
+-- @param thread       The thread to resume when the event happens
+-- @param channel      The channel to wait on
+-- @param cond         The condition to wait for
+--
+function add_watch(thread, channel, cond)
+    local key = _watch_key(thread, channel, cond)
     if _watches[key] then return end
     -- print("ADD WATCH", key)
 
-    -- first, remove other watches on this channel.  For example, if there's
+    -- First, remove other watches on this channel.  For example, if there's
     -- a write watch, but now the user wants to read something, then the write
     -- watch would always fire even though there's nothing to read.
     remove_watch(thread, channel, nil)
 
-    local id = gtk.my_g_io_add_watch(channel, flags, my_watch_func, thread)
+    local id = gtk.my_g_io_add_watch(channel, cond, _watch_func, thread)
     -- print("ID is", id)
     _watches[key] = id or true
 end
@@ -73,10 +99,10 @@ end
 --
 -- Remove unused watches.
 --
--- thread, channel and/or flags can be nil; in this case, they act as wildcard.
+-- thread, channel and/or cond can be nil; in this case, they act as wildcard.
 --
-function remove_watch(thread, channel, flags)
-    local key = _watch_key(thread, channel, flags)
+function remove_watch(thread, channel, cond)
+    local key = _watch_key(thread, channel, cond)
 
     -- print("Removing watches for", key)
     for k, v in base.pairs(_watches) do
@@ -89,6 +115,6 @@ function remove_watch(thread, channel, flags)
 end
 
 function start_watch(thread)
-    return my_watch_func(thread, nil, 0)
+    return _watch_func(thread, nil, 0)
 end
 
