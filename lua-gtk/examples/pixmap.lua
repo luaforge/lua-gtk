@@ -107,9 +107,10 @@ gtk.main()
 mywin1 = nil
 mywin2 = nil
 
-collectgarbage("collect")
-
-print "WIDGETS"
-for k,v in pairs(gtk.widgets) do print(k,v) end
-for k,v in pairs(gtk.widgets_aliases) do print(k,v) end
+if false then
+    collectgarbage("collect")
+    collectgarbage("collect")
+    collectgarbage("collect")
+    gtk.dump_memory()
+end
 
