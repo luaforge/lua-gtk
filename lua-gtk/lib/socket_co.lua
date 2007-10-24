@@ -154,10 +154,16 @@ source = { file = source_file, buffer = source_buffer }
 -- Returns the new GIOChannel and the socket.  Be sure to keep a reference
 -- to the socket, otherwise it will be destroyed!
 --
--- XXX The yield() etc. doesn't work properly here.  The connect() call
+-- Note: The yield() etc. doesn't work properly here.  When the connect() call
 -- returns EINPROGRESS, one should wait for writability and then use
--- getsockopt() to determine whether the connection could be established.
--- This is rather complicated, so I just use a timeout.
+-- getsockopt() to determine whether the connection could be established.  This
+-- is rather complicated, so I just use a timeout, which makes the connect()
+-- call blocking.
+--
+-- @param host        Host to connect to; IP address or DNS name.
+-- @param port        The port to connect to; must be numeric.
+-- @param buffered    true to use buffered sockets; don't do this.
+-- @return GIOChannel, or nil + error message.
 --
 function connect(host, port, buffered)
     local sock, rc, msg
@@ -165,24 +171,31 @@ function connect(host, port, buffered)
     sock, msg = socket.tcp()
     if not sock then return sock, msg end
     sock:settimeout(TIMEOUT)
-    -- print("* New Socket at", sock)
+
+    -- Connect might block, and iowait is only possible on GIOChannels,
+    -- not plain sockets (not really).
+    local gio = create_io_channel(sock, buffered)
 
     while true do
 	rc, msg = sock:connect(host, port)
 	-- print("sock connect returned", rc, msg)
 	if rc then break end
 	if msg ~= "timeout" then return rc, msg end
+	-- not reached
 	print "IOWAIT on connect"
-	coroutine.yield("iowait", sock, gtk.G_IO_OUT)
+	coroutine.yield("iowait", gio, gtk.G_IO_OUT)
     end
 
     sock:settimeout(0)
-
-    return create_io_channel(sock, buffered)
+    return gio, sock
 end
 
 ---
 -- Given a socket, construct a GIOChannel around it.
+--
+-- @param sock       A socket
+-- @param buffered   Should be false
+-- @return a GIOChannel for the socket, and the socket itself
 --
 function create_io_channel(sock, buffered)
     local fd, gioc = sock:getfd()
@@ -278,6 +291,10 @@ end
 -- It can return UP TO length bytes but may return less.  Calling it again
 -- will then return more, unless the server stops sending data.
 --
+-- @param ioc     GIOChannel
+-- @param length  Max. bytes to read
+-- @return        Buffer, or nil and message
+--
 function read_chars(ioc, length)
     local rc, msg, buf
 
@@ -293,6 +310,7 @@ function read_chars(ioc, length)
     while true do
 	rc, msg = ioc:read_chars(length)
 	if rc or msg ~= 'timeout' then break end
+	-- print "read_chars: need to wait"
 	coroutine.yield("iowait", ioc, gtk.G_IO_IN)
     end
 
