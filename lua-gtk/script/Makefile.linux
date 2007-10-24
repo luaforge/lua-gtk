@@ -24,7 +24,7 @@ ODLL	:=gtk.so
 
 all: dirs gtk2dll
 
-include Makefile.common
+include script/Makefile.common
 
 # Build a tarball with the stripped library, the Lua library code and all the
 # examples, plus an explanatory README file.
