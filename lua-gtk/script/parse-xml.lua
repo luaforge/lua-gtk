@@ -34,6 +34,7 @@ max_bit_offset = 0
 max_bit_length = 0
 max_struct_id = 0
 max_func_args = 0
+max_struct_size = 0
 fundamental_name2id = {}
 
 type_override = {
@@ -581,10 +582,10 @@ function output_one_struct(ofile, tp)
 	    end
 
 	    -- name offset, bit offset, bit length (0=see detail),
-	    -- fundamental type id, type detail (-1=none)
+	    -- fundamental type id, type detail (0=none)
 	    ofile:write(string.format(" { %d, %d, %d, %d, %d }, /* %s */\n",
 		ofs, member.offset, tp.bit_len, tp.fid,
-		tp.detail and tp.detail.struct_id or -1,
+		tp.detail and tp.detail.struct_id or 0,
 		member.name or member_name))
 	    elem_start = elem_start + 1
 	end
@@ -609,7 +610,6 @@ function output_structs(ofname)
 	    name2id[v.name] = k
 	end
     end
-    print("In use:", #keys)
     table.sort(keys)
 
     -- assign numbers to the structures; don't use 0.
@@ -642,19 +642,17 @@ function output_structs(ofname)
     end
     ofile:write("};\n\n")
 
-    -- struct_list
-
-    -- 0 is the undefined structure; therefore start with 1.
---    local struct_count = 1
-
+    -- struct_list.  It contains entries for all the ENUMs, which don't have
+    -- any elements of course (size=0).
     ofile:write("const struct struct_info struct_list[] = {\n"
 	.. " { 0, 0, 0 }, /* placeholder for undefined structures */\n")
     for i, name in ipairs(keys) do
 	tp = typedefs[name2id[name]]
 	st = tp.struct or { elem_start=tp.elem_start, size=0 }
+	local struct_size = (st.size or 0)/8
 	ofile:write(string.format(" { %d, %d, %d }, /* %s */\n",
-	    tp.name_ofs, st.elem_start, (st.size or 0)/8, name))
---	struct_count = struct_count + 1
+	    tp.name_ofs, st.elem_start, struct_size, name))
+	max_struct_size = math.max(max_struct_size, struct_size)
     end
 
     -- Last entry to calculate the elem count of the real last entry.  This one
@@ -923,12 +921,12 @@ function output_globals(ofname)
 	tp = resolve_type(gl.type)
 	ofile:write(string.format("  { \"%s\", %d, %d }, /* %s */\n", name,
 	    tp.fid,
-	    tp.detail and tp.detail.struct_id or -1,
+	    tp.detail and tp.detail.struct_id or 0,
 	    tp.name .. string.rep("*", tp.pointer)
 		.. (tp.detail and (" " .. tp.detail.name) or "") ))
 	count = count + 1
     end
-    ofile:write "  { NULL, 0, -1 }\n};\n"
+    ofile:write "  { NULL, 0, 0 }\n};\n"
     ofile:write(string.format("const int globals_count = %d;\n", count))
     ofile:close()
 end
@@ -1026,11 +1024,14 @@ output_types(arg[1] .. "/gtkdata.types.c")
 output_globals(arg[1] .. "/gtkdata.globals.c")
 -- output_argument_types(arg[1] .. "/gtkdata.argtypes.h")
 
+-- Output some maximum values.  This is useful to decide how many bits the
+-- various fields of the structures must have.
 print("max_bit_offset", max_bit_offset)
 print("max_bit_length", max_bit_length)
-print("max string offset in structure strings", string_offset)
-print("max type_id", next_fid - 1)
-print("max struct id", max_struct_id)
-print("max function args", max_func_args)
+print("max_struct_string_offset", string_offset)
+print("max_struct_size", max_struct_size)
+print("max_type_id", next_fid - 1)
+print("max_struct_id", max_struct_id)
+print("max_func_args", max_func_args)
 
 
