@@ -53,7 +53,6 @@ function _watch_func(thread, channel, cond)
 
     -- XXX some other reasons to block (besides iowait) might be added later.
 
-    print "Thread exited."
     remove_watch(thread, nil, nil)
     if not msg then print(channel) end
     return false
