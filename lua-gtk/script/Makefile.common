@@ -12,7 +12,7 @@ VERSION	:=0.6
 # -- end general configuration --
 
 .PHONY:	tags wc tar install mrproper clean tests config_h doc
-.PRECIOUS: ${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}%.keys
+.PRECIOUS: ${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}%.keys ${ODIR}%.mph
 
 OFILES	:=types.o gtk2.o interface.o data.o \
 	call.o callback.o channel.o gvalue.o \
@@ -192,9 +192,11 @@ install: all
 
 tar:
 	(cd ..; ln -s lua-gtk lua-gtk-${VERSION}; \
-	tar czvf lua-gtk-${VERSION}.tar.gz \
+	tar czvfh lua-gtk-${VERSION}.tar.gz \
 		--exclude build --exclude CVS --exclude mingw/gtk \
-		--exclude tags --exclude ".*.swp" lua-gtk-${VERSION}; \
+		--exclude tags --exclude ".*.swp" --exclude attic \
+		--exclude private \
+		lua-gtk-${VERSION}; \
 	rm lua-gtk-${VERSION})
 
 wc:
@@ -226,5 +228,6 @@ ${ODIR}gvalue.o: ${LH}
 ${ODIR}types.o: ${ODIR}gtkdata.types.c ${ODIR}luagtk_ffi.h ${LH}
 ${ODIR}hash-fch-generate.o: src/hash-fch.h ${LH}
 ${ODIR}hash-fch.o: src/hash-jenkins.c ${LH}
+${ODIR}gtkdata.structs.o: ${ODIR}gtkdata.structs.c ${LH}
 
 
