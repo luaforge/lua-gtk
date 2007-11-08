@@ -239,10 +239,14 @@ static int l_get_osname(lua_State *L)
 static int l_gtk_init(lua_State *L)
 {
     global_lua_state = L;
-    gtk_init(NULL, NULL);
 
     if (lua_gettop(L) > 0)
 	runtime_flags = lua_tonumber(L, 1);
+
+    if (runtime_flags & RUNTIME_GMEM_PROFILE)
+	g_mem_set_vtable(glib_mem_profiler_table);
+
+    gtk_init(NULL, NULL);
 
     return 0;
 }
@@ -258,7 +262,7 @@ static int l_gtk_init(lua_State *L)
 static int l_g_object_set_property(lua_State *L)
 {
     struct widget *w = (struct widget*) lua_topointer(L, 1);
-    if (!w || w->refcounting >= WIDGET_RC_LAST) {
+    if (!w /*|| w->refcounting >= WIDGET_RC_LAST */) {
 	printf("%s invalid object in l_g_object_set_property.\n", msgprefix);
 	return 0;
     }
