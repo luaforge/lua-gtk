@@ -262,7 +262,7 @@ static int l_gtk_init(lua_State *L)
 static int l_g_object_set_property(lua_State *L)
 {
     struct widget *w = (struct widget*) lua_topointer(L, 1);
-    if (!w /*|| w->refcounting >= WIDGET_RC_LAST */) {
+    if (!w || w->refcounting >= WIDGET_RC_LAST) {
 	printf("%s invalid object in l_g_object_set_property.\n", msgprefix);
 	return 0;
     }
