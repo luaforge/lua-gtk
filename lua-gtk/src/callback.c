@@ -13,6 +13,17 @@
 #include <lauxlib.h>	    // luaL_check*, luaL_ref/unref
 #include <stdarg.h>
 
+/* one such structure per connected callback */
+struct callback_info {
+    int handler_ref;		/* reference to the function to call */
+    int args_ref;		/* reference to a table with additional args */
+    lua_State *L;		/* the Lua state this belongs to */
+    GSignalQuery query;		/* information about the signal, see below */
+};
+/* query: signal_id, signal_name, itype, signal_flags, return_type, n_params,
+ * param_types */
+
+
 /**
  * Handle return values from the Lua handler to pass back to Gtk.  Not many
  * different types are supported - but I think no others are actually used.
