@@ -395,46 +395,46 @@ int luaopen_gtk(lua_State *L)
     /* make the table to return, and make it global as "gtk" */
     luaL_register(L, "gtk", gtk_methods);
 
-    // a metatable to use for widgets and metatables
+    // a metatable to make another table have weak values
     lua_newtable(L);			// gtk mt
     lua_pushstring(L, "v");		// gtk mt "v"
     lua_setfield(L, -2, "__mode");	// gtk mt
 
     // Table with all widget metatables; [name] = table.  When no widgets
-    // of the given type exist anymore, they may be removed.
+    // of the given type exist anymore, they may be removed (weak values).
     lua_newtable(L);			// gtk mt t
     lua_pushvalue(L, -2);		// gtk mt t mt
     lua_setmetatable(L, -2);		// gtk mt t
     lua_setfield(L, LUA_ENVIRONINDEX, LUAGTK_METATABLES);   // gtk mt
     
-    /* widgets.  Values are "weak", widgets are therefore removed
-     * automatically.  Be sure to keep references to those you need, especially
-     * those that have additional data, i.e. an environment attached. */
+    // widgets: not a weak table.  It only contains references to entries
+    // in the aliases table; they are removed manually when the last alias
+    // is garbage collected.
     lua_newtable(L);			// gtk mt t
-    lua_pushvalue(L, -2);		// gtk mt t mt
-    lua_setmetatable(L, -2);		// gtk mt t
     lua_setfield(L, LUA_ENVIRONINDEX, LUAGTK_WIDGETS);	    // gtk mt
 
-    lua_pop(L, 1);
-
-    /* gtk.widgets_aliases.  Can't have aliases in gtk.widgets, because of
-     * the automatic garbage collection there. */
+    // gtk.widgets_aliases.  It has automatic garbage collection (weak values)
     lua_newtable(L);
+    lua_pushvalue(L, -2);
+    lua_setmetatable(L, -2);
     lua_setfield(L, LUA_ENVIRONINDEX, LUAGTK_ALIASES);
+
+    lua_pop(L, 1);			// gtk
+
 
     /* default attribute table of a widget */
 #if 1
     // lua_pushstring(L, "emptyattr");	// gtk "emptyattr"
     lua_newtable(L);			// gtk "emptyattr" t
     lua_setfield(L, LUA_ENVIRONINDEX, LUAGTK_EMPTYATTR);
-    // lua_rawset(L, -3);			// gtk
 #endif
 
     /* execute the glue library (compiled in) */
     luaL_loadbuffer(L, override_data, override_size, "override.lua");
     lua_pcall(L, 0, 0, 0);
 
-    /* define meta table (itself) and functions */
+    // make gtk its own metatable - it contains __index and maybe other
+    // special methods.
     lua_pushvalue(L, -1);
     lua_setmetatable(L, -2);
 
