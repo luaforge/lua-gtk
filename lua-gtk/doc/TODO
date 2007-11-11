@@ -4,25 +4,32 @@ TODO
 
 - review all the code for improvements and maybe some bugs, esp. the
   segfaults when not optimized on amd64.
-	- struct_nr 0 now means unset; don't use -1 anywhere.
+
+- mingw port:
+	- test it, users report that it's broken
 
 - amd64 port:
 	- fix segfaults when compiled without -O
 	- fix spurious segfaults in weather demo
 
-- widget aliases:
-	- check refcounting usage
-	- unref an alias - not collected by garbage collection?
+- exporting existing GTk objects to Lua, see
+  http://luaforge.net/forum/forum.php?thread_id=827&forum_id=536
+
+- check refcounting usage, memory leaks
+	- valgrind
+	- glib memory statistics
+	- make sure my reference counting (g_object_ref/_unref) is correct.
+	  seems to be ok...
+	- refcounting on GIOChannel not OK.  Sometimes in-use channels are
+	  freed, which aborts communication.
 
 - modularize channel.c so that it contains everything related to channels.
   This should make it easier to add more modules later.
 
 - more documentation
-	- homepage with documentation on luaforge.net
-	- how to generate it?  any lua based systems? cgilua?
-
-- use luadoc to generate some documentation.  A taglet is required for
-  parsing C instead of Lua.
+	- improve the homepage, add more content, better layout
+	- use luadoc tags for all user visible functions in the C modules
+	- developer documentation to give pointers for hacking
 
 - call tracing should show the actual values of the arguments; would require
   a new callback for each parameter type, some kind of tostring.
@@ -30,17 +37,9 @@ TODO
 - running Win executables with wine under Linux, and using glade.lua - font
   sizes are insanely large.
 
-- refcounting on GIOChannel not OK.  Sometimes in-use channels are freed,
-  which aborts communication.
-
-- make sure my reference counting (g_object_ref/_unref) is correct.
-  seems to be ok...
-
-- Gtk seems to be leaky...  how to minimize that?
-
 - try LuaJIT - should speed everything up.  at least check that it works with
   it because in a larger project, somebody might want to use it.
 
-- exporting existing GTk objects to Lua, see
-  http://luaforge.net/forum/forum.php?thread_id=827&forum_id=536
+- test GtkBuilder which is available in GTk 2.12; it should replace the
+  glade module in the long run.
 
