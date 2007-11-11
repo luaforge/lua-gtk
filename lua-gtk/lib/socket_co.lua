@@ -8,8 +8,6 @@
 -- Copyright (C) 2007 Wolfgang Oertl
 --
 
-require "gtk.strict"
-
 local base = _G
 local string = string
 local coroutine = coroutine
@@ -17,7 +15,6 @@ local print = print
 local socket = require "socket.core"
 local gtk = require "gtk"
 local watches = require "gtk.watches"
--- local strict = require "strict"
 local os = gtk.get_osname()
 
 module "gtk.socket_co"
