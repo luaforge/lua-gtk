@@ -40,12 +40,10 @@ function MYWIN:on_configure(ev, ifo)
     -- get GdkWindow
     local window = ifo.win.window
     local width, height = window:get_size(0, 0)
-    -- deallocate previous pixmap - happens automatically!
-    -- if (ifo.pixmap) then ifo.pixmap:unref() end
 
     -- allocates memory in X server... default drawable, width, height, depth
     -- loses the reference to the previous pixmap, if any.
-    ifo.pixmap = gtk.call("gdk_pixmap_new", window, width, height, -1)
+    ifo.pixmap = gtk.gdk_pixmap_new(window, width, height, -1)
 
     local style = ifo.win:get_style()
     local white_gc = style.white_gc
@@ -84,22 +82,22 @@ end
 
 -- on expose, copy the newly visible part of the pixmap to the GdkWindow
 -- of the drawing area.
+--
+-- Note: this creates a pixmap with w*h pixels, copies the relevant part of
+-- ifo.pixmap into it, then copies that pixmap to the window, and destroys
+-- the pixmap.
+--
 function MYWIN:on_expose(ev, ifo)
-    -- print "on_expose"
-    -- print(ev)
-    -- print(ev.expose)
-    -- gtk.dump_struct(ev)
     local area = ev.expose.area
     local x, y, w, h = area.x, area.y, area.width, area.height
     local window = self.window
     local style = ifo.win:get_style()
     local white_gc = style.white_gc
-    gtk.call("gdk_draw_drawable", window, white_gc, ifo.pixmap,
-	x, y, x, y, w, h)
+    gtk.gdk_draw_drawable(window, white_gc, ifo.pixmap, x, y, x, y, w, h)
     return false
 end
 
-gtk.init()
+gtk.init(8)
 mywin1 = mywin_new("One")
 mywin2 = mywin_new("Two")
 gtk.main()
@@ -113,4 +111,6 @@ if false then
     collectgarbage("collect")
     gtk.dump_memory()
 end
+
+gtk.g_mem_profile()
 
