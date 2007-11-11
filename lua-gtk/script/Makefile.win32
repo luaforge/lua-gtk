@@ -6,11 +6,11 @@
 #  libraries, and the lua51 library.  see doc/INSTALL for more info.
 
 PLATFORM:=WIN32
-# where to find the Lua-5.1 headers
-LUAINC	:=/usr/include/lua5.1
 
 # if you don't have cmph (http://sf.net/projects/cmph/), just comment this out.
 CMPHDIR	:=/build/cmph-0.6/src
+CMPHBIN	:=cmph
+CMPHLIB	:=-lcmph
 
 # where to find the precompiled Gtk/Gdk etc. libraries, and libffi
 GTKDIR	:=mingw/gtk-import/
@@ -24,7 +24,7 @@ LUALIB	:=$(LUADIR)/lua5.1.dll
 LINK	:=1
 MINGW	:=i586-mingw32msvc-
 ODIR	:=build/win32/
-CFLAGS	:=-DXTHREADS -I $(FFIDIR) -I $(LUAINC) -mms-bitfields
+CFLAGS	:=-DXTHREADS -I $(FFIDIR) -mms-bitfields
 GTKLIB	:=$(GTKDIR)libgtk-win32-2.0-0.dll $(GTKDIR)libgdk-win32-2.0-0.dll \
 	$(GTKDIR)libgobject-2.0-0.dll $(GTKDIR)libglib-2.0-0.dll \
 	$(GTKDIR)libgdk_pixbuf-2.0-0.dll
