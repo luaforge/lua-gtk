@@ -17,7 +17,9 @@ INDIR2	:=/usr/local/share/lua/5.1
 LINK	:=1
 MINGW	:=
 ODIR	:=build/linux/
-CFLAGS	:=
+# -fPIC required for position indendent code in shared objects; besides,
+#  shrinks the library size somewhat.
+CFLAGS	:=-fPIC
 GTKLIB	:=-lgtk-x11-2.0
 ODLL	:=gtk.so
 # --- end platform configuration ---
