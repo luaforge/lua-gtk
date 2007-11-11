@@ -11,13 +11,34 @@
 #include <lauxlib.h>	    // luaL_error
 #include <string.h>	    // strcpy
 
+/**
+ * Main module for the Lua-Gtk binding.
+ * @class module
+ * @name gtk
+ */
+
+/*-
+ * A method has been found and should now be called.
+ * input stack: parameters to the function
+ * upvalues: the func_info structure
+ */
+static int _call_wrapper(lua_State *L)
+{
+    struct func_info *fi = (struct func_info*) lua_topointer(L,
+	lua_upvalueindex(1));
+    return luagtk_call(L, fi, 1);
+}
+
 
 /**
- * Handle accesses of "gtk.xxx", where xxx may be any gtk function, used mainly
- * for gtk.xxx_new(), and ENUMs.
+ * Look up a name in gtk.  This works for any Gtk function, like
+ * gtk.window_new(), and ENUMs, like gtk.GTK_WINDOW_TOPLEVEL.
  *
- * input stack: 1=table, 2=value
- * output: either a userdata (for ENUMs) or a closure (for functions).
+ * @name __index
+ * @luaparam table     The table to look in; is automatically set to gtk
+ * @luaparam key       The name of the item to look up
+ * @luareturn          Either a userdata (for ENUMs) or a closure (for
+ *			functions)
  */
 static int l_gtk_lookup(lua_State *L)
 {
@@ -57,46 +78,24 @@ static int l_gtk_lookup(lua_State *L)
     memcpy(fi2, &fi, sizeof(*fi2));
     memcpy(fi2+1, fi.name, name_len);
     fi2->name = (char*) (fi2+1);
-    lua_pushcclosure(L, luagtk_call_wrapper, 1);
+    lua_pushcclosure(L, _call_wrapper, 1);
     return 1;
 }
 
 
 /**
- * Call any gtk function through this catch-all API.
- * Stack: 1=name of the function, 2 and up=arguments to the function
- */
-static int l_call(lua_State *L)
-{
-    const char *func_name = luaL_checkstring(L, 1);
-    struct func_info fi;
-
-    if (find_func(func_name, &fi)) {
-	return luagtk_call(L, &fi, 2);
-    }
-
-    printf("%s l_call: function %s not found.\n", msgprefix, func_name);
-    return 0;
-}
-
-
-/**
- * Allocate a structure, initialize with zero and return.
+ * Allocate a structure, initialize with zero and return it.
+ *
  * This is NOT intended for widgets or structures that have specialized
  * creator functions, like gtk_window_new and such.  Use it for simple
  * structures like GtkTreeIter.
  *
- * The widget is, as usual, a Lua wrapper in the form of a light user data,
- * containing a pointer to the actual widget.  I used to allocate just one
- * light userdata big enough for both the wrapper and the widget, but
- * sometimes a special free function must be called, like gtk_tree_iter_free.
- * So, this optimization is not possible.
+ * The widget is, as usual, a Lua wrapper in the form of a userdata,
+ * containing a pointer to the actual widget.
  *
- * TODO
- * - find out whether a specialized free function exists.  If so, allocate
- *   a separate block of memory for the widget (as it is done now).  Otherwise,
- *   allocate a larger userdata with enough space for the widget.  Do not
- *   call g_free() in the GC function.
+ * @name new
+ * @luaparam name Name of the structure to allocate
+ * @luareturn The new structure
  */
 static int l_new(lua_State *L)
 {
@@ -109,7 +108,10 @@ static int l_new(lua_State *L)
 	return 0;
     }
 
-    /* allocate and initialize the object */
+    /* Allocate and initialize the object.  I used to allocate just one
+     * userdata big enough for both the wrapper and the widget, but sometimes a
+     * special free function must be called, like gtk_tree_iter_free.  So, this
+     * optimization is not possible. */
     p = g_malloc(si->struct_size);
     memset(p, 0, si->struct_size);
 
@@ -121,8 +123,12 @@ static int l_new(lua_State *L)
 
 #if 0
 
-/**
+/*-
  * Store information about a Gtk widget.
+ *
+ * This is probably not required.  This only makes sense for widgets created
+ * outside of Lua, i.e. from C code.  Thus, a function callable from C
+ * would make more sense, wouldn't it?
  *
  * The global table gtk.widgets will contain two new entries:
  *   address -> widget
@@ -144,41 +150,6 @@ static int l_register_widget(lua_State *L)
 
 #endif
 
-/**
- * g_type_from_name fails unless the type has been initialized before.  Use
- * my wrapper that handles the initialization when required.
- */
-static int l_g_type_from_name(lua_State *L)
-{
-    const char *s = luaL_checkstring(L, 1);
-    int type_nr = luagtk_g_type_from_name(s);
-    lua_pushnumber(L, type_nr);
-    return 1;
-}
-
-
-/**
- * Perform the G_OBJECT_GET_CLASS on an object.
- * Returns a GObjectClass structure, or nil on error.
- */
-static int l_g_object_get_class(lua_State *L)
-{
-    // printf("get class.\n");
-    GObject *parent = (GObject*) lua_topointer(L, 1);
-    // printf("  parent is %p\n", parent);
-    GObjectClass *c = G_OBJECT_GET_CLASS(parent);
-    // printf("  class is %p\n", c);
-    const struct struct_info *si = find_struct("GObjectClass");
-    if (!si)
-	luaL_error(L, "%s type GObjectClass unknown.\n", msgprefix);
-
-    // manage_mem is 0, i.e. do not try to g_free(c) later on.
-    // XXX or reference c?
-    get_widget(L, c, si - struct_list, 0);
-    return 1;
-}
-
-
 static int l_dump_stack(lua_State *L)
 {
 #ifdef DEBUG_DUMP_STACK
@@ -188,36 +159,11 @@ static int l_dump_stack(lua_State *L)
 
 
 /**
- * Call this function and return the result as a Lua string.
- * 
- * Parameters: pixbuf, type, args...
- * Returns: buffer (or nil)
- */
-static int l_gdk_pixbuf_save_to_buffer(lua_State *L)
-{
-    struct widget *w = (struct widget*) lua_topointer(L, 1);
-    GdkPixbuf *pixbuf = (GdkPixbuf*) w->p;
-    gchar *buffer = NULL;
-    gsize buffer_size = 0;
-    const char *type = lua_tostring(L, 2);
-    GError *error = NULL;
-    gboolean rc;
-
-    rc = gdk_pixbuf_save_to_buffer(pixbuf, &buffer, &buffer_size, type, &error,
-	NULL);
-    if (buffer) {
-	lua_pushlstring(L, buffer, buffer_size);
-	g_free(buffer);
-	return 1;
-    }
-
-    return 0;
-}
-
-
-/**
  * To give the application an idea of the platform.  Could be used to select
  * path separators and more.
+ *
+ * @name get_osname
+ * @luareturn The ID of the operating system: "win32" or "linux".
  */
 static int l_get_osname(lua_State *L)
 {
@@ -229,65 +175,32 @@ static int l_get_osname(lua_State *L)
     return 1;
 }
 
+#if 0
 
-/**
- * This should be called by the application soon after startup.  This override
- * exists for two reasons.
- *  1. to avoid warning messages about unused return values
- *  2. to set the global_lua_state
- */
-static int l_gtk_init(lua_State *L)
+#include <malloc.h>
+static gpointer my_realloc(gpointer mem, gsize n_bytes)
 {
-    global_lua_state = L;
-
-    if (lua_gettop(L) > 0)
-	runtime_flags = lua_tonumber(L, 1);
-
-    if (runtime_flags & RUNTIME_GMEM_PROFILE)
-	g_mem_set_vtable(glib_mem_profiler_table);
-
-    gtk_init(NULL, NULL);
-
-    return 0;
+    if (n_bytes == 640) {
+	printf("640 bytes allocated\n");
+    }
+    return realloc(mem, n_bytes);
 }
 
-
-/**
- * Set the given property; the difficulty is to first convert the value to
- * a GValue of the correct type.
- *
- *  Parameters: GObject, property_name, value
- *  Returns: nothing
- */
-static int l_g_object_set_property(lua_State *L)
-{
-    struct widget *w = (struct widget*) lua_topointer(L, 1);
-    if (!w || w->refcounting >= WIDGET_RC_LAST) {
-	printf("%s invalid object in l_g_object_set_property.\n", msgprefix);
-	return 0;
-    }
-
-    GObject *object = * (GObject**) lua_topointer(L, 1);
-    lua_getmetatable(L, 1);
-    lua_getfield(L, -1, "_gtktype");
-    GType type = lua_tointeger(L, -1);
-    GObjectClass *oclass = (GObjectClass*) g_type_class_ref(type);
-    const gchar *prop_name = lua_tostring(L, 2);
-    GParamSpec *pspec = g_object_class_find_property(oclass, prop_name);
-    if (!pspec) {
-	printf("g_object_set_property: no property named %s\n", prop_name);
-	return 0;
-    }
-    GValue gvalue = {0};
-    if (luagtk_fill_gvalue(L, &gvalue, pspec->value_type, 3))
-	g_object_set_property(object, prop_name, &gvalue);
-    g_type_class_unref(oclass);
-    return 0;
-}
+static GMemVTable my_vtable = {
+    malloc: malloc,
+    realloc: my_realloc,
+    free: free
+};
+#endif
 
 /**
  * Return the reference counter of the object the given variable points to.
  * Returns NIL if the object has no reference counting.
+ *
+ * @name get_refcount
+ * @luaparam object  The object to query
+ * @luareturn The current reference counter
+ * @luareturn Method of reference counting (internal)
  */
 static int l_get_refcount(lua_State *L)
 {
@@ -303,46 +216,16 @@ static int l_get_refcount(lua_State *L)
 	return 1;
 
     lua_pushinteger(L, luagtk_get_widget_refcount(w));
-    return 1;
-}
-
-#if 0
-/**
- * args: model, iter, column
- * returns: GValue
- */
-static int l_gtk_tree_model_get_value(lua_State *L)
-{
-    struct widget *model = (struct widget*) lua_topointer(L, 1);
-    struct widget *iter = (struct widget*) lua_topointer(L, 2);
-    int column = lua_tonumber(L, 3);
-    GValue gvalue = { 0 };
-
-    gtk_tree_model_get_value(model->p, iter->p, column, &gvalue);
-    luagtk_push_value(L, gvalue.g_type, (void*) &gvalue.data);
-    return 1;
-}
-#endif
-
-
-/**
- * Widgets are kept in the table gtk.widgets, so that the "struct widget"
- * doesn't have to be constructed again and again.  If a widget is really
- * not needed anymore, remove it from there; I currently have no mechanism
- * to do this manually.  It will be garbage collected anyway at some point.
- *
- * XXX not implemented
- */
-static int l_forget_widget(lua_State *L)
-{
-    return 0;
+    lua_pushinteger(L, w->refcounting);
+    return 2;
 }
 
 /**
  * Get the function signature, similar to a C declaration.
  *
- * @param The function name
- * @return A string on the Lua stack with the function signature.
+ * @name function_sig
+ * @luaparam name The function name
+ * @luareturn A string with the function signature.
  */
 static int l_function_sig(lua_State *L)
 {
@@ -359,16 +242,12 @@ static int l_function_sig(lua_State *L)
 /* methods directly callable from Lua; most go through __index */
 const luaL_reg gtk_methods[] = {
     {"__index",		l_gtk_lookup },
-    {"init",		l_gtk_init },
-    {"call",		l_call },
     {"new",		l_new },
     {"get_osname",	l_get_osname },
     {"get_refcount",	l_get_refcount },
 
     // these function will probably change
     // {"luagtk_register_widget", l_register_widget },
-    {"my_g_io_add_watch",	l_g_io_add_watch },
-    {"forget_widget",	l_forget_widget },
 
     // debugging
     {"dump_struct",	luagtk_dump_struct },
@@ -376,19 +255,6 @@ const luaL_reg gtk_methods[] = {
     {"dump_memory",	luagtk_dump_memory },
     {"function_sig",	l_function_sig },
     {"breakfunc",	luagtk_breakfunc },
-
-    /* some overrides */
-    {"gtk_object_connect", luagtk_connect },
-    {"gtk_object_disconnect",	luagtk_disconnect },
-    {"g_type_from_name", l_g_type_from_name },
-    {"g_object_get_class", l_g_object_get_class },
-    {"g_object_set_property", l_g_object_set_property },
-    {"g_io_channel_read_chars", l_g_io_channel_read_chars },
-    {"g_io_channel_read_line", l_g_io_channel_read_line },
-    {"g_io_channel_write_chars", l_g_io_channel_write_chars },
-    {"g_io_channel_flush", l_g_io_channel_flush },
-    {"gdk_pixbuf_save_to_buffer", l_gdk_pixbuf_save_to_buffer },
-    // {"gtk_tree_model_get_value", l_gtk_tree_model_get_value },
 
     { NULL, NULL }
 };
