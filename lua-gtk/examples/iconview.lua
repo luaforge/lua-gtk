@@ -40,7 +40,6 @@ function MainWin.new()
 
     for i, name in ipairs(names) do
 	self.store:append(iter)
-	-- gtk.breakfunc()
 	pix = self.icon_view:render_icon('gtk-' .. name,
 	    gtk.GTK_ICON_SIZE_DIALOG, "")
 	self.store:set(iter, 0, i, 1, name, 2, pix, -1)
