@@ -4,9 +4,7 @@ CFLAGS	+=-g -Wall `pkg-config --cflags gtk+-2.0 lua5.1` -I ${ODIR} -I src
 HASHF	:=hsieh
 HASH	:=hash-$(HASHF)
 LD	:=${MINGW}ld
-# -fPIC required for position indendent code in shared objects; besides,
-#  shrinks the library size somewhat.
-CC	:=${MINGW}gcc -Wall -fPIC
+CC	:=${MINGW}gcc
 HOSTCC	:=gcc -Wall
 VERSION	:=0.6
 # -- end general configuration --
@@ -15,7 +13,7 @@ VERSION	:=0.6
 .PRECIOUS: ${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}%.keys ${ODIR}%.mph
 
 OFILES	:=types.o gtk2.o interface.o data.o \
-	call.o callback.o channel.o gvalue.o \
+	call.o callback.o channel.o gvalue.o override.o \
 	debug.o widget.o gtkdata.structs.o _override.o
 CONFIG_H:=
 LH	:=src/luagtk.h ${ODIR}config.h
@@ -55,7 +53,7 @@ config_h:
 
 ${ODIR}${ODLL}: $(addprefix ${ODIR}, ${OFILES})
 	@echo $@
-	@${CC} -shared -o $@ $^ ${LIBFFI} ${LUALIB} ${LIBS}
+	${CC} ${CFLAGS} -shared -o $@ $^ ${LIBFFI} ${LUALIB} ${LIBS}
 
 ${ODIR}debug.o: src/debug.c
 	@echo $@
@@ -92,9 +90,13 @@ ${ODIR}luagtk_ffi.h: ${ODIR}ffi-types
 	@echo $@
 	@${ODIR}ffi-types > $@
 
-${ODIR}ffi-types: src/ffi-types.c
+${ODIR}ffi-types.o: src/ffi-types.c
 	@echo $@
-	@${HOSTCC} ${CFLAGS} -o $@ $< $(LIBFFI)
+	@${HOSTCC} ${CFLAGS} -o $@ -c $<
+
+${ODIR}ffi-types: ${ODIR}ffi-types.o
+	@echo $@
+	${HOSTCC} -o $@ $< -lffi
 
 # -- fch hash --
 
@@ -182,7 +184,8 @@ clean:
 
 mrproper: clean
 	rm -f ${ODIR}gtkdata.* ${ODIR}hash-fch-* ${ODIR}config.h \
-		${ODIR}types.xml
+		${ODIR}types.xml ${ODIR}ffi-ofs ${ODIR}link.[ch] \
+		${ODIR}luagtk_ffi.h
 install: all
 	# you need to be root for this!
 	mkdir -p $(INDIR1)
@@ -211,8 +214,16 @@ tests:
 diff:
 	cvs diff | diffstat
 
+# Requires an improved version of luadoc that can read C files
 doc:
-	luadoc -d luadoc lib
+	@luadoc -d reference lib src/interface.c src/call.c src/callback.c \
+		src/channel.c src/override.c
+
+help:
+	@echo "Usage: make.sh [platform] [target]"
+	@echo "  platform:  optional, may be linux, archlinux or win32"
+	@echo "  target: optional, default is all, also known:"
+	@echo "    help, doc, install, clean, mrproper and maybe more."
 
 # -- dependencies --
 
@@ -224,6 +235,7 @@ ${ODIR}callback.o: ${LH}
 ${ODIR}channel.o: ${LH}
 ${ODIR}widget.o: ${LH}
 ${ODIR}debug.o: ${LH}
+${ODIR}override.o: ${LH}
 ${ODIR}gvalue.o: ${LH}
 ${ODIR}types.o: ${ODIR}gtkdata.types.c ${ODIR}luagtk_ffi.h ${LH}
 ${ODIR}hash-fch-generate.o: src/hash-fch.h ${LH}
