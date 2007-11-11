@@ -1,0 +1,19 @@
+-- vim:sw=4:sts=4
+
+body { color:#000; background:#fff; }
+
+#header { width:100%;
+    text-align:center;  
+    border-top:solid #aaa 1px;
+    border-bottom:solid #aaa 1px;
+}
+
+#header p { margin-left:0; }
+
+p { margin-left:3ex; }
+
+img.screenshot { margin-left:50px; }
+
+/* code samples */
+div.code { background-color:#ffc; white-space:pre; padding-left:3ex; }
+
