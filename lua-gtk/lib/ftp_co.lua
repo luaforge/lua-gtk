@@ -1,6 +1,7 @@
 #! /usr/bin/env lua
 -- vim:sw=4:sts=4
 --
+---
 -- This is an FTP client that currently only supports file uploads.  It uses
 -- coroutines so that it never blocks, and it can run in the background, while
 -- the Gtk2 GUI is fully responsive.
@@ -87,12 +88,30 @@ function pasv(ioc)
     return { string.format("%d.%d.%d.%d", a, b, c, d), p1 * 256+ p2 }
 end
 
-
+---
+-- Use a table with this structure to pass the request to either put or put_co.
+-- @class table
+-- @name request_spec
+-- @field source Type of the upload; can be "file", "buffer" or a valid
+--   source object (see socket_co).
+-- @field host   Hostname or IP address of the server
+-- @field port   (optional) The port to connect to, default is 21.
+-- @field callback (optional) A function to call during the upload with
+--   status updates.
 --
--- Upload a file using FTP
+
+---
+-- Upload a file using FTP.  You proably want to use the ftp_co function
+-- instead, which starts a new coroutine to asynchronously do the FTP
+-- transfer.
 --
 -- Note: this performs login, upload and logout.  Multiple commands in one
 -- session are currently not supported.
+--
+-- @param arg   A table with the request specification.
+-- @return rc:  nil on error
+-- @return msg: on error, a description of the error.
+-- @see request_spec
 --
 function put(arg)
     local rc, msg
@@ -222,8 +241,11 @@ function put_3(arg, data_ioc)
     return true, "put_3 exited normally"
 end
 
---
+---
 -- Start a PUT request as a new thread.  This is what you should use.
+--
+-- @param arg   A table with the request specification.
+-- @see put
 --
 function put_co(arg)
     local thread = base.coroutine.create(function()

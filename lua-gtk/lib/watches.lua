@@ -1,6 +1,10 @@
 #! /usr/bin/env lua
 -- vim:sw=4:sts=4
 
+---
+-- Manage asynchronous requests for the Gtk main loop.
+--
+
 local base = _G
 local coroutine = coroutine
 local print = print

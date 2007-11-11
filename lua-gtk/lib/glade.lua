@@ -1,7 +1,10 @@
 -- vim:sw=4:sts=4
 --
--- Read and interpret Glade-2/3 XML files to construct widgets automatically,
--- and autoconnect the signals.
+---
+-- Read and interpret Glade-2/3 XML files and create the widgets.
+--
+-- It constructs widgets automatically, and autoconnects the signals.
+--
 --
 -- Interface functions:
 --
@@ -36,11 +39,11 @@ module "gtk.glade"
 -- if this were used, the garbage collector could remove the widgets.
 -- base.setmetatable(widgets, {__mode="v"})
 
----------------------------------------------------------------------------
+--*------------------------------------------------------------------------
 -- Glade functions --------------------------------------------------------
----------------------------------------------------------------------------
+--*------------------------------------------------------------------------
 
---
+---
 -- Debugging: recursively print a structure
 --
 function print_r(obj, prefix)
@@ -131,7 +134,7 @@ local function parseargs(arg, s)
 end
 
 
---
+---
 -- Parse one line of the glade file
 --
 function glade_line(stack, line)
@@ -309,11 +312,11 @@ end
 
 
 
---
+---
 -- Parse a Glade XML file; return the resulting tree.
 --
 -- This is based on Roberto Ierusalimschy's XML parser as found on
--- http://lua-users.org/wiki/LuaXml
+-- http://lua-users.org/wiki/LuaXml. <br/>
 --
 -- Types of XML elements:
 --  glade-interface	top level wrapper
@@ -515,8 +518,15 @@ function make_widget(widgets, el, parent)
     return w
 end
 
+---
+-- Attempt to create a widget tree.
 --
--- attempts to create a widget tree.
+-- Use the parse tree to find the given widget, then create it and all child
+-- widgets.
+--
+-- @param tree   The widget tree as returned from read.
+-- @param path   Name of the top widget, typically "window1" or similar.
+-- @return       A table with all the widgets; key=name, value=widget.
 --
 function create(tree, path)
     local w, w2
