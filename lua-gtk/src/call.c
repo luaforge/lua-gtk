@@ -10,9 +10,13 @@
  *   call_info_warn
  */
 
+/**
+ * @class module
+ * @name gtk_internal.call
+ */
+
 #include "luagtk.h"
 #include <lauxlib.h>	    // luaL_error
-#include <malloc.h>	    // free
 #include <string.h>	    // memset, strcmp, memcpy
 #include <stdarg.h>	    // va_start etc.
 
@@ -30,8 +34,8 @@ struct call_info_list {
 static struct call_info *ci_pool = NULL;
 
 /**
- * Allocate a new call info structure and initialize it, unless an empty item
- * is in the pool; in this case it is removed and reused.
+ * Provide an unused call_info structure.  It may be taken from the pool, or
+ * newly allocated.  In both cases, it is initialized to 0.
  */
 static struct call_info *call_info_alloc()
 {
@@ -44,7 +48,7 @@ static struct call_info *call_info_alloc()
 	// XXX unlock_spinlock
     } else {
 	// XXX unlock_spinlock
-	ci = (struct call_info*) malloc(sizeof(*ci));
+	ci = (struct call_info*) g_malloc(sizeof(*ci));
     }
 
     memset(ci, 0, sizeof(*ci));
@@ -53,26 +57,32 @@ static struct call_info *call_info_alloc()
 }
 
 /**
- * Allocate an extra parameter; keep them in a singly linked list for
- * freeing later.
+ * Allocate space for an extra parameter.  These memory blocks are kept in
+ * a singly linked list and are freed when the call_info structure is released.
+ *
+ * @param ci    The call_info this memory is allocated for
+ * @param size  How many bytes to allocate
  */
 void *call_info_alloc_item(struct call_info *ci, int size)
 {
     size += sizeof(struct call_info_list);
-    struct call_info_list *item = (struct call_info_list*) malloc(size);
+    struct call_info_list *item = (struct call_info_list*) g_malloc(size);
     memset(item, 0, size);
     item->next = ci->first;
     ci->first = item;
     return item + 1;
 }
 
+
 /**
- * Free all extra parameters, then put the call_info structure into the
- * empty pool.
+ * Release a call_info structure.  The attached extra parameters are freed,
+ * then the stucture is put into the pool.
  *
  * If a warning has been displayed, output a newline.  Note that ci->warnings
  * may be set to 2, this means that an unconditional trace caused the function
  * call to be printed; in this case, no extra newline is desired.
+ *
+ * @param ci   The structure to be freed
  */
 static void call_info_free(struct call_info *ci)
 {
@@ -80,7 +90,7 @@ static void call_info_free(struct call_info *ci)
 
     for (p=ci->first; p; p=next) {
 	next = p->next;
-	free(p);
+	g_free(p);
     }
 
     if (ci->warnings == 1)
@@ -105,7 +115,7 @@ static void call_info_free_pool()
 
     while ((p=ci_pool)) {
 	ci_pool = p->next;
-	free(p);
+	g_free(p);
     }
 }
 
@@ -158,6 +168,11 @@ void call_info_msg(struct call_info *ci, enum luagtk_msg_level level,
  * As you can see, the data consists of a type number; if the high bit is set,
  * then two more bytes follow with a structure number.  The caller must take
  * care not to read past the end of the data.
+ *
+ * @param p    Pointer to the pointer to the current position (will be updated)
+ * @param type_nr  (output) type of the next parameter
+ * @param struct_nr  (output) for structs, unions and enums the index into
+ *   the structure list; 0 otherwise.
  */
 static inline void get_next_argument(const unsigned char **p, int *type_nr,
     int *struct_nr)
@@ -181,6 +196,7 @@ static inline void get_next_argument(const unsigned char **p, int *type_nr,
  * Prepare to call the Gtk function by converting all the parameters into
  * the required format as required by libffi.
  *
+ * @param L        lua_State
  * @param index    Lua stack position of first parameter
  * @param ci       call_info structure with lots more data
  *
@@ -344,6 +360,7 @@ int luagtk_call(lua_State *L, struct func_info *fi, int index)
     ffi_cif cif;
     int rc = 0;
 
+    // allocate (or re-use from the pool) a call_info structure.
     ci = call_info_alloc();
     ci->fi = fi;
     ci->L = L;
