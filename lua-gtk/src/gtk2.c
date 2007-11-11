@@ -394,6 +394,7 @@ int luaopen_gtk(lua_State *L)
 
     /* make the table to return, and make it global as "gtk" */
     luaL_register(L, "gtk", gtk_methods);
+    luagtk_init_overrides(L);
 
     // a metatable to make another table have weak values
     lua_newtable(L);			// gtk mt
