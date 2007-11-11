@@ -6,7 +6,12 @@
  * Exported functions:
  *   luagtk_connect
  *   luagtk_disconnect
- *   luagtk_call_wrapper
+ */
+
+/**
+ * @class module
+ * @name gtk_internal.callback
+ * @description Handle callbacks from Gtk to Lua.
  */
 
 #include "luagtk.h"
@@ -28,9 +33,10 @@ struct callback_info {
  * Handle return values from the Lua handler to pass back to Gtk.  Not many
  * different types are supported - but I think no others are actually used.
  *
- * @param return_type     The GType of the expected return value
- * @param cbi             callback_info of this signal
- * @return                An integer to return to Gtk.
+ * @param L  lua_State
+ * @param return_type  The GType of the expected return value
+ * @param cbi  callback_info of this signal
+ * @return  An integer to return to Gtk.
  */
 static int _callback_return_value(lua_State *L, int return_type,
     struct callback_info *cbi)
@@ -56,16 +62,10 @@ static int _callback_return_value(lua_State *L, int return_type,
 
 
 /**
- * Gtk calls a signal handler; find the proper Lua callback, build the
- * parameters, call, and optionally return something to Gtk.
- *
- * This runs in the lua_State that was used to call luagtk_connect with.  No
- * assumptions can be made about how the parameters for the callback arrive,
- * i.e. on the stack, or in registers, or some mixture.
- *
- * Note 2: no assumptions can be made about the contents of the Lua stack, as
- * this is a callback it may be invoked any time (just my guess to be on the
- * safe side).  Care is taken not to modify the Lua stack.
+ * Handler for Gtk signal callbacks.  Find the proper Lua callback, build the
+ * parameters, call, and optionally return something to Gtk.  This runs in the
+ * lua_State that was used to call luagtk_connect with, and therefore probably
+ * uses the stack of the main function, which mustn't be modified.
  *
  * @param data   a pointer to a struct callback_info
  * @param ...    Variable arguments, and finally the widget pointer.
@@ -85,11 +85,12 @@ static int _callback(void *data, ...)
     /* push all the signal arguments to the Lua stack */
     arg_cnt = cbi->query.n_params;
 
+    // retrieve the additional parameters using the stdarg mechanism.
+    // XXX it might be nesessary to differentiate between 4 and 8 byte
+    // arguments, which could be derived from the type...
     va_start(ap, data);
     for (i=0; i<arg_cnt; i++) {
 	GType type = cbi->query.param_types[i] & ~G_SIGNAL_TYPE_STATIC_SCOPE;
-	// XXX might need to differentiate between 4 and 8 byte arguments,
-	// which can be derived from the type.
 	long int val = va_arg(ap, long int);
 	(void) luagtk_push_value(L, type, (char*) &val);
     }
@@ -134,8 +135,12 @@ static int _callback(void *data, ...)
 
 
 /**
- * When a signal handler is disconnected, free the struct callback_info.
- * It contains references within the Lua state.
+ * Free memory on signal handler disconnection.
+ *
+ * The struct callback_info contains references to entries in the registry
+ * of the Lua state.  They must be unreferenced, then the structure itself
+ * is freed.
+ *
  * XXX the Lua state might not exist anymore?
  */
 static void _free_callback_info(gpointer data, GClosure *closure)
@@ -151,31 +156,26 @@ static void _free_callback_info(gpointer data, GClosure *closure)
     if (cb_info->args_ref)
 	luaL_unref(cb_info->L, LUA_REGISTRYINDEX, cb_info->args_ref);
 
-    // Is this required? I guess so.
+    // Is this required? I guess so.  See
+    // glib/gobject/gclosure.c:g_closure_unref() - closure->data is not
+    // freed there.
     g_slice_free(struct callback_info, cb_info);
 }
 
 
 /**
- * A method has been found and should now be called.
- * input stack: parameters to the function
- * upvalues: the func_info structure
+ * @class module
+ * @name gtk
  */
-int luagtk_call_wrapper(lua_State *L)
-{
-    struct func_info *fi = (struct func_info*) lua_topointer(L,
-	lua_upvalueindex(1));
-    return luagtk_call(L, fi, 1);
-}
-
 
 /**
  * Connect a signal to a Lua function.
  *
- * @param widget
- * @param signal_name
- * @param handler      a Lua function (the callback)
- * @param ...          (optional) extra parameters to the callback
+ * @name connect
+ * @luaparam widget
+ * @luaparam signal_name  Name of the signal, like "clicked"
+ * @luaparam handler  A Lua function (the callback)
+ * @luaparam ...  (optional) extra parameters to the callback
  *
  * @return  The handler id, which can be used to disconnect the signal.
  */
@@ -246,8 +246,12 @@ int luagtk_connect(lua_State *L)
 
 
 /**
- * Disconnect a signal handler from a given widget.  You need to know the
- * handler_id, which was returned by the connect function.
+ * Disconnect a signal handler from a given widget.
+ *
+ * @name disconnect
+ * @luaparam widget  The widget to disconnect a handler for
+ * @luaparam handler_id  The handler ID of the connection, as returned from
+ *   the connect function.
  */
 int luagtk_disconnect(lua_State *L)
 {
