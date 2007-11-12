@@ -1,21 +1,24 @@
 #! /usr/bin/env lua
 -- vim:sw=4:sts=4
 --
+
+local base, string, print = _G, string, print
+
+require "gtk"
+require "gtk.watches"
+require "gtk.socket_co"
+require "gtk.strict"
+
 ---
 -- HTTP requests using the socket_co library.
 -- Copyright (C) 2007 Wolfgang Oertl
 --
 
-local base = _G
-local string = string
-local print = print
-local gtk = require "gtk"
-local watches = require "gtk.watches"
-local socket_co = require "gtk.socket_co"
-
 module "gtk.http_co"
+base.gtk.strict.init()
 
-base.strict()
+gtk = base.gtk
+socket_co = gtk.socket_co
 
 PORT = 80
 
@@ -87,7 +90,7 @@ function request_co(arg)
 	end
 	return rc, msg
     end)
-    watches.start_watch(thread)
+    gtk.watches.start_watch(thread)
 end
 
 
@@ -203,7 +206,7 @@ function request(arg)
     rc, msg = request_2(arg)
 
     -- clean up
-    watches.remove_watch(nil, arg.channel, nil)
+    gtk.watches.remove_watch(nil, arg.channel, nil)
 
     if not arg.response_headers
 	or arg.response_headers['connection'] == 'close' then
@@ -520,5 +523,5 @@ function get_cookies(arg, jar)
     end
 end
 
-base.strict_lock()
+gtk.strict.lock()
 

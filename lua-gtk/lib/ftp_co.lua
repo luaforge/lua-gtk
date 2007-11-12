@@ -1,6 +1,14 @@
 #! /usr/bin/env lua
 -- vim:sw=4:sts=4
 --
+
+local base, string, print = _G, string, print
+
+require "gtk"
+require "gtk.watches"
+require "gtk.socket_co"
+require "gtk.strict"
+
 ---
 -- This is an FTP client that currently only supports file uploads.  It uses
 -- coroutines so that it never blocks, and it can run in the background, while
@@ -11,16 +19,11 @@
 -- Copyright (C) 2007 Wolfgang Oertl
 --
 
-
-local base = _G
-local string = string
-local print = print
-local gtk = require "gtk"
-local watches = require "gtk.watches"
-local socket_co = require "gtk.socket_co"
-
 module "gtk.ftp_co"
-base.strict()
+base.gtk.strict.init()
+
+gtk = base.gtk
+socket_co = gtk.socket_co
 
 PORT = 21
 TIMEOUT = 60
@@ -132,7 +135,7 @@ function put(arg)
 
     rc, msg = put_2(arg)
 
-    watches.remove_watch(nil, arg.channel, nil)
+    gtk.watches.remove_watch(nil, arg.channel, nil)
     arg.channel:shutdown(false, nil)
     gtk.widgets[arg.channel] = nil
     arg.channel = nil
@@ -183,7 +186,7 @@ function put_2(arg)
     rc, msg = put_3(arg, data_ioc)
 
     -- closing the data channel tell the FTP server that the transfer is over
-    watches.remove_watch(nil, data_ioc, nil)
+    gtk.watches.remove_watch(nil, data_ioc, nil)
     data_ioc:shutdown(false, nil)
     gtk.widgets[data_ioc] = nil
     -- MUST do this, otherwise... se note #sc above
@@ -254,8 +257,8 @@ function put_co(arg)
 	return rc, msg
     end)
 
-    watches.start_watch(thread)
+    gtk.watches.start_watch(thread)
 end
 
-base.strict_lock()
+gtk.strict.lock()
 

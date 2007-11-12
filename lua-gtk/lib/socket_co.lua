@@ -1,6 +1,11 @@
 #! /usr/bin/env lua
 -- vim:sw=4:sts=4
---
+
+local base, string, coroutine, print = _G, string, coroutine, print
+
+require "gtk"
+require "gtk.strict"
+require "socket.core"
 
 ---
 -- Socket communication using coroutines, integrated with the Gtk message loop
@@ -8,17 +13,11 @@
 -- Copyright (C) 2007 Wolfgang Oertl
 --
 
-local base = _G
-local string = string
-local coroutine = coroutine
-local print = print
-local socket = require "socket.core"
-local gtk = require "gtk"
-local watches = require "gtk.watches"
-local os = gtk.get_osname()
-
 module "gtk.socket_co"
-base.strict()
+base.gtk.strict.init()
+
+gtk = base.gtk
+os = gtk.get_osname()
 
 
 -- for creating a new connection
@@ -165,7 +164,7 @@ source = { file = source_file, buffer = source_buffer }
 function connect(host, port, buffered)
     local sock, rc, msg
 
-    sock, msg = socket.tcp()
+    sock, msg = base.socket.tcp()
     if not sock then return sock, msg end
     sock:settimeout(TIMEOUT)
 
@@ -419,5 +418,5 @@ function flush(ioc)
     return rc, msg
 end
 
-base.strict_lock()
+gtk.strict.lock()
 

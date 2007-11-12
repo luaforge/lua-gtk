@@ -11,6 +11,8 @@
 -- @name gtk.strict
 --
 
+module("gtk.strict", package.seeall)
+
 ---
 -- new global variables are only allowed in main and in C functions
 local function strict_newindex(t, n, v) 
@@ -45,7 +47,7 @@ end
 ---
 -- Enable strict checking for the calling environment
 --
-function strict()
+function init()
 
     local env = getfenv(2)
     local mt = getmetatable(env)
@@ -65,7 +67,7 @@ function strict()
     mt.__index = strict_index
 end
 
-function strict_locked(t, n, v)
+local function strict_locked(t, n, v)
     error("LOCKED - no new globals allowed: " .. n, 2)
 end
 
@@ -74,7 +76,7 @@ end
 --
 -- This can be used to detect unwanted usage of globals.
 --
-function strict_lock()
+function lock()
     local env = getfenv(2)
     local mt = getmetatable(env)
     mt.__newindex = strict_locked

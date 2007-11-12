@@ -1,5 +1,11 @@
 -- vim:sw=4:sts=4
 --
+
+local base, print, table, string, pairs = _G, print, table, string, pairs
+
+require "gtk"
+require "gtk.strict"
+
 ---
 -- Read and interpret Glade-2/3 XML files and create the widgets.
 --
@@ -27,14 +33,10 @@
 -- Copyright (C) 2007 Wolfgang Oertl
 --
 
-local base = _G
-local gtk = require "gtk"
-local print = print
-local table = table
-local string = string
-local pairs = pairs
-
 module "gtk.glade"
+base.gtk.strict.init()
+
+gtk = base.gtk
 
 -- if this were used, the garbage collector could remove the widgets.
 -- base.setmetatable(widgets, {__mode="v"})
@@ -340,7 +342,7 @@ function read(fname)
     table.insert(stack, {items={}})
     for line in f:lines() do
 	line_nr = line_nr + 1
-	ok, msg = base.pcall(glade_line, stack, line)
+	local ok, msg = base.pcall(glade_line, stack, line)
 	if not ok then
 	    print(string.format("%s(%d): %s", fname, line_nr, msg))
 	end
@@ -441,6 +443,13 @@ function set_adjustment_property(w, k, s)
     w:set_property(k, a)
 end
 
+-- globals (sort of) used in make_widget to reduce stack size need to be
+-- declared to make gtk.strict happy.
+local __type_nr = nil
+local __handler = nil
+local __object = nil
+
+
 --
 -- Given a subtree of the Glade tree, create all widgets in it.
 --
@@ -454,8 +463,9 @@ function make_widget(widgets, el, parent)
     local w, child, ignore_prop
 
     -- special handler?
-    if base.gtk.glade[el.class] then
-	w, ignore_prop = base.gtk.glade[el.class](el)
+    local handler = base.rawget(_M, el.class)
+    if handler then
+	w, ignore_prop = handler(el)
     else
 	-- generic handler.  use a global here, to reduce stack size
 	__type_nr = gtk.g_type_from_name(el.class)
@@ -503,8 +513,6 @@ function make_widget(widgets, el, parent)
 	    if not __handler then	
 		print(string.format("no handler for signal %s:%s - %s",
 		    el.id, v.name, v.handler))
---		base.error(string.format("no handler for signal %s:%s - %s",
---		    el.id, v.name, v.handler))
 	    else
 		__object = v.object and (widgets[v.object] or base[v.object]
 		    or v.object)
@@ -543,4 +551,6 @@ function create(tree, path)
     make_widget(widgets, w, nil)
     return widgets
 end
+
+gtk.strict.lock()
 

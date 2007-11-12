@@ -1,16 +1,18 @@
 #! /usr/bin/env lua
 -- vim:sw=4:sts=4
 
+local base, coroutine, print = _G, coroutine, print
+require "gtk"
+require "gtk.strict"
+
 ---
 -- Manage asynchronous requests for the Gtk main loop.
 --
 
-local base = _G
-local coroutine = coroutine
-local print = print
-local gtk = require "gtk"
-local os = gtk.get_osname()
 module "gtk.watches"
+base.gtk.strict.init()
+
+gtk = base.gtk
 
 ---
 -- Watches.  These are used to run network communication in the background.
@@ -34,7 +36,7 @@ function _watch_func(thread, channel, cond)
     -- Run the coroutine (thread) until it has to block; it either calls
     -- yield(), exits normally or calls error().
     -- print("run", thread)
-    rc, msg, channel, cond = coroutine.resume(thread, channel, condition)
+    rc, msg, channel, cond = coroutine.resume(thread, channel, cond)
     -- print("done", thread, rc, msg, channel, cond)
 
     -- if resume returns false, then an error was raised in the thread.
@@ -120,4 +122,6 @@ end
 function start_watch(thread)
     return _watch_func(thread, nil, 0)
 end
+
+gtk.strict.lock()
 
