@@ -53,7 +53,7 @@ config_h:
 
 ${ODIR}${ODLL}: $(addprefix ${ODIR}, ${OFILES})
 	@echo $@
-	${CC} ${CFLAGS} -shared -o $@ $^ ${LIBFFI} ${LUALIB} ${LIBS}
+	@${CC} ${CFLAGS} -shared -o $@ $^ ${LIBFFI} ${LUALIB} ${LIBS}
 
 ${ODIR}debug.o: src/debug.c
 	@echo $@
@@ -71,10 +71,11 @@ ${ODIR}_override.c: ${ODIR}override.luac ${ODIR}file2c
 	@echo $@
 	@${ODIR}file2c override < $< > $@
 	
-${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}gtkdata.%.h: ${ODIR}types.xml src/extra_enum.txt script/parse-xml.lua
+${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}gtkdata.%.h: ${ODIR}types.xml src/extra_enum.txt script/parse-xml.lua script/get-defines.lua
 	@echo "Generating Gtk Data..."
 	@script/parse-xml.lua "${ODIR}" $<
 	@cat src/extra_enum.txt >> ${ODIR}gtkdata.enums.txt
+	@script/get-defines.lua >> ${ODIR}gtkdata.enums.txt
 
 ${ODIR}types.xml: script/make-xml.lua
 	@echo "Generating types.xml..."
