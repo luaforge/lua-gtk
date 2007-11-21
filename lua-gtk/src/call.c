@@ -41,13 +41,13 @@ static struct call_info *call_info_alloc()
 {
     struct call_info *ci;
 
-    // XXX lock_spinlock
+    // lock_spinlock
     if (ci_pool) {
 	ci = ci_pool;
 	ci_pool = ci->next;
-	// XXX unlock_spinlock
+	// unlock_spinlock
     } else {
-	// XXX unlock_spinlock
+	// unlock_spinlock
 	ci = (struct call_info*) g_malloc(sizeof(*ci));
     }
 
@@ -56,12 +56,14 @@ static struct call_info *call_info_alloc()
     return ci;
 }
 
+
 /**
  * Allocate space for an extra parameter.  These memory blocks are kept in
- * a singly linked list and are freed when the call_info structure is released.
+ * a singly linked list and are freed in call_info_free.
  *
- * @param ci    The call_info this memory is allocated for
+ * @param ci  The call_info this memory is allocated for
  * @param size  How many bytes to allocate
+ * @return  A pointer to the newly allocated memory.
  */
 void *call_info_alloc_item(struct call_info *ci, int size)
 {
@@ -96,20 +98,18 @@ static void call_info_free(struct call_info *ci)
     if (ci->warnings == 1)
 	printf("\n");
 
-    // XXX lock spinlock
+    // lock spinlock
     ci->next = ci_pool;
     ci_pool = ci;
-    // XXX unlock spinlock
+    // unlock spinlock
 }
 
-#if 0
 
 /**
  * At program exit (library close), free the pool.  This is not really required
- * but may help spotting memory leaks.  It is not called from anywhere, yet,
- * maybe from a gtk.done() function?
+ * but may help spotting memory leaks.
  */
-static void call_info_free_pool()
+void call_info_free_pool()
 {
     struct call_info *p;
 
@@ -119,7 +119,6 @@ static void call_info_free_pool()
     }
 }
 
-#endif
 
 /**
  * Before showing a warning message, call this function, which shows
@@ -348,9 +347,8 @@ static int _call_return_values(lua_State *L, struct call_info *ci)
 
 
 /**
- * This is the most important function in this module.  Call a function of
- * the dynamically loaded library, using the information about parameters
- * compiled in from automatically generated configuration files.
+ * Call a library function from Lua.  The information about parameters and
+ * return values is compiled in (automatically generated). 
  *
  * Stack: parameters starting at "index".
  */
