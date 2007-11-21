@@ -22,12 +22,12 @@
 struct callback_info {
     int handler_ref;		/* reference to the function to call */
     int args_ref;		/* reference to a table with additional args */
+    int widget_ref;		/* reference to the widget: avoids GC */
     lua_State *L;		/* the Lua state this belongs to */
     GSignalQuery query;		/* information about the signal, see below */
 };
 /* query: signal_id, signal_name, itype, signal_flags, return_type, n_params,
  * param_types */
-
 
 /**
  * Handle return values from the Lua handler to pass back to Gtk.  Not many
@@ -60,6 +60,49 @@ static int _callback_return_value(lua_State *L, int return_type,
     return val;
 }
 
+/**
+ * Destroy all Lua proxy objects for Gtk objects on the stack.
+ *
+ * This is required before returning from a callback.  Objects on the
+ * stack will most likely not be there anymore later.
+ */
+static void sol_free(lua_State *L, struct stack_obj_list *sol)
+{
+    int i, ref_nr;
+    struct widget *w, *w_start;
+
+    if (sol->n_used == 0)
+	return;
+
+    lua_getfield(L, LUA_ENVIRONINDEX, LUAGTK_WIDGETS);  // widgets
+    lua_getfield(L, LUA_ENVIRONINDEX, LUAGTK_ALIASES);  // widgets aliases
+
+    for (i=0; i<sol->n_used; i++) {
+	ref_nr = sol->ref_list[i];
+	lua_rawgeti(L, -1, ref_nr);			// widgets aliases w
+	w = (struct widget*) lua_topointer(L, -1);
+	w_start = w;
+
+	// remove the entry in gtk.widgets
+	lua_pushlightuserdata(L, w->p);
+	lua_pushnil(L);					// wi al w *p nil
+	lua_rawset(L, -5);				// wi al w
+
+	// remove all aliases
+	do {
+	    printf("Destroying widget with ref %d, %p %p %s\n", w->own_ref,
+		w, w->p, w->class_name);
+	    luaL_unref(L, -2, w->own_ref);
+	    w->p = NULL;
+	    w = w->next;
+	} while (w && w != w_start);
+
+	lua_pop(L, 1);
+    }
+
+    lua_pop(L, 2);
+}
+
 
 /**
  * Handler for Gtk signal callbacks.  Find the proper Lua callback, build the
@@ -78,6 +121,7 @@ static int _callback(void *data, ...)
     struct callback_info *cbi = (struct callback_info*) data;
     lua_State *L = cbi->L;
     int stack_top = lua_gettop(L);
+    struct stack_obj_list stack_obj_list = { 0, };
 
     /* get the handler function */
     lua_rawgeti(L, LUA_REGISTRYINDEX, cbi->handler_ref);
@@ -92,17 +136,18 @@ static int _callback(void *data, ...)
     for (i=0; i<arg_cnt; i++) {
 	GType type = cbi->query.param_types[i] & ~G_SIGNAL_TYPE_STATIC_SCOPE;
 	long int val = va_arg(ap, long int);
-	(void) luagtk_push_value(L, type, (char*) &val);
+	(void) luagtk_push_value(L, type, (char*) &val, &stack_obj_list);
     }
 
     /* The widget is the last parameter to this function.  The Lua callback
      * gets it as the first parameter, though. */
     void *widget = va_arg(ap, void*);
     get_widget(L, widget, 0, 0);
+    // sol_add(L, &stack_obj_list);
     va_end(ap);
 
     if (lua_isnil(L, -1))
-	printf("Warning: _callback couldn't find widget %p\n", widget);
+	fprintf(stderr, "Warning: _callback couldn't find widget %p\n", widget);
     lua_insert(L, stack_top + 2);
 
     /* copy all the extra arguments (user provided) to the stack. */
@@ -127,6 +172,9 @@ static int _callback(void *data, ...)
     /* Determine the return value (default is zero) */
     int val = _callback_return_value(L, return_type, cbi);
 
+    /* remove stack objects with all aliases that might have been created */
+    sol_free(L, &stack_obj_list);
+
     /* make sure the stack is back to the original state */
     lua_settop(L, stack_top);
 
@@ -149,8 +197,9 @@ static void _free_callback_info(gpointer data, GClosure *closure)
     // see luagtk_connect().
     struct callback_info *cb_info = (struct callback_info*) data;
 
-    // remove the reference to the callback function (closure)
+    // remove the reference to the callback function (closure) & the widget
     luaL_unref(cb_info->L, LUA_REGISTRYINDEX, cb_info->handler_ref);
+    luaL_unref(cb_info->L, LUA_REGISTRYINDEX, cb_info->widget_ref);
 
     // remove the reference to the table with the extra arguments
     if (cb_info->args_ref)
@@ -221,6 +270,10 @@ int luagtk_connect(lua_State *L)
     stack_top = lua_gettop(L);
     lua_pushvalue(L, 3);
     cb_info->handler_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+
+    // make a reference to the widget - to avoid it being garbage collected.
+    lua_pushvalue(L, 1);
+    cb_info->widget_ref = luaL_ref(L, LUA_REGISTRYINDEX);
 
     // if there are more arguments, put them into a table, and store a
     // reference to it.  When called just with NIL as "more arguments", ignore
