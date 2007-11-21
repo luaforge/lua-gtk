@@ -45,6 +45,7 @@ type_override = {
 -- any existing function.  Include them anyway...
 used_override = {
     ["GtkFileChooserWidget"] = true,
+    ["GtkFileChooserDialog"] = true,
 }
 
 -- List of fundamental types existing.  the fid (fundamental id) is an index
@@ -112,6 +113,8 @@ fundamental_map = {
     ["void*"] = { "pointer", 0, nil, "void_ptr", nil, nil },
     ["int*"] = { "pointer", 0, "int_ptr", "int_ptr", nil, nil },
     ["unsigned int*"] = { "pointer", 0, "int_ptr", "int_ptr", nil, nil },
+    ["func*"] = { "pointer", 0, "func_ptr" },
+    ["struct**"] = { "pointer", 0, "struct_ptr_ptr", "struct_ptr_ptr" },
 }
 
 ---
@@ -408,7 +411,7 @@ end
 -- @param ofname Name of the output file
 --
 function output_enums(ofname)
-    local keys, ofile, s, enum, val = {}
+    local keys, ofile, s, enum, val, prefix = {}
 
     for k, enum in pairs(enum_values) do
 	tp = typedefs[enum.context]
@@ -424,12 +427,20 @@ function output_enums(ofname)
 	enum = enum_values[name]
 	val = enum.val
 	s = ""
+	prefix = ""
+
+	-- negative values are very rare.  prefix them by $FFFF.
+	if val < 0 then
+	    val = -val
+	    prefix = "\\377\\377"
+	end
+
 	while val > 0 do
 	    s = string.format("\\%03o", bit.band(val, 255)) .. s
 	    val = bit.rshift(val, 8)
 	end
 	s = format_2bytes(typedefs[enum.context].struct_id) .. s
-	ofile:write(name .. "," .. s .. "\n")
+	ofile:write(name .. "," .. prefix .. s .. "\n")
     end
     ofile:close()
 end
