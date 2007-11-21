@@ -5,8 +5,8 @@ require "gtk"
 require "gtk.socket_co"
 require "gtk.watches"
 
-function get_time(gio, condition)
-    local val, msg, sock
+function get_time()
+    local val, msg, sock, gio, condition
 
     gio, msg = gtk.socket_co.connect("www.google.com", 80, false)
     -- print("connect returned", gio, msg)
@@ -23,7 +23,13 @@ function get_time(gio, condition)
     end
 
     print("end", msg)
+end
+
+function get_time_wrap()
+    coroutine.yield("sleep", 1000)
+    get_time()
     gtk.main_quit()
+    return nil, "finished"
 end
 
 function init_gui()
@@ -32,9 +38,17 @@ function init_gui()
     w:show()
 end
 
+function idle(a, b, c)
+    print("idle", a[1], b, c)
+    a[1] = a[1] + 1
+    return a[1] < 10
+end
+
 gtk.init()
 init_gui()
-local thread = coroutine.create(get_time)
+local thread = coroutine.create(get_time_wrap)
 gtk.watches.start_watch(thread)
+
+gtk.g_idle_add(idle, {1}, 2, 3)
 gtk.main()
 
