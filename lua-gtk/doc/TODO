@@ -2,6 +2,24 @@
 TODO
 ----
 
+- support for String ENUMs (for stock names)
+
+- use gtk_tree_iter_free!  is this already so?
+
+- wrapper for gtk_tree_model_get would be nice.
+
+- socket_co: connect attempts must be asynchronous, otherwise the GUI can be
+  blocked (by a slow DNS server, for example).
+
+- gtk_file_chooser_dialog_new should return a GtkFileChooserDialog, not
+  GtkDialog.  Is the former not included in the "used" classes? fixed,
+  regenerate gtkdata.*
+
+- add certain #defines from the Gtk includes to the ENUM list automatically.
+	gdk/gdkkeysyms.h
+	gdk/gdkselection.h
+	gtk/gtkstock.h
+
 - review all the code for improvements and maybe some bugs, esp. the
   segfaults when not optimized on amd64.
 
@@ -11,8 +29,9 @@ TODO
 - amd64 port:
 	- fix segfaults when compiled without -O
 	- fix spurious segfaults in weather demo
+	- fix segfault in window demo (close with X button)!
 
-- exporting existing GTk objects to Lua, see
+- exporting existing Gtk objects to Lua, see
   http://luaforge.net/forum/forum.php?thread_id=827&forum_id=536
 
 - check refcounting usage, memory leaks
@@ -22,9 +41,6 @@ TODO
 	  seems to be ok...
 	- refcounting on GIOChannel not OK.  Sometimes in-use channels are
 	  freed, which aborts communication.
-
-- modularize channel.c so that it contains everything related to channels.
-  This should make it easier to add more modules later.
 
 - more documentation
 	- improve the homepage, add more content, better layout
@@ -39,7 +55,4 @@ TODO
 
 - try LuaJIT - should speed everything up.  at least check that it works with
   it because in a larger project, somebody might want to use it.
-
-- test GtkBuilder which is available in GTk 2.12; it should replace the
-  glade module in the long run.
 
