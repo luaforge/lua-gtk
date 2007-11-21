@@ -57,7 +57,11 @@ function _watch_func(thread, channel, cond)
 	return rc
     end
 
-    -- XXX some other reasons to block (besides iowait) might be added later.
+    -- sleep a certain interval?
+    if msg == "sleep" then
+	gtk.g_timeout_add(channel, _watch_func, thread)
+	return rc
+    end
 
     remove_watch(thread, nil, nil)
     if not msg then print(channel) end
