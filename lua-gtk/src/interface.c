@@ -63,8 +63,9 @@ static int l_gtk_lookup(lua_State *L)
     if (!find_func(func_name, &fi)) {
 	sprintf(func_name, "gtk_%s", s);
 	if (!find_func(func_name, &fi)) {
-	    printf("%s attribute or method not found: %s\n", msgprefix, s);
-	    return 0;
+	    return luaL_error(L, "[gtk] not found: gtk.%s", s);
+	    // printf("%s attribute or method not found: %s\n", msgprefix, s);
+	    // return 0;
 	}
     }
 
@@ -200,7 +201,7 @@ static GMemVTable my_vtable = {
  * @name get_refcount
  * @luaparam object  The object to query
  * @luareturn The current reference counter
- * @luareturn Method of reference counting (internal)
+ * @luareturn Widget type number (internal)
  */
 static int l_get_refcount(lua_State *L)
 {
@@ -216,7 +217,7 @@ static int l_get_refcount(lua_State *L)
 	return 1;
 
     lua_pushinteger(L, luagtk_get_widget_refcount(w));
-    lua_pushinteger(L, w->refcounting);
+    lua_pushinteger(L, w->widget_type);
     return 2;
 }
 
@@ -239,6 +240,17 @@ static int l_function_sig(lua_State *L)
 }
 
 
+/**
+ * Free memory.  This is optional, but aids finding memory leaks.
+ * I have not found a way to make Lua call an exit function automatically.
+ */
+static int l_done(lua_State *L)
+{
+    call_info_free_pool();
+    return 0;
+}
+
+
 /* methods directly callable from Lua; most go through __index */
 const luaL_reg gtk_methods[] = {
     {"__index",		l_gtk_lookup },
@@ -255,6 +267,7 @@ const luaL_reg gtk_methods[] = {
     {"dump_memory",	luagtk_dump_memory },
     {"function_sig",	l_function_sig },
     {"breakfunc",	luagtk_breakfunc },
+    {"done",		l_done },
 
     { NULL, NULL }
 };
