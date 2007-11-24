@@ -55,8 +55,17 @@ static int l_gtk_lookup(lua_State *L)
     /* if it starts with an uppercase letter, it's probably an ENUM. */
     if (s[0] >= 'A' && s[0] <= 'Z') {
 	int val, struct_nr;
-	if (find_enum(s, -1, &val, &struct_nr))
+	switch (find_enum(L, s, -1, &val, &struct_nr)) {
+	    case 1:		// ENUM/FLAG found
 	    return luagtk_enum_push(L, val, struct_nr);
+
+	    case 2:		// integer found
+	    lua_pushinteger(L, val);
+	    /* fall through */
+
+	    case 3:		// string found - is on Lua stack
+	    return 1;
+	}
     }
 
     strcpy(func_name, s);
