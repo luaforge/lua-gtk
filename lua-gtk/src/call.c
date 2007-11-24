@@ -181,7 +181,7 @@ static inline void get_next_argument(const unsigned char **p, int *type_nr,
     *type_nr = *s++;
     if (*type_nr & 0x80) {
 	*type_nr &= 0x7f;
-	*struct_nr = * (unsigned short*) s;
+	*struct_nr = (s[0] << 8) + s[1];
 	s += 2;
     } else {
 	*struct_nr = 0;
