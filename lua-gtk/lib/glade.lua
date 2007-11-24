@@ -439,15 +439,14 @@ end
 function set_adjustment_property(w, k, s)
 --    local a = w:get_property(k)
     local a = gtk.adjustment_new(string.match(s, "(%d+) (%d+) (%d+) (%d+) (%d+) (%d+)"))
-    print("Adjustment", s, a)
+    -- print("Adjustment", s, a)
     w:set_property(k, a)
 end
 
 -- globals (sort of) used in make_widget to reduce stack size need to be
 -- declared to make gtk.strict happy.
-local __type_nr = nil
-local __handler = nil
-local __object = nil
+__type_nr = 0
+__handler = 0
 
 
 --
@@ -514,9 +513,8 @@ function make_widget(widgets, el, parent)
 		print(string.format("no handler for signal %s:%s - %s",
 		    el.id, v.name, v.handler))
 	    else
-		__object = v.object and (widgets[v.object] or base[v.object]
-		    or v.object)
-		w:connect(v.name, __handler, __object)
+		w:connect(v.name, __handler, v.object
+		    and (widgets[v.object] or base[v.object] or v.object))
 	    end
 	end
     end
