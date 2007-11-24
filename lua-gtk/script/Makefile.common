@@ -15,7 +15,6 @@ VERSION	:=0.6
 OFILES	:=types.o gtk2.o interface.o data.o \
 	call.o callback.o channel.o gvalue.o override.o \
 	debug.o widget.o gtkdata.structs.o _override.o
-CONFIG_H:=
 LH	:=src/luagtk.h ${ODIR}config.h
 
 # -- runtime linking? --
