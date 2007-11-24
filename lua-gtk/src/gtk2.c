@@ -38,38 +38,6 @@ extern int override_size;
 
 
 /**
- * Determine whether p points to something on the stack.
- */
-static int is_on_stack(void *p)
-{
-    char c[30];	    // large enough so it can't be in registers.
-    return ((char*)p) - c < 36000;
-}
-
-
-/**
- * Add the reference to the list of objects to be freed under certain
- * circumstances.
- */
-static void sol_add(lua_State *L, struct stack_obj_list *sol)
-{
-    if (!sol || lua_isnil(L, -1))
-	return;
-
-    struct widget *w = (struct widget*) lua_topointer(L, -1);
-
-    if (!is_on_stack(w->p))
-	return;
-
-    int idx = sol->n_used;
-    if (idx >= sizeof(sol->ref_list) / sizeof(sol->ref_list[0]))
-	luaL_error(L, "exceeded max. number of stack objects\n");
-    sol->ref_list[idx] = w->own_ref;
-    sol->n_used = idx + 1;
-}
-
-
-/**
  * A parameter for a callback must be pushed onto the stack.  The type to
  * use depends on the "type" (from the g_signal_query results).  A value
  * is always pushed; in the case of error, NIL.
@@ -79,8 +47,7 @@ static void sol_add(lua_State *L, struct stack_obj_list *sol)
  * @param sol  (optional) store references for newly created stack objects
  * @return  The number of bytes of the type
  */
-int luagtk_push_value(lua_State *L, GType type, void *data,
-    struct stack_obj_list *sol)
+int luagtk_push_value(lua_State *L, GType type, void *data)
 {
     if (!data) {
 	printf("luagtk_push_value called with NULL data.\n");
@@ -179,7 +146,6 @@ int luagtk_push_value(lua_State *L, GType type, void *data,
     int type_of_gobject = g_type_from_name("GObject");
     if (g_type_is_a(type, type_of_gobject)) {
 	get_widget(L, * (void**) data, 0, 0);	    // pushes nil on error.
-	sol_add(L, sol);
 	return sizeof(void*);
     }
     
@@ -199,7 +165,6 @@ int luagtk_push_value(lua_State *L, GType type, void *data,
      */
     int struct_nr = si - struct_list;
     get_widget(L, * (void**) data, struct_nr, 0);	// pushes nil on error.
-    sol_add(L, sol);
     return sizeof(void*);
 }
 
@@ -476,6 +441,9 @@ int luaopen_gtk(lua_State *L)
     // special methods.
     lua_pushvalue(L, -1);
     lua_setmetatable(L, -2);
+
+    // Initialize Gtk right away.
+    gtk_init(NULL, NULL);
 
     /* one retval on the stack: gtk.  This is usually not used anywhere,
      * but you have to use the global variable "gtk". */
