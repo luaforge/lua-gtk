@@ -24,6 +24,10 @@ require "lxp"
 -- Bitlib. See http://luaforge.net/projects/bitlib/
 require "bit"
 
+-- add the directory where this Lua file is in to the package search path.
+package.path = package.path .. ";" .. string.gsub(arg[0], "%/[^/]+$", "/?.lua")
+require "common"
+
 funclist = {}	    -- [name] = [rettype, arg1type, arg2type, ...]
 unhandled = {}	    -- [name] = true
 globals = {}	    -- [name] = {...}
@@ -377,14 +381,6 @@ function parse_xml(xml_file)
 end
 
 ---
--- Format a 16 bit value into two octal bytes in low/high order.
---
-function format_2bytes(val)
-    return string.format("\\%03o\\%03o", bit.band(val, 255),
-	bit.band(bit.rshift(val, 8), 255))
-end
-
----
 -- Unfortunately, sometimes ENUM fields in structures are not declared as such,
 -- but as integer.  Therefore, used ENUMs may appear unused.  Simply mark all
 -- ENUMs as used...
@@ -425,22 +421,9 @@ function output_enums(ofname)
 
     for i, name in pairs(keys) do
 	enum = enum_values[name]
-	val = enum.val
-	s = ""
-	prefix = ""
-
-	-- negative values are very rare.  prefix them by $FFFF.
-	if val < 0 then
-	    val = -val
-	    prefix = "\\377\\377"
-	end
-
-	while val > 0 do
-	    s = string.format("\\%03o", bit.band(val, 255)) .. s
-	    val = bit.rshift(val, 8)
-	end
-	s = format_2bytes(typedefs[enum.context].struct_id) .. s
-	ofile:write(name .. "," .. prefix .. s .. "\n")
+	val = tonumber(enum.val)
+	s = encode_enum(name, val, typedefs[enum.context].struct_id)
+	ofile:write(s .. "\n")
     end
     ofile:close()
 end
