@@ -82,8 +82,6 @@ function build_gui()
 end
 
 -- Main
-gtk.init()
 build_gui()
 gtk.main()
-
 

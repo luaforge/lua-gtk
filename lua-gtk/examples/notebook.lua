@@ -58,7 +58,6 @@ end
 -- main --
 
 require "gtk"
-gtk.init()
 mainwin = Mainwin.init()
 gtk.main()
 

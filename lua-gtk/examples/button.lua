@@ -34,7 +34,6 @@ end
 
 
 -- Create the main window.
-gtk.init()
 win = gtk.window_new(gtk.GTK_WINDOW_TOPLEVEL)
 win:set_title("Button Demo")
 win:connect('destroy', quit)

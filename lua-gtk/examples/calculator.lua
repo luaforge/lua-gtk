@@ -121,7 +121,6 @@ function CALC.new()
     return c
 end
 
-gtk.init()
 local calc = CALC.new()
 gtk.main()
 

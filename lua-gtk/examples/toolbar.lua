@@ -86,8 +86,6 @@ end
 
 -- main --
 require "gtk"
-gtk.init()
 mainwin = Mainwin.new()
-print(gtk.widgets)
 gtk.main()
 

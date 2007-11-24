@@ -131,7 +131,7 @@ end
 --
 -- Main
 --
-gtk.init()
+gtk.init(4)
 build_gui()
 gtk.main()
 

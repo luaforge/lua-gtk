@@ -97,7 +97,6 @@ function MYWIN:on_expose(ev, ifo)
     return false
 end
 
-gtk.init(8)
 mywin1 = mywin_new("One")
 mywin2 = mywin_new("Two")
 gtk.main()
