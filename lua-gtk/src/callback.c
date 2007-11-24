@@ -60,49 +60,35 @@ static int _callback_return_value(lua_State *L, int return_type,
     return val;
 }
 
-/**
- * Destroy all Lua proxy objects for Gtk objects on the stack.
+
+#ifdef AMD64
+
+// must be static so the position independent code logic doesn't mess it up.
+static int _callback_amd64(void *data, ...);
+
+/*-
+ * Workaround for AMD64.  _callback is not called as variadic function, which
+ * would imply setting %rax to the number of floating point arguments, but
+ * instead through a marshaller, which leaves %rax undefined.  This leads to
+ * segfault in the boilerplate code of _callback.
  *
- * This is required before returning from a callback.  Objects on the
- * stack will most likely not be there anymore later.
+ * To fix this, set %rax to a valid value (between 0 and 8), and jump to
+ * _callback.
+ *
+ * AMD64 calling convention for variadic functions:
+ * http://www.technovelty.org/code/linux/abi.html
+ * http://www.x86-64.org/documentation/
  */
-static void sol_free(lua_State *L, struct stack_obj_list *sol)
-{
-    int i, ref_nr;
-    struct widget *w, *w_start;
+asm(
+".text\n"
+"	.type _callback_amd64, @function\n"
+"_callback_amd64:\n"
+"	movq	$1, %rax\n"
+"	jmp	_callback\n"
+"	.size	_callback_amd64, . - _callback_amd64\n"
+);
 
-    if (sol->n_used == 0)
-	return;
-
-    lua_getfield(L, LUA_ENVIRONINDEX, LUAGTK_WIDGETS);  // widgets
-    lua_getfield(L, LUA_ENVIRONINDEX, LUAGTK_ALIASES);  // widgets aliases
-
-    for (i=0; i<sol->n_used; i++) {
-	ref_nr = sol->ref_list[i];
-	lua_rawgeti(L, -1, ref_nr);			// widgets aliases w
-	w = (struct widget*) lua_topointer(L, -1);
-	w_start = w;
-
-	// remove the entry in gtk.widgets
-	lua_pushlightuserdata(L, w->p);
-	lua_pushnil(L);					// wi al w *p nil
-	lua_rawset(L, -5);				// wi al w
-
-	// remove all aliases
-	do {
-	    printf("Destroying widget with ref %d, %p %p %s\n", w->own_ref,
-		w, w->p, w->class_name);
-	    luaL_unref(L, -2, w->own_ref);
-	    w->p = NULL;
-	    w = w->next;
-	} while (w && w != w_start);
-
-	lua_pop(L, 1);
-    }
-
-    lua_pop(L, 2);
-}
-
+#endif
 
 /**
  * Handler for Gtk signal callbacks.  Find the proper Lua callback, build the
@@ -121,7 +107,6 @@ static int _callback(void *data, ...)
     struct callback_info *cbi = (struct callback_info*) data;
     lua_State *L = cbi->L;
     int stack_top = lua_gettop(L);
-    struct stack_obj_list stack_obj_list = { 0, };
 
     /* get the handler function */
     lua_rawgeti(L, LUA_REGISTRYINDEX, cbi->handler_ref);
@@ -136,7 +121,7 @@ static int _callback(void *data, ...)
     for (i=0; i<arg_cnt; i++) {
 	GType type = cbi->query.param_types[i] & ~G_SIGNAL_TYPE_STATIC_SCOPE;
 	long int val = va_arg(ap, long int);
-	(void) luagtk_push_value(L, type, (char*) &val, &stack_obj_list);
+	(void) luagtk_push_value(L, type, (char*) &val);
     }
 
     /* The widget is the last parameter to this function.  The Lua callback
@@ -172,15 +157,22 @@ static int _callback(void *data, ...)
     /* Determine the return value (default is zero) */
     int val = _callback_return_value(L, return_type, cbi);
 
-    /* remove stack objects with all aliases that might have been created */
-    sol_free(L, &stack_obj_list);
-
     /* make sure the stack is back to the original state */
     lua_settop(L, stack_top);
 
     return val;
 }
 
+#ifdef AMD64
+
+// Avoid a warning about _callback being defined, but not used.  When
+// optimizing, avoids the function being omitted altogether.
+void dummy() {
+    _callback(NULL);
+}
+ #warning Please ignore the message about _callback_amd64.
+ #define _callback _callback_amd64
+#endif
 
 /**
  * Free memory on signal handler disconnection.
