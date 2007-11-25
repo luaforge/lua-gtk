@@ -292,3 +292,10 @@ Son Nov 25 00:37:25 CET 2007
 * call gtk_init in library init code, so gtk.init() is not required anymore
 
 
+Son Nov 25 23:36:34 CET 2007
+* support signal connection on all GObject derived objects, not just GtkObject
+  derived ones
+* callbacks from Gtk to Lua now accept almost any parameter type
+* fixed a bug that happens when a Lua proxy object is automatically removed,
+  but the GC function not called before the Gtk object is accessed again.
+

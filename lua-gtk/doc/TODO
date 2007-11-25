@@ -6,6 +6,13 @@ TODO
 
 - use gtk_tree_iter_free!  is this already so?
 
+- validate and debug the issue of an entry in widget_aliases being removed
+  and re-used before the GC function has run.
+
+  In l_widget_gc, it's not an error if a new widget_alias has already been
+  constructed for the same address, not including the current widget_alias in
+  the chain.
+
 - wrapper for gtk_tree_model_get would be nice.
 
 - socket_co: connect attempts must be asynchronous, otherwise the GUI can be
