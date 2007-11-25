@@ -281,3 +281,14 @@ Mon Nov 19 18:00:01 CET 2007
 Mit Nov 21 16:21:46 CET 2007
 * GtkBuilder now finds object types properly.
 
+
+Son Nov 25 00:37:25 CET 2007
+* don't create entries in gtk.widgets or gtk.widget_aliases for stack objects;
+  remove struct stack_obj_list and related code.
+* fix segfault in _callback on amd64
+* fix segfault in weather demo (gtk_text_view_get_buffer refcounting fix)
+* automatically generate list of G_TYPE_XXX constants, remove extra_enums.txt
+* support string and integer entries in the enum table
+* call gtk_init in library init code, so gtk.init() is not required anymore
+
+

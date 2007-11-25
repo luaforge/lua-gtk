@@ -2,7 +2,7 @@
 TODO
 ----
 
-- support for String ENUMs (for stock names)
+- review all the code for improvements and maybe some bugs
 
 - use gtk_tree_iter_free!  is this already so?
 
@@ -11,25 +11,12 @@ TODO
 - socket_co: connect attempts must be asynchronous, otherwise the GUI can be
   blocked (by a slow DNS server, for example).
 
-- gtk_file_chooser_dialog_new should return a GtkFileChooserDialog, not
-  GtkDialog.  Is the former not included in the "used" classes? fixed,
-  regenerate gtkdata.*
-
-- add certain #defines from the Gtk includes to the ENUM list automatically.
+- add more #defines from the Gtk includes to the ENUM list automatically.
 	gdk/gdkkeysyms.h
 	gdk/gdkselection.h
-	gtk/gtkstock.h
-
-- review all the code for improvements and maybe some bugs, esp. the
-  segfaults when not optimized on amd64.
 
 - mingw port:
 	- test it, users report that it's broken
-
-- amd64 port:
-	- fix segfaults when compiled without -O
-	- fix spurious segfaults in weather demo
-	- fix segfault in window demo (close with X button)!
 
 - exporting existing Gtk objects to Lua, see
   http://luaforge.net/forum/forum.php?thread_id=827&forum_id=536
