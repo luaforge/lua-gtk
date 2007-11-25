@@ -127,7 +127,7 @@ static int l_new(lua_State *L)
 
     /* Make a Lua wrapper for it, push it on the stack.  Note that manage_mem
      * is 1, i.e. call g_free later. */
-    get_widget(L, p, si - struct_list, 1);
+    luagtk_get_widget(L, p, si - struct_list, 1);
     return 1;
 }
 
