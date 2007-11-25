@@ -2,10 +2,16 @@
  * Test whether a vararg function can be called when typecast to a regular
  * function.
  * Copyright (C) 2007 Wolfgang Oertl
+ *
+ * When run, returns 0 on success, or a non-zero exit status on error; this
+ * includes if terminated by segfault, which happens e.g. on amd64.
  */
 
 #include <stdarg.h>
 
+/**
+ * This is the function with variable arguments that is called.
+ */
 int func1(int *a, ...)
 {
     va_list ap;
@@ -17,8 +23,15 @@ int func1(int *a, ...)
     return rc;
 }
 
+/**
+ * Type of a non-vararg function with the parameters expected by func1
+ */
 typedef int (*func_t)(int *a, int b, double c, int d);
 
+
+/**
+ * Main routine: call func1, check the result.
+ */
 int main(int argc, char **argv)
 {
     func_t f = (func_t) func1;
