@@ -17,6 +17,8 @@
 #include "luagtk.h"
 #include <lauxlib.h>	    // luaL_check*, luaL_ref/unref
 #include <stdarg.h>
+#include <gobject/gvaluecollector.h>
+#include <string.h>	    // memset (in G_VALUE_COLLECT)
 
 /* one such structure per connected callback */
 struct callback_info {
@@ -120,15 +122,21 @@ static int _callback(void *data, ...)
     va_start(ap, data);
     for (i=0; i<arg_cnt; i++) {
 	GType type = cbi->query.param_types[i] & ~G_SIGNAL_TYPE_STATIC_SCOPE;
-	long int val = va_arg(ap, long int);
-	(void) luagtk_push_value(L, type, (char*) &val);
+	gchar *err_msg = NULL;
+	GValue gv;
+	memset(&gv, 0, sizeof(gv));
+
+	g_value_init(&gv, type);
+	G_VALUE_COLLECT(&gv, ap, 0, &err_msg);
+	if (err_msg)
+	    return luaL_error(L, "[gtk] vararg %d failed: %s", i+1, err_msg);
+	luagtk_push_gvalue(L, &gv);
     }
 
     /* The widget is the last parameter to this function.  The Lua callback
      * gets it as the first parameter, though. */
     void *widget = va_arg(ap, void*);
-    get_widget(L, widget, 0, 0);
-    // sol_add(L, &stack_obj_list);
+    luagtk_get_widget(L, widget, 0, 0);
     va_end(ap);
 
     if (lua_isnil(L, -1))
