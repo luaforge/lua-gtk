@@ -113,12 +113,14 @@ static int _callback(void *data, ...)
     /* get the handler function */
     lua_rawgeti(L, LUA_REGISTRYINDEX, cbi->handler_ref);
 
+    /* first parameter: the widget */
+    lua_rawgeti(L, LUA_REGISTRYINDEX, cbi->widget_ref);
+    struct widget *w = (struct widget*) lua_topointer(L, -1);
+
     /* push all the signal arguments to the Lua stack */
     arg_cnt = cbi->query.n_params;
 
     // retrieve the additional parameters using the stdarg mechanism.
-    // XXX it might be nesessary to differentiate between 4 and 8 byte
-    // arguments, which could be derived from the type...
     va_start(ap, data);
     for (i=0; i<arg_cnt; i++) {
 	GType type = cbi->query.param_types[i] & ~G_SIGNAL_TYPE_STATIC_SCOPE;
@@ -127,7 +129,7 @@ static int _callback(void *data, ...)
 	memset(&gv, 0, sizeof(gv));
 
 	g_value_init(&gv, type);
-	G_VALUE_COLLECT(&gv, ap, 0, &err_msg);
+	G_VALUE_COLLECT(&gv, ap, G_VALUE_NOCOPY_CONTENTS, &err_msg);
 	if (err_msg)
 	    return luaL_error(L, "[gtk] vararg %d failed: %s", i+1, err_msg);
 	luagtk_push_gvalue(L, &gv);
@@ -136,12 +138,19 @@ static int _callback(void *data, ...)
     /* The widget is the last parameter to this function.  The Lua callback
      * gets it as the first parameter, though. */
     void *widget = va_arg(ap, void*);
-    luagtk_get_widget(L, widget, 0, 0);
+    if (widget != w->p) {
+	fprintf(stderr, "Warning: _callback on different widget: %p %p\n",
+	    w->p, widget);
+    /*
+	luagtk_get_widget(L, widget, 0, 0);
+	if (lua_isnil(L, -1))
+	    fprintf(stderr, "Warning: _callback couldn't find widget %p\n",
+		widget);
+	lua_insert(L, stack_top + 2);
+    */
+    }
     va_end(ap);
 
-    if (lua_isnil(L, -1))
-	fprintf(stderr, "Warning: _callback couldn't find widget %p\n", widget);
-    lua_insert(L, stack_top + 2);
 
     /* copy all the extra arguments (user provided) to the stack. */
     if (cbi->args_ref) {
