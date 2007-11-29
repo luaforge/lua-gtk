@@ -67,8 +67,17 @@ function init()
     mt.__index = strict_index
 end
 
+---
+-- When the table is locked, __newindex shouldn't be called.  The only valid
+-- possibility is when the variable has been assigned nil, in which case it
+-- vanishes, and the next assignment will be a new one.
+--
 local function strict_locked(t, n, v)
-    error("LOCKED - no new globals allowed: " .. n, 2)
+    local d = getmetatable(t).__declared
+    if not d[n] then
+	error("LOCKED - no new globals allowed: " .. n, 2)
+    end
+    rawset(t, n, v)
 end
 
 ---
