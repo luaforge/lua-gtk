@@ -57,14 +57,16 @@ function _watch_func(thread, channel, cond)
 	return rc
     end
 
+    -- not blocked on this channel; either sleep, or exit.
+    remove_watch(thread, nil, nil)
+
     -- sleep a certain interval?
     if msg == "sleep" then
 	gtk.g_timeout_add(channel, _watch_func, thread)
 	return rc
     end
 
-    remove_watch(thread, nil, nil)
-    if not msg then print(channel) end
+    if (not msg) and channel then print(channel) end
     return false
 end
 
@@ -124,6 +126,9 @@ function remove_watch(thread, channel, cond)
 end
 
 function start_watch(thread)
+    if base.type(thread) == "function" then
+	thread = coroutine.create(thread)
+    end
     return _watch_func(thread, nil, 0)
 end
 
