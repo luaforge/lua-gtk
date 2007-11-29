@@ -17,7 +17,7 @@ if test -f $STATE; then
 fi
 
 case "$1" in
-	linux|archlinux|win32) TARGET="$1"; shift ;;
+	linux|archlinux|win32|amd64) TARGET="$1"; shift ;;
 esac
 
 if test ! -f script/Makefile.$TARGET; then
