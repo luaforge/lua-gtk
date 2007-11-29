@@ -3,27 +3,23 @@
 
 require "gtk"
 
--- meta class for my window
-MYWIN = {}
 win_count = 0
-
 
 function mywin_new(msg)
     local self = { pixmap=nil, msg=msg }
-    setmetatable(self, MYWIN)
     self.win = gtk.window_new(gtk.GTK_WINDOW_TOPLEVEL)
-    self.win:connect('destroy', MYWIN.on_destroy, self)
+    self.win:connect('destroy', on_destroy, self)
     self.win:set_title('Pixmap Test')
     local da = gtk.drawing_area_new()
     self.win:add(da)
-    da:connect('configure-event', MYWIN.on_configure, self)
-    da:connect('expose-event', MYWIN.on_expose, self)
+    da:connect('configure-event', on_configure, self)
+    da:connect('expose-event', on_expose, self)
     self.win:show_all()
     win_count = win_count + 1
     return self
 end
 
-function MYWIN:on_destroy()
+function on_destroy(w)
     win_count = win_count - 1
     if win_count == 0 then
 	gtk.main_quit()
@@ -34,10 +30,7 @@ end
 -- On configure (size change), allocate a pixmap, fill with white and draw
 -- something in it.
 --
-function MYWIN:on_configure(ev, ifo)
-    -- print("on_configure", ev, ifo, ifo.win)
-    -- print("private_flags", ifo.win.private_flags)   -- this works.
-    -- get GdkWindow
+function on_configure(da, ev, ifo)
     local window = ifo.win.window
     local width, height = window:get_size(0, 0)
 
@@ -75,7 +68,7 @@ function MYWIN:on_configure(ev, ifo)
     -- Make sure that the unreferenced pixmap is freed NOW and not eventually,
     -- because this can eat up loads of memory of the X server.
     collectgarbage()
-    -- print(gcinfo())
+    collectgarbage()
 
     return true
 end
@@ -87,16 +80,17 @@ end
 -- ifo.pixmap into it, then copies that pixmap to the window, and destroys
 -- the pixmap.
 --
-function MYWIN:on_expose(ev, ifo)
+function on_expose(da, ev, ifo)
     local area = ev.expose.area
     local x, y, w, h = area.x, area.y, area.width, area.height
-    local window = self.window
+    local window = da.window
     local style = ifo.win:get_style()
     local white_gc = style.white_gc
     gtk.gdk_draw_drawable(window, white_gc, ifo.pixmap, x, y, x, y, w, h)
     return false
 end
 
+gtk.init(0)	-- show memory allocation profile if 8
 mywin1 = mywin_new("One")
 mywin2 = mywin_new("Two")
 gtk.main()
