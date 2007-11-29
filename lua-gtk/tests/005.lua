@@ -1,11 +1,15 @@
 #! /usr/bin/lua
 -- vim:sw=4:sts=4
+--
+-- Test coroutines with sleeping and asynchronous HTTP download, and
+-- idle callbacks.
+--
 
 require "gtk"
 require "gtk.socket_co"
 require "gtk.watches"
 
-function get_time()
+function http_download()
     local val, msg, sock, gio, condition
 
     gio, msg = gtk.socket_co.connect("www.google.com", 80, false)
@@ -27,7 +31,7 @@ end
 
 function get_time_wrap()
     coroutine.yield("sleep", 1000)
-    get_time()
+    http_download()
     gtk.main_quit()
     return nil, "finished"
 end
