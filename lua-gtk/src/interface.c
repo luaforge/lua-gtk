@@ -178,9 +178,9 @@ static int l_dump_stack(lua_State *L)
 static int l_get_osname(lua_State *L)
 {
 #ifdef WIN32
-    lua_pushstring(L, "win32");
+    lua_pushliteral(L, "win32");
 #else
-    lua_pushstring(L, "linux");
+    lua_pushliteral(L, "linux");
 #endif
     return 1;
 }

@@ -402,7 +402,7 @@ int luaopen_gtk(lua_State *L)
 
     // a metatable to make another table have weak values
     lua_newtable(L);			// gtk mt
-    lua_pushstring(L, "v");		// gtk mt "v"
+    lua_pushliteral(L, "v");		// gtk mt "v"
     lua_setfield(L, -2, "__mode");	// gtk mt
 
     // Table with all widget metatables; [name] = table.  When no widgets
@@ -429,7 +429,7 @@ int luaopen_gtk(lua_State *L)
 
     /* default attribute table of a widget */
 #if 1
-    // lua_pushstring(L, "emptyattr");	// gtk "emptyattr"
+    // lua_pushliteral(L, "emptyattr");	// gtk "emptyattr"
     lua_newtable(L);			// gtk "emptyattr" t
     lua_setfield(L, LUA_ENVIRONINDEX, LUAGTK_EMPTYATTR);
 #endif
