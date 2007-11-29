@@ -299,3 +299,16 @@ Son Nov 25 23:36:34 CET 2007
 * fixed a bug that happens when a Lua proxy object is automatically removed,
   but the GC function not called before the Gtk object is accessed again.
 
+
+Don Nov 29 12:27:37 CET 2007
+* widget.c:_is_on_stack: use volatile
+* widget.c:_is_on_stack: works for AMD64 too, now.
+* use lua_pushliteral where possible instead of lua_pushstring
+* Bugfix in _callback: use G_VALUE_NOCOPY_CONTENTS flag to G_VALUE_COLLECT;
+  else the object parameters would have to be freed again.
+* channel.c: access GIOChannel.ref_count properly
+* lib/strict.lua: nil assignments handled
+* widget.c: bugfix for objects on the stack: increase refcount
+* widget.c: bugfix - always use g_object_ref_sink, ignore is_new
+* lib/watches.lua: fix mixed sleeping and waiting on channels
+
