@@ -18,12 +18,16 @@
 --
 
 require "gtk"
-require "gtk.glade"
 require "gtk.http_co"
+require "lxp"
 require "gtk.strict"
 
-local forecast_days = 5
-local gladefile = string.gsub(arg[0], ".lua", ".glade")
+gtk.strict.init()
+
+forecast_days = 5
+gladefile = string.gsub(arg[0], ".lua", ".ui")
+
+widgets = {}
 
 -- handler for the mainwin.destroy signal
 function on_mainwin_destroy()
@@ -57,85 +61,78 @@ function weather_info_callback(arg, ev, data1, data2, data3)
     end
 end
 
+-- global used while parsing the XML data
+stack = nil
+
+callbacks = {
+    StartElement = function(parser, name, el)
+	local top, key = unpack(stack[#stack])
+	top[key] = top[key] or {}
+	local ar = top[key]
+
+	-- item already exists.  convert into an array if not already so,
+	-- then write into it.
+	if ar[name] then
+	    if type(ar[name]) ~= 'table' or not ar[name].__ar then
+		ar[name] = { __ar=true, ar[name] }
+	    end
+	    ar = ar[name]
+	    name = #ar + 1
+	end
+
+	table.insert(stack, { ar, name })
+
+	-- treat items in EL as subelements
+	for i, key in ipairs(el) do
+	    callbacks.StartElement(parser, key, {})
+	    callbacks.CharacterData(parser, el[key])
+	    callbacks.EndElement(parser, key)
+	end
+    end,
+
+    EndElement = function(parser, name)
+	table.remove(stack)
+    end,
+
+    CharacterData = function(parser, data)
+	if string.match(data, "^%s*$") then return end
+	local ar, key = unpack(stack[#stack])
+
+	if not ar[key] then
+	    ar[key] = data
+	    return
+	else
+	    print("IGNORE", key)
+	end
+    end,
+
+}
+
+
 --
 -- The data retrieved from weather.com is a XML text.  Parse it using
 -- an internal function of gtk.glade -- not really the way to go, but
 -- works for now.
 --
 function parse_weather_info(data)
+    local tree = {}
+    stack = { { tree, "top" } }
 
-    -- build a first representation of the XML input.
-    local stack, line_nr, ok, msg = {}, 0
+    local p = lxp.new(callbacks, "::")
+    p:parse(data)
+    p:parse()
+    p:close()
+    p = nil
+    stack = nil
 
-    table.insert(stack, {items={}})
-
-    -- split into lines...
-    for line in data:gmatch("([^\n]+)") do
-	line_nr = line_nr + 1
-	-- print("LINE", line_nr, line)
-	if line_nr > 2 then
-	    ok, msg = pcall(gtk.glade.glade_line, stack, line)
-	    if not ok then
-		print(string.format("%s(%s): %s", "weather xml", line_nr, msg))
-	    end
-	end
-    end
-
-    -- build a second representation, using the tag names as keys
-    xml = transform_xml(stack[1].items)
-
-    if xml.weather.head.ut == "C" then
-	xml.weather.head.ut = "°C"
-    end
-
-    -- dump_it(xml)
-
-    present_weather(xml)
-end
-
---
--- Convert the preliminary representation of the tree, which is not easy to use,
--- into a nicer representation.  What makes it complicated is the detection of
--- multiple items with the same label - an array is created in this case.
---
-function transform_xml(items)
-    local tree, el = {}
-
-    for i, item in pairs(items) do
-
-	el = {}
-	if tree[item.label] then
-	    if not tree[item.label].__ar then
-		tree[item.label] = { __ar=true, tree[item.label] }
-	    end
-	    table.insert(tree[item.label], el)
-	else
-	    tree[item.label] = el
-	end
-
-	for k, v in pairs(item) do
-	    if k ~= "items" and k ~= "label" then
-		el[k] = v
-	    end
-	end
-
-	if item.items then
-	    local subitems = transform_xml(item.items)
-	    for k, v in pairs(subitems) do
-		el[k] = v
-	    end
-	elseif el.text then
-	    tree[item.label] = item.text
-	end
-
-    end
-    return tree
+    present_weather(tree.top)
 end
 
 function dump_it(stack, prefix)
     prefix = prefix or ""
     for k, v in pairs(stack) do
-	print(prefix .. tostring(k) .. ": " .. tostring(v))
+	print(prefix .. tostring(k) .. ": " .. tostring(v)
+	    .. ((type(v) == 'table' and v.__ar and " (multivalue array)") or ""))
 	if type(v) == 'table' then
 	    dump_it(v, prefix .. "  ")
 	end
@@ -155,8 +152,8 @@ end
 -- interesting fields and fill the GUI.
 --
 function present_weather(xml)
-    local s
-    local cw = mainwin.currweather
+    local s, cnt, tbl
+    local cw = widgets.currweather
     local buf = cw:get_buffer()
     local dt = parse_date(xml.weather.cc.lsup)
     local mydt = os.date("%Y-%m-%d")
@@ -172,7 +169,7 @@ function present_weather(xml)
     buf:set_text(s, string.len(s))
 
     -- remove previous forecast table, if it exists.
-    local tmp = mainwin.forecast:get_child()
+    local tmp = widgets.forecast:get_child()
     if tmp then tmp:destroy() end
 
     -- if a forecast has been retrieved, show it.
@@ -202,9 +199,10 @@ function present_weather(xml)
 		    0, 3)
 	    end
 	end
-	mainwin.forecast:add(tbl)
+	widgets.forecast:add(tbl)
 	tbl:show_all()
     end
+
 end
 
 --
@@ -220,19 +218,25 @@ function parse_date(s)
 	rest=rest }
 end
 
-function main()
+function build_gui()
+    local b = gtk.builder_new()
+    local rc, err = b:add_from_file(gladefile, nil)
+    if err then print(err.message); return end
+    b:connect_signals_full(_G)
 
-    gtk.init()
-    tree = gtk.glade.read(gladefile)
-    mainwin = gtk.glade.create(tree, "mainwin")
+    -- access relevant widgets
+    for _, v in ipairs { "currweather", "forecast", "mainwin", "location" } do
+	widgets[v] = b:get_object(v)
+    end
 
     -- setup location selector
+    local location = widgets.location
     local store = gtk.list_store_new(2, gtk.G_TYPE_STRING, gtk.G_TYPE_STRING)
-    mainwin.location:set_model(store)
+    location:set_model(store)
 
     local r = gtk.cell_renderer_text_new()
-    mainwin.location:pack_start(r, false)
-    mainwin.location:set_attributes(r, 'text', 0, nil)
+    location:pack_start(r, false)
+    location:set_attributes(r, 'text', 0, nil)
 
     -- read config file for locations
     local configfunc, msg = loadfile("weather.cfg")
@@ -251,15 +255,17 @@ function main()
 	store:set(iter, 0, info[1], 1, info[2], -1)
     end
 
-    mainwin.mainwin:show()
-    gtk.main()
+    widgets.mainwin:show()
 end
 
 -- MAIN --
 
-main()
-tree = nil
-mainwin = nil
-collectgarbage("collect")
+gtk.strict.lock()
+build_gui()
+gtk.main()
+widgets = nil
+collectgarbage()
+collectgarbage()
+collectgarbage()
 print(collectgarbage("count"), "kB")
 
