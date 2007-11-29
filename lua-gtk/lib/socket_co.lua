@@ -19,10 +19,6 @@ base.gtk.strict.init()
 gtk = base.gtk
 os = gtk.get_osname()
 
-
--- for creating a new connection
-TIMEOUT = 60
-
 ---
 -- A data source for upload which reads from a buffer in memory.
 --
@@ -150,39 +146,27 @@ source = { file = source_file, buffer = source_buffer }
 -- Returns the new GIOChannel and the socket.  Be sure to keep a reference
 -- to the socket, otherwise it will be destroyed!
 --
--- Note: The yield() etc. doesn't work properly here.  When the connect() call
--- returns EINPROGRESS, one should wait for writability and then use
--- getsockopt() to determine whether the connection could be established.  This
--- is rather complicated, so I just use a timeout, which makes the connect()
--- call blocking.
---
 -- @param host        Host to connect to; IP address or DNS name.
 -- @param port        The port to connect to; must be numeric.
 -- @param buffered    true to use buffered sockets; don't do this.
 -- @return GIOChannel, or nil + error message.
 --
 function connect(host, port, buffered)
-    local sock, rc, msg
+    local sock, rc, msg, gio
 
     sock, msg = base.socket.tcp()
     if not sock then return sock, msg end
-    sock:settimeout(TIMEOUT)
-
-    -- Connect might block, and iowait is only possible on GIOChannels,
-    -- not plain sockets (not really).
-    local gio = create_io_channel(sock, buffered)
-
-    while true do
-	rc, msg = sock:connect(host, port)
-	-- print("sock connect returned", rc, msg)
-	if rc then break end
-	if msg ~= "timeout" then return rc, msg end
-	-- not reached
-	print "IOWAIT on connect"
-	coroutine.yield("iowait", gio, gtk.G_IO_OUT)
-    end
 
     sock:settimeout(0)
+    gio = create_io_channel(sock, buffered)
+
+    -- DNS resolution may block, unfortunately it is not asynchronous.
+    rc, msg = sock:connect(host, port)
+    if rc then return gio, sock end
+
+    -- failed to connect; if timeout, then wait, otherwise return error
+    if msg ~= "timeout" then return rc, msg end
+    coroutine.yield("iowait", gio, gtk.G_IO_OUT)
     return gio, sock
 end
 
