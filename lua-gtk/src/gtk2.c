@@ -37,6 +37,97 @@ extern char override_data[];
 extern int override_size;
 
 
+/*-
+ * The GValue at *gv is of a fundamental type.  Push the appropriate value
+ * on the Lua stack.  If the type is not handled, a Lua error is raised.
+ */
+static void _push_gvalue_fundamental(lua_State *L, GValue *gv)
+{
+    GType type = gv->g_type;
+    void *data = (void*) &gv->data;
+
+    // see /usr/include/glib-2.0/gobject/gtype.h for type numbers.
+    switch (G_TYPE_FUNDAMENTAL(type)) {
+	case G_TYPE_INVALID:
+	    lua_pushnil(L);
+	    return;
+
+	case G_TYPE_NONE:
+	    printf("strange... an argument of type NONE?\n");
+	    return;
+
+	// missing: G_TYPE_INTERFACE
+
+	case G_TYPE_CHAR:
+	case G_TYPE_UCHAR:
+	    lua_pushlstring(L, (char*) data, 1);
+	    return;
+
+	case G_TYPE_BOOLEAN:
+	    lua_pushboolean(L, * (int*) data);
+	    return;
+
+	case G_TYPE_INT:
+	    lua_pushnumber(L, * (int*) data);
+	    return;
+
+	case G_TYPE_UINT:
+	    lua_pushnumber(L, * (unsigned int*) data);
+	    return;
+
+	case G_TYPE_LONG:
+	    lua_pushnumber(L, * (long int*) data);
+	    return;
+
+	case G_TYPE_ULONG:
+	    lua_pushnumber(L, * (unsigned long int*) data);
+	    return;
+
+	case G_TYPE_INT64:
+	    lua_pushnumber(L, * (gint64*) data);
+	    return;
+
+	case G_TYPE_UINT64:
+	    lua_pushnumber(L, * (guint64*) data);
+	    return;
+
+	// XXX might be possible to find out which ENUM it is?
+	case G_TYPE_ENUM:
+	case G_TYPE_FLAGS:
+	    lua_pushnumber(L, * (int*) data);
+	    return;
+
+	case G_TYPE_FLOAT:
+	    lua_pushnumber(L, * (float*) data);
+	    return;
+
+	case G_TYPE_DOUBLE:
+	    lua_pushnumber(L, * (double*) data);
+	    return;
+
+	case G_TYPE_STRING:
+	    lua_pushstring(L, * (char**) data);
+	    return;
+
+	case G_TYPE_POINTER:
+	    // Some opaque structure.  This is very seldom and it is
+	    // not useful to try to override it.  There's a reason for
+	    // parameters being opaque...
+	    lua_pushlightuserdata(L, * (void**) data);
+	    return;
+
+	// missing: G_TYPE_BOXED
+	// missing: G_TYPE_PARAM
+	// missing: G_TYPE_OBJECT
+
+	default:
+	    luaL_error(L, "luagtk_push_value: unhandled fundamental "
+		"type %d\n", (int) type >> 2);
+    }
+}
+
+
+
 /**
  * A parameter for a callback must be pushed onto the stack.  The type to
  * use depends on the "type" (from the g_signal_query results).  A value
@@ -54,87 +145,10 @@ void luagtk_push_gvalue(lua_State *L, GValue *gv)
     GType type = gv->g_type;
     void *data = (void*) &gv->data;
 
-    // see /usr/include/glib-2.0/gobject/gtype.h for type numbers.
     if (G_TYPE_IS_FUNDAMENTAL(type)) {
-	switch (G_TYPE_FUNDAMENTAL(type)) {
-	    case G_TYPE_INVALID:
-		lua_pushnil(L);
-		return;
-
-	    case G_TYPE_NONE:
-		printf("strange... an argument of type NONE?\n");
-		return;
-
-	    // missing: G_TYPE_INTERFACE
-
-	    case G_TYPE_CHAR:
-	    case G_TYPE_UCHAR:
-		lua_pushlstring(L, (char*) data, 1);
-		return;
-
-	    case G_TYPE_BOOLEAN:
-		lua_pushboolean(L, * (int*) data);
-		return;
-
-	    case G_TYPE_INT:
-		lua_pushnumber(L, * (int*) data);
-		return;
-
-	    case G_TYPE_UINT:
-		lua_pushnumber(L, * (unsigned int*) data);
-		return;
-
-	    case G_TYPE_LONG:
-		lua_pushnumber(L, * (long int*) data);
-		return;
-
-	    case G_TYPE_ULONG:
-		lua_pushnumber(L, * (unsigned long int*) data);
-		return;
-
-	    case G_TYPE_INT64:
-		lua_pushnumber(L, * (gint64*) data);
-		return;
-
-	    case G_TYPE_UINT64:
-		lua_pushnumber(L, * (guint64*) data);
-		return;
-
-	    // XXX might be possible to find out which ENUM it is?
-	    case G_TYPE_ENUM:
-	    case G_TYPE_FLAGS:
-		lua_pushnumber(L, * (int*) data);
-		return;
-
-	    case G_TYPE_FLOAT:
-		lua_pushnumber(L, * (float*) data);
-		return;
-
-	    case G_TYPE_DOUBLE:
-		lua_pushnumber(L, * (double*) data);
-		return;
-
-	    case G_TYPE_STRING:
-		lua_pushstring(L, * (char**) data);
-		return;
-
-	    case G_TYPE_POINTER:
-		// Some opaque structure.  This is very seldom and it is
-		// not useful to try to override it.  There's a reason for
-		// parameters being opaque...
-		lua_pushlightuserdata(L, * (void**) data);
-		return;
-
-	    // missing: G_TYPE_BOXED
-	    // missing: G_TYPE_PARAM
-	    // missing: G_TYPE_OBJECT
-
-	    default:
-		luaL_error(L, "luagtk_push_value: unhandled fundamental "
-		    "type %d\n", (int) type >> 2);
-	}
+	_push_gvalue_fundamental(L, gv);
+	return;
     }
-
 
     /* not a fundamental type */
     const char *name = g_type_name(type);
@@ -147,7 +161,8 @@ void luagtk_push_gvalue(lua_State *L, GValue *gv)
      */
     int type_of_gobject = g_type_from_name("GObject");
     if (g_type_is_a(type, type_of_gobject)) {
-	luagtk_get_widget(L, * (void**) data, 0, 0);	// pushes nil on error.
+	// pushes nil on error.
+	luagtk_get_widget(L, * (void**) data, 0, FLAG_NOT_NEW_OBJECT);
 	return;
     }
     
@@ -159,14 +174,9 @@ void luagtk_push_gvalue(lua_State *L, GValue *gv)
 	return;
     }
 
-    /**
-     * Find or create a Lua wrapper for the given object.  If it doesn't
-     * already exist, create it.  Be careful not to free the object on
-     * garbage collection, because it was allocated by the library
-     * itself and will therefore be freed.
-     */
+    /* Find or create a Lua wrapper for the given object. */
     int struct_nr = si - struct_list;
-    luagtk_get_widget(L, * (void**) data, struct_nr, 0); // pushes nil on error.
+    luagtk_get_widget(L, * (void**) data, struct_nr, FLAG_NOT_NEW_OBJECT);
 }
 
 
