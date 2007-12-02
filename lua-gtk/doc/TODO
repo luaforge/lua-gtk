@@ -2,21 +2,16 @@
 TODO
 ----
 
-- review all the code for improvements and maybe some bugs
-
-- use gtk_tree_iter_free!  is this already so?
-
-- validate and debug the issue of an entry in widget_aliases being removed
-  and re-used before the GC function has run.
-
-  In l_widget_gc, it's not an error if a new widget_alias has already been
-  constructed for the same address, not including the current widget_alias in
-  the chain.
-
-- wrapper for gtk_tree_model_get would be nice.
-
 - socket_co: connect attempts must be asynchronous, otherwise the GUI can be
   blocked (by a slow DNS server, for example).
+
+- review all the code for improvements and maybe some bugs
+
+- GdkAtom represented in the function list with one level of indirection too
+  many?  Like, GdkAtom* should be GdkAtom etc.  This is because GdkAtom is
+  defined to be a pointer to the opaque _GdkAtom structure.
+
+- wrapper for gtk_tree_model_get would be nice.
 
 - add more #defines from the Gtk includes to the ENUM list automatically.
 	gdk/gdkkeysyms.h
@@ -25,16 +20,18 @@ TODO
 - mingw port:
 	- test it, users report that it's broken
 
-- exporting existing Gtk objects to Lua, see
-  http://luaforge.net/forum/forum.php?thread_id=827&forum_id=536
-
 - check refcounting usage, memory leaks
 	- valgrind
 	- glib memory statistics
 	- make sure my reference counting (g_object_ref/_unref) is correct.
 	  seems to be ok...
 	- refcounting on GIOChannel not OK.  Sometimes in-use channels are
-	  freed, which aborts communication.
+	  freed, which aborts communication. (probably already fixed)
+	- GObject documentation on memory management says that when an object
+	  is destroyed, the "dispose" handler should release all references
+	  it might hold, while finalize really frees the object.  Does this
+	  apply to lua-gtk?  Usually GObjects will have just one ref from
+	  Lua, while the Lua proxy object may have multiple references.
 
 - more documentation
 	- improve the homepage, add more content, better layout

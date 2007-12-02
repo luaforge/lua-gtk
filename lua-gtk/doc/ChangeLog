@@ -300,7 +300,7 @@ Son Nov 25 23:36:34 CET 2007
   but the GC function not called before the Gtk object is accessed again.
 
 
-Don Nov 29 12:27:37 CET 2007
+Fri Nov 30 12:27:37 CET 2007
 * widget.c:_is_on_stack: use volatile
 * widget.c:_is_on_stack: works for AMD64 too, now.
 * use lua_pushliteral where possible instead of lua_pushstring
@@ -311,4 +311,14 @@ Don Nov 29 12:27:37 CET 2007
 * widget.c: bugfix for objects on the stack: increase refcount
 * widget.c: bugfix - always use g_object_ref_sink, ignore is_new
 * lib/watches.lua: fix mixed sleeping and waiting on channels
+
+
+Sam Dez  1 23:55:41 CET 2007
+* Bugfix: entry in widget_aliases automatically removed, but GC function not
+  called yet - this case is now handled correctly.
+* Bugfix: widget.c: malloc_handler now actually used where appropriate.
+
+
+Son Dez  2 22:29:02 CET 2007
+* luagtk_get_widget: the confusing manage_mem arg replaced by flags.
 
