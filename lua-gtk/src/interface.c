@@ -125,9 +125,10 @@ static int l_new(lua_State *L)
     p = g_malloc(si->struct_size);
     memset(p, 0, si->struct_size);
 
-    /* Make a Lua wrapper for it, push it on the stack.  Note that manage_mem
-     * is 1, i.e. call g_free later. */
-    luagtk_get_widget(L, p, si - struct_list, 1);
+    /* Make a Lua wrapper for it, push it on the stack.  FLAG_ALLOCATED causes
+     * the _malloc_handler be used, and FLAG_NEW_OBJECT makes it not complain
+     * about increasing the (non existant) refcounter. */
+    luagtk_get_widget(L, p, si - struct_list, FLAG_ALLOCATED | FLAG_NEW_OBJECT);
     return 1;
 }
 

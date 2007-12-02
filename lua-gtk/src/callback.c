@@ -141,8 +141,10 @@ static int _callback(void *data, ...)
     if (widget != w->p) {
 	fprintf(stderr, "Warning: _callback on different widget: %p %p\n",
 	    w->p, widget);
-    /*
-	luagtk_get_widget(L, widget, 0, 0);
+
+    /* Not required anymore, because the widget is already retrieved using
+     * the reference stored in the callback_info structure.
+	luagtk_get_widget(L, widget, 0, FLAG_NOT_NEW_OBJECT);
 	if (lua_isnil(L, -1))
 	    fprintf(stderr, "Warning: _callback couldn't find widget %p\n",
 		widget);
