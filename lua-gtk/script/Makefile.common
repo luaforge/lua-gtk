@@ -46,7 +46,7 @@ config_h:
 	@echo "#define HASHFUNC hash_${HASHF}" > ${ODIR}config.h.tmp
 	@/bin/echo -e "#ifndef ${PLATFORM}\n #define ${PLATFORM}\n#endif" >> ${ODIR}config.h.tmp
 	@/bin/echo -e "${CONFIG_H}" >> ${ODIR}config.h.tmp
-	@if diff -q ${ODIR}config.h ${ODIR}config.h.tmp 2> /dev/null; then rm -f ${ODIR}config.h.tmp; else mv -f ${ODIR}config.h.tmp ${ODIR}config.h; fi
+	@if diff -q ${ODIR}config.h ${ODIR}config.h.tmp >/dev/null 2>&1; then rm -f ${ODIR}config.h.tmp; else mv -f ${ODIR}config.h.tmp ${ODIR}config.h; fi
 
 # rule to build the library.
 
