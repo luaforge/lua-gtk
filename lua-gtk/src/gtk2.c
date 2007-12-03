@@ -226,7 +226,7 @@ static int _push_attribute(lua_State *L, const struct struct_info *si,
  *
  * Stack: 1=widget, 2=key, 3=dest metatable, 4=current metatable,... meta entry
  */
-static int handle_meta_entry(lua_State *L)
+static int read_meta_entry(lua_State *L)
 {
     /* an override -- just return it */
     if (lua_iscfunction(L, -1) || lua_isfunction(L, -1))
@@ -246,48 +246,32 @@ static int handle_meta_entry(lua_State *L)
     return _push_attribute(L, struct_list + me->struct_nr, me->se, w->p);
 }
 
-/**
- * Write an attribute (only numeric so far), i.e. a field of a Gtk structure.
- *
- * index: the Lua stack index where the data is to be found.
- */
-static int _write_attribute(lua_State *L, const struct struct_elem *se,
-    unsigned char *ptr, int index)
-{
-    const struct ffi_type_map_t *arg_type;
-
-    arg_type = &ffi_type_map[se->ffi_type_id];
-    if (arg_type->lua2struct_idx)
-	return ffi_type_lua2struct[arg_type->lua2struct_idx](L, se, ptr, index);
-
-    printf("%s unhandled attribute write of type %s (attribute %s)\n",
-	msgprefix, LUAGTK_TYPE_NAME(arg_type), STRUCT_NAME(se));
-    return 0;
-}
-
-
 
 /**
  * Assignment to an attribute of a structure.  Must not be a built-in
  * method, but basically could be...
- * Stack: 1=widget, ...
+ * Stack: 1=widget, 2=key, ... [-1]=meta entry
  */
-static int handle_write_entry(lua_State *L, int index)
+static int write_meta_entry(lua_State *L, int index)
 {
     const struct meta_entry *me = lua_topointer(L, -1);
-    struct widget *w;
+    struct widget *w = (struct widget*) lua_topointer(L, 1);
 
-    if (me->struct_nr == 0) {
-	printf("%s overwriting method %s not supported.\n", msgprefix,
-	    "(unknown)");
-	return 0;
-    }
+    /* the meta entry must describe a structure element, not a method. */
+    if (me->struct_nr == 0)
+	return luaL_error(L, "%s overwriting method %s.%s not supported.",
+	    msgprefix, w->class_name, lua_tostring(L, 2));
 
-    /* write to attribute */
-    w = (struct widget*) lua_topointer(L, 1);
-    _write_attribute(L, me->se, w->p, index);
+    /* write to attribute using a type-specific handler */
+    const struct ffi_type_map_t *arg_type = &ffi_type_map[me->se->ffi_type_id];
+    if (arg_type->lua2struct_idx)
+	return ffi_type_lua2struct[arg_type->lua2struct_idx](L, me->se, w->p,
+	    index);
 
-    return 0;
+    /* no write operation defined for this type */
+    return luaL_error(L, "%s can't write %s.%s (unsupported type %s)",
+	msgprefix, w->class_name, STRUCT_NAME(me->se),
+	LUAGTK_TYPE_NAME(arg_type));
 }
 
 
@@ -315,7 +299,7 @@ int luagtk_index(lua_State *L)
 	
 	case 2:
 	    /* meta entry */
-	    return handle_meta_entry(L);
+	    return read_meta_entry(L);
 	
 	default:
 	    printf("%s invalid return code %d from find_element\n", msgprefix,
@@ -347,7 +331,7 @@ int luagtk_newindex(lua_State *L)
 	    return 0;
 
 	case 2:
-	    handle_write_entry(L, 3);
+	    write_meta_entry(L, 3);
 	    return 0;
     }
 
