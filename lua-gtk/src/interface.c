@@ -226,7 +226,7 @@ static int l_get_refcount(lua_State *L)
     if (lua_isnil(L, 3))
 	return 1;
 
-    lua_pushinteger(L, luagtk_get_widget_refcount(w));
+    lua_pushinteger(L, luagtk_get_refcount(w));
     lua_pushinteger(L, w->widget_type);
     return 2;
 }
