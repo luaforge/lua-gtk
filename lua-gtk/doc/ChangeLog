@@ -322,3 +322,14 @@ Sam Dez  1 23:55:41 CET 2007
 Son Dez  2 22:29:02 CET 2007
 * luagtk_get_widget: the confusing manage_mem arg replaced by flags.
 
+Mon Dez  3 21:18:55 CET 2007
+* bugfix in luagtk_newindex: failed (e.g. via segfault) when trying to write
+  to a previously unknown structure element, and maybe in other cases, too.
+* new function g_object_get_class_name() to access w->class_name
+
+
+Son Dez  9 21:28:29 CET 2007
+* support char** arguments, which return newly allocated strings.
+* support PangoAttrList refcounting.
+* Makefile: use $H instead of @ as suggested by Enrico Tassi
+
