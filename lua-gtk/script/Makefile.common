@@ -9,12 +9,15 @@ HOSTCC	:=gcc -Wall
 VERSION	:=0.6
 # -- end general configuration --
 
+# run make with "H=" as an argument to show all build commands.
+H	:=@
+
 .PHONY:	tags wc tar install mrproper clean tests config_h doc
 .PRECIOUS: ${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}%.keys ${ODIR}%.mph
 
 OFILES	:=types.o gtk2.o interface.o data.o \
 	call.o callback.o channel.o gvalue.o override.o \
-	debug.o widget.o gtkdata.structs.o _override.o
+	debug.o widget.o widget_types.o gtkdata.structs.o _override.o
 LH	:=src/luagtk.h ${ODIR}config.h
 
 # -- runtime linking? --
@@ -38,142 +41,142 @@ endif
 gtk2dll: config_h ${ODIR}${ODLL}
 
 dirs:
-	@mkdir -p ${ODIR}
+	$H mkdir -p ${ODIR}
 
 # Create the config.h file
 
 config_h:
 	@echo "#define HASHFUNC hash_${HASHF}" > ${ODIR}config.h.tmp
-	@/bin/echo -e "#ifndef ${PLATFORM}\n #define ${PLATFORM}\n#endif" >> ${ODIR}config.h.tmp
-	@/bin/echo -e "${CONFIG_H}" >> ${ODIR}config.h.tmp
-	@if diff -q ${ODIR}config.h ${ODIR}config.h.tmp >/dev/null 2>&1; then rm -f ${ODIR}config.h.tmp; else mv -f ${ODIR}config.h.tmp ${ODIR}config.h; fi
+	$H /bin/echo -e "#ifndef ${PLATFORM}\n #define ${PLATFORM}\n#endif" >> ${ODIR}config.h.tmp
+	$H /bin/echo -e "${CONFIG_H}" >> ${ODIR}config.h.tmp
+	$H if diff -q ${ODIR}config.h ${ODIR}config.h.tmp >/dev/null 2>&1; then rm -f ${ODIR}config.h.tmp; else mv -f ${ODIR}config.h.tmp ${ODIR}config.h; fi
 
 # rule to build the library.
 
 ${ODIR}${ODLL}: $(addprefix ${ODIR}, ${OFILES})
 	@echo $@
-	@${CC} ${CFLAGS} -shared -o $@ $^ ${LIBFFI} ${LUALIB} ${LIBS}
+	$H ${CC} ${CFLAGS} -shared -o $@ $^ ${LIBFFI} ${LUALIB} ${LIBS}
 
 ${ODIR}debug.o: src/debug.c
 	@echo $@
-	@${CC} ${CFLAGS} -I lua-5.1/src -c -o $@ $<
+	$H ${CC} ${CFLAGS} -I lua-5.1/src -c -o $@ $<
 
 ${ODIR}_funclist.c: ${ODIR}gtkdata.funcs.txt ${ODIR}generate src/luagtk_hash.h
 	@echo $@
-	@${ODIR}generate -s 4096 -o $@ -n hash_info_funcs -d -f $<
+	$H ${ODIR}generate -s 4096 -o $@ -n hash_info_funcs -d -f $<
 
 ${ODIR}_enumlist.c: ${ODIR}gtkdata.enums.txt ${ODIR}generate src/luagtk_hash.h
 	@echo $@
-	@${ODIR}generate -s 1201 -o $@ -n hash_info_enums -d -f $<
+	$H ${ODIR}generate -s 1201 -o $@ -n hash_info_enums -d -f $<
 
 ${ODIR}_override.c: ${ODIR}override.luac ${ODIR}file2c
 	@echo $@
-	@${ODIR}file2c override < $< > $@
+	$H ${ODIR}file2c override < $< > $@
 	
 ${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}gtkdata.%.h: ${ODIR}types.xml \
 	script/parse-xml.lua script/get-defines.lua
 	@echo "Generating Gtk Data..."
-	@script/parse-xml.lua "${ODIR}" $<
-	@script/get-defines.lua >> ${ODIR}gtkdata.enums.txt
+	$H script/parse-xml.lua "${ODIR}" $<
+	$H script/get-defines.lua >> ${ODIR}gtkdata.enums.txt
 
 ${ODIR}types.xml: script/make-xml.lua
 	@echo "Generating types.xml..."
-	@script/make-xml.lua "$@"
+	$H script/make-xml.lua "$@"
 
 ${ODIR}%.o: ${ODIR}%.c
 	@echo $@
-	@${CC} ${CFLAGS} -c -o $@ $<
+	$H ${CC} ${CFLAGS} -c -o $@ $<
 
 # -- ffi magic --
 
 ${ODIR}luagtk_ffi.h: ${ODIR}ffi-types
 	@echo $@
-	@${ODIR}ffi-types > $@
+	$H ${ODIR}ffi-types > $@
 
 ${ODIR}ffi-types.o: src/ffi-types.c
 	@echo $@
-	@${HOSTCC} ${CFLAGS} -o $@ -c $<
+	$H ${HOSTCC} ${CFLAGS} -o $@ -c $<
 
 ${ODIR}ffi-types: ${ODIR}ffi-types.o
 	@echo $@
-	${HOSTCC} -o $@ $< -lffi
+	$H ${HOSTCC} -o $@ $< -lffi
 
 # -- fch hash --
 
 ${ODIR}%.keys: ${ODIR}%.txt
 	@echo $@
-	@sed 's/,.*$$//' < $^ > $@
+	$H sed 's/,.*$$//' < $^ > $@
 
 # -c gives the effort expended to finding a minimal hash function. lower
 #  value = more effort. 2.0 is about the minimum.
 ${ODIR}%.mph: ${ODIR}%.keys
 	@echo $@
-	@$(CMPHBIN) -a fch -c 2.0 -m $@ -g $^
+	$H $(CMPHBIN) -a fch -c 2.0 -m $@ -g $^
 
 ${ODIR}_funclist_fch.c: ${ODIR}hash-fch-generate ${ODIR}gtkdata.funcs.mph
 	@echo $@
-	@${ODIR}hash-fch-generate ${ODIR}gtkdata.funcs.mph \
+	$H ${ODIR}hash-fch-generate ${ODIR}gtkdata.funcs.mph \
 		${ODIR}gtkdata.funcs.txt "funcs" > $@
 
 ${ODIR}_enumlist_fch.c: ${ODIR}hash-fch-generate ${ODIR}gtkdata.enums.mph
 	@echo $@
-	@${ODIR}hash-fch-generate ${ODIR}gtkdata.enums.mph \
+	$H ${ODIR}hash-fch-generate ${ODIR}gtkdata.enums.mph \
 		${ODIR}gtkdata.enums.txt "enums" > $@
 
 ${ODIR}hash-fch.o: src/hash-fch.c
 	@echo $@
-	@${CC} ${CFLAGS} -c -o $@ -I ${CMPHDIR} $<
+	$H ${CC} ${CFLAGS} -c -o $@ -I ${CMPHDIR} $<
 
 # -- helper programs for fch hash, to be compiled with HOSTCC --
 
 ${ODIR}generate.o: src/generate.c
 	@echo $@
-	@${HOSTCC} ${CFLAGS} -c -o $@ $<
+	$H ${HOSTCC} ${CFLAGS} -c -o $@ $<
 
 ${ODIR}generate: ${ODIR}generate.o ${ODIR}${HASH}-native.o
 	@echo $@
-	@${HOSTCC} -o $@ $^
+	$H ${HOSTCC} -o $@ $^
 
 ${ODIR}file2c: src/file2c.c
 	@echo $@
-	@${HOSTCC} -o $@ $^
+	$H ${HOSTCC} -o $@ $^
 
 ${ODIR}hash-fch-generate: ${ODIR}hash-fch-generate.o
 	@echo $@
-	@${HOSTCC} -g -o $@ $^ $(CMPHLIB)
+	$H ${HOSTCC} -g -o $@ $^ $(CMPHLIB)
 
 ${ODIR}hash-fch-generate.o: src/hash-fch-generate.c
 	@echo $@
-	@${HOSTCC} -g -o $@ -I ${CMPHDIR} -c $< 
+	$H ${HOSTCC} -g -o $@ -I ${CMPHDIR} -c $< 
 
 # -- dynamic runtime linking --
 ${ODIR}link.c ${ODIR}link.h: src/linklist.txt script/make-link.lua \
 	${ODIR}types.xml
 	@echo $@
-	@script/make-link.lua ${ODIR}types.xml src/linklist.txt \
+	$H script/make-link.lua ${ODIR}types.xml src/linklist.txt \
 		${ODIR}link.h ${ODIR}link.c
 
 # -- general rules --
 
 ${ODIR}%-native.o: src/%.c
 	@echo $@
-	@${HOSTCC} ${CFLAGS} -c -o $@ $<
+	$H ${HOSTCC} ${CFLAGS} -c -o $@ $<
 
 ${ODIR}%.o: src/%.c
 	@echo $@
-	@${CC} ${CFLAGS} -c -o $@ $<
+	$H ${CC} ${CFLAGS} -c -o $@ $<
 
 ${ODIR}%.s: src/%.c
 	@echo $@
-	@${CC} ${CFLAGS} -S -o $@ $<
+	$H ${CC} ${CFLAGS} -S -o $@ $<
 
 ${ODIR}%.c: src/%.c
-	${CC} ${CFLAGS} -E -o $@ $<
+	$H ${CC} ${CFLAGS} -E -o $@ $<
 
 # could use -s to remove debugging info
 ${ODIR}%.luac: src/%.lua
 	@echo $@
-	@luac -o $@ $<
+	$H luac -o $@ $<
 
 # -- special targets --
 
@@ -216,7 +219,7 @@ diff:
 
 # Requires an improved version of luadoc that can read C files
 doc:
-	@luadoc -d reference lib src/interface.c src/call.c src/callback.c \
+	$H luadoc -d reference lib src/interface.c src/call.c src/callback.c \
 		src/channel.c src/override.c
 
 help:
@@ -234,6 +237,7 @@ ${ODIR}call.o: ${ODIR}luagtk_ffi.h ${LH}
 ${ODIR}callback.o: ${LH}
 ${ODIR}channel.o: ${LH}
 ${ODIR}widget.o: ${LH}
+${ODIR}widget_types.o: ${LH}
 ${ODIR}debug.o: ${LH}
 ${ODIR}override.o: ${LH}
 ${ODIR}gvalue.o: ${LH}
