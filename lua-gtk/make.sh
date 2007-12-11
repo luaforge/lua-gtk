@@ -8,6 +8,9 @@ TARGET="linux"
 T=""
 STATE="make.state"
 
+# go to my own directory.
+cd ${0%/*}
+
 # read current target
 if test -f $STATE; then
 	T=$(<$STATE)
