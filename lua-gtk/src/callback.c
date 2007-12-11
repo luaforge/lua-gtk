@@ -259,7 +259,7 @@ int luagtk_connect(lua_State *L)
     const char *signame = lua_tostring(L, 2);
     signal_id = g_signal_lookup(signame, G_OBJECT_TYPE(w->p));
     if (!signal_id)
-	luaL_error(L, "Can't find signal %s::%s\n", w->class_name, signame);
+	luaL_error(L, "Can't find signal %s::%s\n", WIDGET_NAME(w), signame);
 
     cb_info = g_slice_new(struct callback_info);
     cb_info->L = L;
@@ -268,7 +268,7 @@ int luagtk_connect(lua_State *L)
     if (cb_info->query.signal_id != signal_id) {
 	g_slice_free(struct callback_info, cb_info);
 	luaL_error(L, "invalid signal ID %d for signal %s::%s\n",
-	    signal_id, w->class_name, signame);
+	    signal_id, WIDGET_NAME(w), signame);
     }
 
     /* stack: widget - signame - func - .... */
