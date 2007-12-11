@@ -14,6 +14,7 @@
  *  2007-10-12	improved modularization of the code; ENUM typechecking
  *
  * Exported functions:
+ *  luagtk_init_gtk
  *  luagtk_index
  *  luagtk_newindex
  *  luagtk_push_gvalue
@@ -36,6 +37,16 @@ extern const luaL_reg gtk_methods[];
 extern char override_data[];
 extern int override_size;
 
+int gtk_is_initialized = 0;
+
+void luagtk_init_gtk()
+{
+    if (gtk_is_initialized)
+	return;
+    gtk_is_initialized = 1;
+    gtk_init(NULL, NULL);
+}
+    
 
 /*-
  * The GValue at *gv is of a fundamental type.  Push the appropriate value
@@ -260,7 +271,7 @@ static int write_meta_entry(lua_State *L, int index)
     /* the meta entry must describe a structure element, not a method. */
     if (me->struct_nr == 0)
 	return luaL_error(L, "%s overwriting method %s.%s not supported.",
-	    msgprefix, w->class_name, lua_tostring(L, 2));
+	    msgprefix, WIDGET_NAME(w), lua_tostring(L, 2));
 
     /* write to attribute using a type-specific handler */
     const struct ffi_type_map_t *arg_type = &ffi_type_map[me->se->ffi_type_id];
@@ -270,7 +281,7 @@ static int write_meta_entry(lua_State *L, int index)
 
     /* no write operation defined for this type */
     return luaL_error(L, "%s can't write %s.%s (unsupported type %s)",
-	msgprefix, w->class_name, STRUCT_NAME(me->se),
+	msgprefix, WIDGET_NAME(w), STRUCT_NAME(me->se),
 	LUAGTK_TYPE_NAME(arg_type));
 }
 
@@ -437,8 +448,10 @@ int luaopen_gtk(lua_State *L)
     lua_pushvalue(L, -1);
     lua_setmetatable(L, -2);
 
-    // Initialize Gtk right away.
-    gtk_init(NULL, NULL);
+    // Can't initialize Gtk right away: if memory tracing is used, it must
+    // be activated first; otherwise, initial allocations are not noted and
+    // lead to errors later on, e.g. when a block is reallocated.
+    // gtk_init(NULL, NULL);
 
     /* one retval on the stack: gtk.  This is usually not used anywhere,
      * but you have to use the global variable "gtk". */
