@@ -333,3 +333,22 @@ Son Dez  9 21:28:29 CET 2007
 * support PangoAttrList refcounting.
 * Makefile: use $H instead of @ as suggested by Enrico Tassi
 
+
+Die Dez 11 12:22:08 CET 2007
+* gtk.done(): now prevents unloading of dynamically loaded libraries, thereby
+  improving valgrind stack traces.
+* calculator demo: show error messages in a separate text field
+* allocate struct call_info with g_slice_alloc instead of g_malloc
+* struct widget now has struct_nr instead of class_name; this is smaller on
+  64 bit architectures, and provides additional information, esp. the
+  structure size, required for g_slice_free.
+* gtk.get_refcount returns the refcounting method (wiget type) as string
+* gtk.done removed, its functionality now happens automatically using atexit
+* use g_slice_alloc0 (not g_malloc) for manually allocated objects in gtk.new
+* automatically call gtk_init
+* automatically call g_mem_profile using atexit
+* better stack traces with valgrind (no unloading of the dynamic library)
+* refcounting fix
+* make gtk.init idempotent
+* scripts for running valgrind
+
