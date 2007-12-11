@@ -257,6 +257,42 @@ static int l_function_sig(lua_State *L)
 static int l_done(lua_State *L)
 {
     call_info_free_pool();
+
+    /* clean up Gtk/Gdk etc. */
+    GdkDisplay *display = gdk_display_get_default();
+    if (display)
+	gdk_display_close(display);
+
+    /* To get meaningful backtraces (esp. with valgrind), I have to prevent
+     * that gtk.so and other dynamic libraries are unloaded during Lua's
+     * cleanup phase. So, unset the library entry... this uses undocumented
+     * characteristics of Lua's loadlib.c.  
+     *
+     * ll_register, which is called while loading a dynamic library, creates
+     * an entry in the registry with the handle of the library.  The key
+     * used is LIBPREFIX plus the path of the library file.  LIBPREFIX is
+     * currently defined as "LOADLIB: ".
+     *
+     * Because the path might vary, search for a matching key...
+     */
+    lua_getfield(L, LUA_REGISTRYINDEX, "_LOADLIB");
+    lua_pushnil(L);
+    while (lua_next(L, LUA_REGISTRYINDEX)) {
+        if (lua_type(L, -1) == LUA_TUSERDATA) {
+	    if (lua_getmetatable(L, -1)) {
+		// stack: _LOADLIB key value metatable
+		if (lua_rawequal(L, -1, -4)) {
+		    void **p = (void**) lua_touserdata(L, -2);
+		    *p = NULL;
+		}
+		lua_pop(L, 1);		// remove metatable
+	    }
+	}
+
+        lua_pop(L, 1);			// remove value
+    }
+    // stack: _LOADLIB
+
     return 0;
 }
 
