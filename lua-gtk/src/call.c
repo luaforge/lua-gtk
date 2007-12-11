@@ -8,6 +8,7 @@
  *   luagtk_call
  *   call_info_alloc_item
  *   call_info_warn
+ *   call_info_free_pool
  */
 
 /**
@@ -46,12 +47,11 @@ static struct call_info *call_info_alloc()
 	ci = ci_pool;
 	ci_pool = ci->next;
 	// unlock_spinlock
+	memset(ci, 0, sizeof(*ci));
     } else {
 	// unlock_spinlock
-	ci = (struct call_info*) g_malloc(sizeof(*ci));
+	ci = g_slice_new0(struct call_info);
     }
-
-    memset(ci, 0, sizeof(*ci));
 
     return ci;
 }
@@ -115,7 +115,7 @@ void call_info_free_pool()
 
     while ((p=ci_pool)) {
 	ci_pool = p->next;
-	g_free(p);
+	g_slice_free(struct call_info, p);
     }
 }
 
@@ -357,6 +357,8 @@ int luagtk_call(lua_State *L, struct func_info *fi, int index)
     struct call_info *ci;
     ffi_cif cif;
     int rc = 0;
+
+    GTK_INITIALIZE();
 
     // allocate (or re-use from the pool) a call_info structure.
     ci = call_info_alloc();
