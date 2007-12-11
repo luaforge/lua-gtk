@@ -15,12 +15,12 @@ CALC.__index = CALC
 
 --
 -- Calculate the expression by evaluating it as Lua expression.
--- Returns the result (a value as string) or an error message.
+-- Returns the result (a value as string) or nil and an error message.
 --
 function calculate(s)
     local chunk, msg = loadstring("return " .. s, s)
     if not chunk then
-	return string.match(msg, ":%d: (.*)")
+	return nil, string.match(msg, ":%d: (.*)")
     end
 
     -- The global environment of the user defined function is set to "math", so
@@ -29,7 +29,7 @@ function calculate(s)
     -- nothing else: sandboxing!
     setfenv(chunk, math)
     local rc, result = pcall(chunk)
-    if not rc then return result end
+    if not rc then return nil, result end
 
     result = tostring(result)
     return string.gsub(result, ",", ".")
@@ -40,11 +40,17 @@ end
 -- A button has been pressed
 --
 function CALC:btn_click(c, op)
-    local s = c.entry:get_text()
-    local pos = -100
+    local s2
+    local s, pos, msg = c.entry:get_text(), -100, ""
 
     if op == '=' then
-	if s ~= "" then s = calculate(s) end
+	if s ~= "" then
+	    s2, msg = calculate(s)
+	    if s2 then
+		s = s2
+		msg = ""
+	    end
+	end
 	pos = -1
     elseif op == 'AC' then
 	s = ""
@@ -59,6 +65,7 @@ function CALC:btn_click(c, op)
     end
 
     c.entry:set_text(s)
+    c.message:set_text(msg)
     if pos ~= -100 then c.entry:set_position(pos) end
 end
 
@@ -82,7 +89,7 @@ function CALC.new()
     c.win:connect('destroy', function() gtk.main_quit() end)
     c.win:set_title('Calculator')
 
-    tbl = gtk.table_new(5, 5, true)	-- rows, cols, homogenous
+    tbl = gtk.table_new(6, 5, true)	-- rows, cols, homogenous
     c.win:add(tbl)
 
     -- entry field
@@ -92,13 +99,18 @@ function CALC.new()
     -- c.entry:connect('insert-text', my_insert_text)
     tbl:attach_defaults(c.entry, 0, 5, 0, 1)
 
+    -- error message field
+    c.message = gtk.entry_new()
+    c.message:set_editable(false)
+    tbl:attach_defaults(c.message, 0, 5, 1, 2)
+
     -- buttons
     local buttons = { '7', '8', '9', 'DEL', 'AC',
 	'4', '5', '6', '*', '/',
 	'1', '2', '3', '+', '-',
 	0, '.', 'EXP', 'Ans', '=' }
 
-    local row = 0
+    local row = 1
     local col = 0
     for nr, lbl in pairs(buttons) do
 	if math.mod(nr, 5) == 1 then
@@ -115,7 +127,6 @@ function CALC.new()
 	end
 	col = col + 1
     end
-
 
     c.win:show_all()
     return c
