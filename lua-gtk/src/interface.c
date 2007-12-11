@@ -52,6 +52,8 @@ static int l_gtk_lookup(lua_State *L)
 	return 0;
     }
 
+    GTK_INITIALIZE();
+
     /* if it starts with an uppercase letter, it's probably an ENUM. */
     if (s[0] >= 'A' && s[0] <= 'Z') {
 	int val, struct_nr;
@@ -113,17 +115,19 @@ static int l_new(lua_State *L)
     struct struct_info *si;
     void *p;
 
+    GTK_INITIALIZE();
+
     if (!(si=find_struct(struct_name))) {
 	printf("%s structure %s not found\n", msgprefix, struct_name);
 	return 0;
     }
 
     /* Allocate and initialize the object.  I used to allocate just one
-     * userdata big enough for both the wrapper and the widget, but sometimes a
-     * special free function must be called, like gtk_tree_iter_free.  So, this
-     * optimization is not possible. */
-    p = g_malloc(si->struct_size);
-    memset(p, 0, si->struct_size);
+     * userdata big enough for both the wrapper and the widget, but many
+     * free functions exist, like gtk_tree_iter_free, and they expect a memory
+     * block allocated by g_slice_alloc0.  Therefore this optimization is not
+     * possible. */
+    p = g_slice_alloc0(si->struct_size);
 
     /* Make a Lua wrapper for it, push it on the stack.  FLAG_ALLOCATED causes
      * the _malloc_handler be used, and FLAG_NEW_OBJECT makes it not complain
@@ -132,34 +136,6 @@ static int l_new(lua_State *L)
     return 1;
 }
 
-#if 0
-
-/*-
- * Store information about a Gtk widget.
- *
- * This is probably not required.  This only makes sense for widgets created
- * outside of Lua, i.e. from C code.  Thus, a function callable from C
- * would make more sense, wouldn't it?
- *
- * The global table gtk.widgets will contain two new entries:
- *   address -> widget
- *   ID -> widget
- */
-static int l_register_widget(lua_State *L)
-{
-    lua_getfield(L, LUA_GLOBALSINDEX, "gtk");
-    lua_getfield(L, -1, "widgets");
-
-    GtkWidget **p = (GtkWidget**) lua_topointer(L, 1);
-    GtkWidget *w = *p;
-    lua_pushlightuserdata(L, w);
-    lua_pushvalue(L, 1);
-    lua_rawset(L, -3);
-
-    return 0;
-}
-
-#endif
 
 static int l_dump_stack(lua_State *L)
 {
@@ -186,23 +162,6 @@ static int l_get_osname(lua_State *L)
     return 1;
 }
 
-#if 0
-
-#include <malloc.h>
-static gpointer my_realloc(gpointer mem, gsize n_bytes)
-{
-    if (n_bytes == 640) {
-	printf("640 bytes allocated\n");
-    }
-    return realloc(mem, n_bytes);
-}
-
-static GMemVTable my_vtable = {
-    malloc: malloc,
-    realloc: my_realloc,
-    free: free
-};
-#endif
 
 /**
  * Return the reference counter of the object the given variable points to.
@@ -211,25 +170,23 @@ static GMemVTable my_vtable = {
  * @name get_refcount
  * @luaparam object  The object to query
  * @luareturn The current reference counter
- * @luareturn Widget type number (internal)
+ * @luareturn Widget type name
  */
 static int l_get_refcount(lua_State *L)
 {
     lua_settop(L, 1);
-    struct widget *w = (struct widget*) lua_topointer(L, 1);
 
-    lua_getmetatable(L, 1);
-    if (lua_isnil(L, 2))
-	return 1;
+    struct widget *w = luagtk_check_widget(L, 1);
+    if (w) {
+	struct widget_type *wt = luagtk_get_widget_type(w);
+	lua_pushinteger(L, luagtk_get_refcount(w));
+	lua_pushstring(L, wt->name);
+	return 2;
+    }
 
-    lua_getfield(L, 2, "_classname");
-    if (lua_isnil(L, 3))
-	return 1;
-
-    lua_pushinteger(L, luagtk_get_refcount(w));
-    lua_pushinteger(L, w->widget_type);
-    return 2;
+    return 0;
 }
+
 
 /**
  * Get the function signature, similar to a C declaration.
@@ -250,53 +207,6 @@ static int l_function_sig(lua_State *L)
 }
 
 
-/**
- * Free memory.  This is optional, but aids finding memory leaks.
- * I have not found a way to make Lua call an exit function automatically.
- */
-static int l_done(lua_State *L)
-{
-    call_info_free_pool();
-
-    /* clean up Gtk/Gdk etc. */
-    GdkDisplay *display = gdk_display_get_default();
-    if (display)
-	gdk_display_close(display);
-
-    /* To get meaningful backtraces (esp. with valgrind), I have to prevent
-     * that gtk.so and other dynamic libraries are unloaded during Lua's
-     * cleanup phase. So, unset the library entry... this uses undocumented
-     * characteristics of Lua's loadlib.c.  
-     *
-     * ll_register, which is called while loading a dynamic library, creates
-     * an entry in the registry with the handle of the library.  The key
-     * used is LIBPREFIX plus the path of the library file.  LIBPREFIX is
-     * currently defined as "LOADLIB: ".
-     *
-     * Because the path might vary, search for a matching key...
-     */
-    lua_getfield(L, LUA_REGISTRYINDEX, "_LOADLIB");
-    lua_pushnil(L);
-    while (lua_next(L, LUA_REGISTRYINDEX)) {
-        if (lua_type(L, -1) == LUA_TUSERDATA) {
-	    if (lua_getmetatable(L, -1)) {
-		// stack: _LOADLIB key value metatable
-		if (lua_rawequal(L, -1, -4)) {
-		    void **p = (void**) lua_touserdata(L, -2);
-		    *p = NULL;
-		}
-		lua_pop(L, 1);		// remove metatable
-	    }
-	}
-
-        lua_pop(L, 1);			// remove value
-    }
-    // stack: _LOADLIB
-
-    return 0;
-}
-
-
 /* methods directly callable from Lua; most go through __index */
 const luaL_reg gtk_methods[] = {
     {"__index",		l_gtk_lookup },
@@ -304,16 +214,13 @@ const luaL_reg gtk_methods[] = {
     {"get_osname",	l_get_osname },
     {"get_refcount",	l_get_refcount },
 
-    // these function will probably change
-    // {"luagtk_register_widget", l_register_widget },
-
     // debugging
     {"dump_struct",	luagtk_dump_struct },
     {"dump_stack",	l_dump_stack },
     {"dump_memory",	luagtk_dump_memory },
     {"function_sig",	l_function_sig },
     {"breakfunc",	luagtk_breakfunc },
-    {"done",		l_done },
 
     { NULL, NULL }
 };
+
