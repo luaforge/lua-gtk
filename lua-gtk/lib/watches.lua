@@ -101,8 +101,10 @@ function add_watch(thread, channel, cond)
     -- watch would always fire even though there's nothing to read.
     remove_watch(thread, channel, nil)
 
-    local id = gtk.my_g_io_add_watch(channel, cond, _watch_func, thread)
-    -- print("ID is", id)
+    -- always include G_IO_ERR, otherwise on error a 100% busy loop ensues.
+    local id = gtk.my_g_io_add_watch(channel, cond + gtk.G_IO_ERR,
+	_watch_func, thread)
+    -- print("ADD WATCH", id, key)
     _watches[key] = id or true
 end
 
@@ -118,18 +120,18 @@ function remove_watch(thread, channel, cond)
     -- print("Removing watches for", key)
     for k, v in base.pairs(_watches) do
 	if base.string.match(k, key) then
-	    -- print("REMOVE WATCH", k)
+	    -- print("REMOVE WATCH", k, _watches[k])
 	    gtk.g_source_remove(_watches[k])
 	    _watches[k] = nil
 	end
     end
 end
 
-function start_watch(thread)
+function start_watch(thread, arg1)
     if base.type(thread) == "function" then
 	thread = coroutine.create(thread)
     end
-    return _watch_func(thread, nil, 0)
+    return _watch_func(thread, arg1, 0)
 end
 
 gtk.strict.lock()
