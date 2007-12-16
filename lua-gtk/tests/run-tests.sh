@@ -17,7 +17,7 @@ cd "$BASEDIR"
 echo "** Running tests. `date`" >> $LOGFILE
 
 # run all Lua files in this directory.
-for i in *.lua; do
+for i in [0-9]*.lua; do
 	TESTS=$(( $TESTS + 1 ))
 	RESULT=$(lua $i 2>&1)
 	RC=$?
