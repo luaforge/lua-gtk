@@ -404,6 +404,7 @@ int luaopen_gtk(lua_State *L)
     luagtk_init_widget(L);
     luagtk_init_overrides(L);
     luagtk_init_channel(L);
+    luagtk_init_debug(L);
 
     // a metatable to make another table have weak values
     lua_newtable(L);			// gtk mt
