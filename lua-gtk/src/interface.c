@@ -1,6 +1,6 @@
 /* vim:sw=4:sts=4
  * Lua Gtk2 binding.
- * This file contains most of the user-visible functions in the gtk table.
+ * This file contains a few of the user-visible functions in the gtk table.
  * Copyright (C) 2007 Wolfgang Oertl
  *
  * Exported functions:
@@ -137,17 +137,10 @@ static int l_new(lua_State *L)
 }
 
 
-static int l_dump_stack(lua_State *L)
-{
-#ifdef DEBUG_DUMP_STACK
-    return luagtk_dump_stack(L, 1);
-#endif
-}
-
-
 /**
- * To give the application an idea of the platform.  Could be used to select
- * path separators and more.
+ * Give the application an idea of the platform.  Could be used to select
+ * path separators and more.  I have not found a way to determine this
+ * in any other way, so far.
  *
  * @name get_osname
  * @luareturn The ID of the operating system: "win32" or "linux".
@@ -163,64 +156,11 @@ static int l_get_osname(lua_State *L)
 }
 
 
-/**
- * Return the reference counter of the object the given variable points to.
- * Returns NIL if the object has no reference counting.
- *
- * @name get_refcount
- * @luaparam object  The object to query
- * @luareturn The current reference counter
- * @luareturn Widget type name
- */
-static int l_get_refcount(lua_State *L)
-{
-    lua_settop(L, 1);
-
-    struct widget *w = luagtk_check_widget(L, 1);
-    if (w) {
-	struct widget_type *wt = luagtk_get_widget_type(w);
-	lua_pushinteger(L, luagtk_get_refcount(w));
-	lua_pushstring(L, wt->name);
-	return 2;
-    }
-
-    return 0;
-}
-
-
-/**
- * Get the function signature, similar to a C declaration.
- *
- * @name function_sig
- * @luaparam name The function name
- * @luareturn A string with the function signature.
- */
-static int l_function_sig(lua_State *L)
-{
-    const char *fname = luaL_checkstring(L, 1);
-    struct func_info fi;
-
-    if (!find_func(fname, &fi))
-	return 0;
-
-    return luagtk_function_signature(L, &fi);
-}
-
-
 /* methods directly callable from Lua; most go through __index */
 const luaL_reg gtk_methods[] = {
     {"__index",		l_gtk_lookup },
     {"new",		l_new },
     {"get_osname",	l_get_osname },
-    {"get_refcount",	l_get_refcount },
-
-    // debugging
-    {"dump_struct",	luagtk_dump_struct },
-    {"dump_stack",	l_dump_stack },
-    {"dump_memory",	luagtk_dump_memory },
-    {"function_sig",	l_function_sig },
-    {"breakfunc",	luagtk_breakfunc },
-
     { NULL, NULL }
 };
 
