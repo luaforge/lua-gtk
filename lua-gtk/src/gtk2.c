@@ -15,23 +15,13 @@
  *
  * Exported functions:
  *  luagtk_init_gtk
- *  luagtk_index
- *  luagtk_newindex
- *  luagtk_push_gvalue
  *  luaopen_gtk
  */
 
 #include "luagtk.h"
-#include <lauxlib.h>
-#include <stdlib.h>		/* bsearch */
-#include <string.h>		/* strcmp */
-#include <stdio.h>		/* fopen & co */
-#include <stdarg.h>
-#include <locale.h>
+#include <lauxlib.h>	    // luaL_error
+#include <string.h>	    // strcpy
 
-
-/* in interface.c */
-extern const luaL_reg gtk_methods[];
 
 /* in _override.c */
 extern char override_data[];
@@ -39,6 +29,11 @@ extern int override_size;
 
 int gtk_is_initialized = 0;
 
+/**
+ * Initialize Gtk if it hasn't happened yet.  This is mostly called through
+ * the macro GTK_INITIALIZE, which calls this function only if
+ * gtk_is_initialized isn't set.
+ */
 void luagtk_init_gtk()
 {
     if (gtk_is_initialized)
@@ -48,162 +43,159 @@ void luagtk_init_gtk()
 }
     
 
+/**
+ * Main module for the Lua-Gtk binding.
+ * @class module
+ * @name gtk
+ */
+
 /*-
- * The GValue at *gv is of a fundamental type.  Push the appropriate value
- * on the Lua stack.  If the type is not handled, a Lua error is raised.
+ * A method has been found and should now be called.
+ * input stack: parameters to the function
+ * upvalues: the func_info structure
  */
-static void _push_gvalue_fundamental(lua_State *L, GValue *gv)
+static int _call_wrapper(lua_State *L)
 {
-    GType type = gv->g_type;
-    void *data = (void*) &gv->data;
-
-    // see /usr/include/glib-2.0/gobject/gtype.h for type numbers.
-    switch (G_TYPE_FUNDAMENTAL(type)) {
-	case G_TYPE_INVALID:
-	    lua_pushnil(L);
-	    return;
-
-	case G_TYPE_NONE:
-	    printf("strange... an argument of type NONE?\n");
-	    return;
-
-	// missing: G_TYPE_INTERFACE
-
-	case G_TYPE_CHAR:
-	case G_TYPE_UCHAR:
-	    lua_pushlstring(L, (char*) data, 1);
-	    return;
-
-	case G_TYPE_BOOLEAN:
-	    lua_pushboolean(L, * (int*) data);
-	    return;
-
-	case G_TYPE_INT:
-	    lua_pushnumber(L, * (int*) data);
-	    return;
-
-	case G_TYPE_UINT:
-	    lua_pushnumber(L, * (unsigned int*) data);
-	    return;
-
-	case G_TYPE_LONG:
-	    lua_pushnumber(L, * (long int*) data);
-	    return;
-
-	case G_TYPE_ULONG:
-	    lua_pushnumber(L, * (unsigned long int*) data);
-	    return;
-
-	case G_TYPE_INT64:
-	    lua_pushnumber(L, * (gint64*) data);
-	    return;
-
-	case G_TYPE_UINT64:
-	    lua_pushnumber(L, * (guint64*) data);
-	    return;
-
-	// XXX might be possible to find out which ENUM it is?
-	case G_TYPE_ENUM:
-	case G_TYPE_FLAGS:
-	    lua_pushnumber(L, * (int*) data);
-	    return;
-
-	case G_TYPE_FLOAT:
-	    lua_pushnumber(L, * (float*) data);
-	    return;
-
-	case G_TYPE_DOUBLE:
-	    lua_pushnumber(L, * (double*) data);
-	    return;
-
-	case G_TYPE_STRING:
-	    lua_pushstring(L, * (char**) data);
-	    return;
-
-	case G_TYPE_POINTER:
-	    // Some opaque structure.  This is very seldom and it is
-	    // not useful to try to override it.  There's a reason for
-	    // parameters being opaque...
-	    lua_pushlightuserdata(L, * (void**) data);
-	    return;
-
-	// missing: G_TYPE_BOXED
-	// missing: G_TYPE_PARAM
-	// missing: G_TYPE_OBJECT
-
-	default:
-	    luaL_error(L, "luagtk_push_value: unhandled fundamental "
-		"type %d\n", (int) type >> 2);
-    }
-}
-
-
-
-/**
- * A parameter for a callback must be pushed onto the stack.  The type to
- * use depends on the "type" (from the g_signal_query results).  A value
- * is always pushed; in the case of error, NIL.
- *
- * @param L  Lua State
- * @param type  GType of the parameter to be pushed
- * @param data  pointer to the location of this data
- */
-void luagtk_push_gvalue(lua_State *L, GValue *gv)
-{
-    if (!gv)
-	luaL_error(L, "[gtk] luagtk_push_value called with NULL data");
-
-    GType type = gv->g_type;
-    void *data = (void*) &gv->data;
-
-    if (G_TYPE_IS_FUNDAMENTAL(type)) {
-	_push_gvalue_fundamental(L, gv);
-	return;
-    }
-
-    /* not a fundamental type */
-    const char *name = g_type_name(type);
-    if (!name)
-	luaL_error(L, "[gtk] callback argument GType %d invalid", type);
-
-    /* If this type is actually derived from GObject, then let make_widget
-     * find out the exact type itself.  Maybe it is a type derived from the
-     * one specified, then better use that.
-     */
-    int type_of_gobject = g_type_from_name("GObject");
-    if (g_type_is_a(type, type_of_gobject)) {
-	// pushes nil on error.
-	luagtk_get_widget(L, * (void**) data, 0, FLAG_NOT_NEW_OBJECT);
-	return;
-    }
-    
-    struct struct_info *si = find_struct(name);
-    if (!si) {
-	printf("%s structure not found for callback arg: %s\n",
-	    msgprefix, name);
-	lua_pushnil(L);
-	return;
-    }
-
-    /* Find or create a Lua wrapper for the given object. */
-    int struct_nr = si - struct_list;
-    luagtk_get_widget(L, * (void**) data, struct_nr, FLAG_NOT_NEW_OBJECT);
-}
-
-
-/**
- * After a method has been looked up, this function is called to do the
- * invoction of the corresponding gtk function.
- *
- * Note that this is intended to be used in a closure with the upvalue(1)
- * being a reference to the meta entry for the function call.
- */
-static int l_call_func(lua_State *L)
-{
-    struct meta_entry *me = (struct meta_entry*) lua_topointer(L,
+    struct func_info *fi = (struct func_info*) lua_topointer(L,
 	lua_upvalueindex(1));
-    return luagtk_call(L, &me->fi, 1);
+    return luagtk_call(L, fi, 1);
 }
+
+
+/**
+ * Look up a name in gtk.  This works for any Gtk function, like
+ * gtk.window_new(), and ENUMs, like gtk.GTK_WINDOW_TOPLEVEL.
+ *
+ * @name __index
+ * @luaparam table     The table to look in; is automatically set to gtk
+ * @luaparam key       The name of the item to look up
+ * @luareturn          Either a userdata (for ENUMs) or a closure (for
+ *			functions)
+ */
+static int l_gtk_lookup(lua_State *L)
+{
+    const char *s = luaL_checkstring(L, 2);
+    struct func_info fi;
+    char func_name[50];
+
+    if (!s) {
+	luaL_error(L, "%s attempt to look up a NULL string\n", msgprefix);
+	/* not reached */
+	return 0;
+    }
+
+    GTK_INITIALIZE();
+
+    /* if it starts with an uppercase letter, it's probably an ENUM. */
+    if (s[0] >= 'A' && s[0] <= 'Z') {
+	int val, struct_nr;
+	switch (find_enum(L, s, -1, &val, &struct_nr)) {
+	    case 1:		// ENUM/FLAG found
+	    return luagtk_enum_push(L, val, struct_nr);
+
+	    case 2:		// integer found
+	    lua_pushinteger(L, val);
+	    /* fall through */
+
+	    case 3:		// string found - is on Lua stack
+	    return 1;
+	}
+    }
+
+    strcpy(func_name, s);
+    if (!find_func(func_name, &fi)) {
+	sprintf(func_name, "gtk_%s", s);
+	if (!find_func(func_name, &fi)) {
+	    return luaL_error(L, "[gtk] not found: gtk.%s", s);
+	    // printf("%s attribute or method not found: %s\n", msgprefix, s);
+	    // return 0;
+	}
+    }
+
+    /* A function has been found, so return a closure that can call it. */
+    // NOTE: need to duplicate the name, fi.name points to the local variable
+    // fund_name.  So, allocate a new func_info with some space after it large
+    // enough to hold the function name.
+    int name_len = strlen(fi.name) + 1;
+    struct func_info *fi2 = (struct func_info*) lua_newuserdata(L,
+	sizeof(*fi2) + name_len);
+    memcpy(fi2, &fi, sizeof(*fi2));
+    memcpy(fi2+1, fi.name, name_len);
+    fi2->name = (char*) (fi2+1);
+    lua_pushcclosure(L, _call_wrapper, 1);
+    return 1;
+}
+
+
+/**
+ * Allocate a structure, initialize with zero and return it.
+ *
+ * This is NOT intended for widgets or structures that have specialized
+ * creator functions, like gtk_window_new and such.  Use it for simple
+ * structures like GtkTreeIter.
+ *
+ * The widget is, as usual, a Lua wrapper in the form of a userdata,
+ * containing a pointer to the actual widget.
+ *
+ * @name new
+ * @luaparam name Name of the structure to allocate
+ * @luareturn The new structure
+ */
+static int l_new(lua_State *L)
+{
+    const char *struct_name = luaL_checkstring(L, 1);
+    struct struct_info *si;
+    void *p;
+
+    GTK_INITIALIZE();
+
+    if (!(si=find_struct(struct_name))) {
+	printf("%s structure %s not found\n", msgprefix, struct_name);
+	return 0;
+    }
+
+    /* Allocate and initialize the object.  I used to allocate just one
+     * userdata big enough for both the wrapper and the widget, but many
+     * free functions exist, like gtk_tree_iter_free, and they expect a memory
+     * block allocated by g_slice_alloc0.  Therefore this optimization is not
+     * possible. */
+    p = g_slice_alloc0(si->struct_size);
+
+    /* Make a Lua wrapper for it, push it on the stack.  FLAG_ALLOCATED causes
+     * the _malloc_handler be used, and FLAG_NEW_OBJECT makes it not complain
+     * about increasing the (non existant) refcounter. */
+    luagtk_get_widget(L, p, si - struct_list, FLAG_ALLOCATED | FLAG_NEW_OBJECT);
+    return 1;
+}
+
+
+/**
+ * Give the application an idea of the platform.  Could be used to select
+ * path separators and more.  I have not found a way to determine this
+ * in any other way, so far.
+ *
+ * @name get_osname
+ * @luareturn The ID of the operating system: "win32" or "linux".
+ */
+static int l_get_osname(lua_State *L)
+{
+#ifdef WIN32
+    lua_pushliteral(L, "win32");
+#else
+    lua_pushliteral(L, "linux");
+#endif
+    return 1;
+}
+
+
+/* methods directly callable from Lua; most go through __index */
+static const luaL_reg gtk_methods[] = {
+    {"__index",		l_gtk_lookup },
+    {"new",		l_new },
+    {"get_osname",	l_get_osname },
+    { NULL, NULL }
+};
+
 
 /**
  * Initialize the library, returns a table.  Note that the table is also stored
@@ -254,11 +246,8 @@ int luaopen_gtk(lua_State *L)
 
 
     /* default attribute table of a widget */
-#if 1
-    // lua_pushliteral(L, "emptyattr");	// gtk "emptyattr"
     lua_newtable(L);			// gtk "emptyattr" t
     lua_setfield(L, LUA_ENVIRONINDEX, LUAGTK_EMPTYATTR);
-#endif
 
     /* execute the glue library (compiled in) */
     luaL_loadbuffer(L, override_data, override_size, "override.lua");
