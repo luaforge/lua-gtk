@@ -42,7 +42,7 @@ html_header = [[
 </div>
 ]]
 
-output_dir = "../html/"
+output_dir = "../build/html/"
 
 -- The environment available to the functions in the template.
 env = {
@@ -157,7 +157,7 @@ function _read_file_dir(path)
 	_read_file(path)
     elseif attr.mode == "directory" then
 	for f in lfs.dir(path) do
-	    if f ~= "." and f ~= ".." then
+	    if f ~= "." and f ~= ".." and f ~= "CVS" then
 		_read_file_dir(path == "." and f or path .. "/" .. f)
 	    end
 	end
