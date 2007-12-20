@@ -173,7 +173,7 @@ void call_info_msg(struct call_info *ci, enum luagtk_msg_level level,
  * @param struct_nr  (output) for structs, unions and enums the index into
  *   the structure list; 0 otherwise.
  */
-static inline void get_next_argument(const unsigned char **p, int *type_nr,
+inline void get_next_argument(const unsigned char **p, int *type_nr,
     int *struct_nr)
 {
     const unsigned char *s = *p;
