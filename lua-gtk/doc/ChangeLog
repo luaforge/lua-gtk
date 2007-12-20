@@ -358,3 +358,7 @@ Mon Dez 17 00:54:03 CET 2007
   existing object they return.  Compensate by increasing the refcount.
 * debug function registering and some debug functions moved to debug.c
 
+
+Don Dez 20 01:02:11 CET 2007
+* virtual functions in interfaces can now be assigned to, and thus overridden.
+
