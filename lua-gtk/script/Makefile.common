@@ -1,12 +1,16 @@
 
 # -- general configuration --
 CFLAGS	+=-g -Wall `pkg-config --cflags gtk+-2.0 lua5.1` -I ${ODIR} -I src
+LDFLAGS	+=-g
 HASHF	:=hsieh
 HASH	:=hash-$(HASHF)
 LD	:=${MINGW}ld
 CC	:=${MINGW}gcc
 HOSTCC	:=gcc -Wall
 VERSION	:=0.6
+O	:=o
+LIBINSTALL := cp
+LIBFINAL := touch
 # -- end general configuration --
 
 # run make with "H=" as an argument to show all build commands.
@@ -15,9 +19,9 @@ H	:=@
 .PHONY:	tags wc tar install mrproper clean tests config_h doc
 .PRECIOUS: ${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}%.keys ${ODIR}%.mph
 
-OFILES	:=types.o gtk2.o interface.o data.o \
-	call.o callback.o channel.o gvalue.o override.o \
-	debug.o widget.o widget_types.o gtkdata.structs.o _override.o
+OFILES	:=types.$(O) gtk2.$(O) interface.$(O) data.$(O) \
+	call.$(O) callback.$(O) channel.$(O) gvalue.$(O) override.$(O) \
+	debug.$(O) widget.$(O) widget_types.$(O) gtkdata.structs.$(O) _override.$(O)
 LH	:=src/luagtk.h ${ODIR}config.h
 
 # -- runtime linking? --
@@ -26,15 +30,15 @@ LIBS	:=${GTKLIB}
 else
 CONFIG_H+=\#define MANUAL_LINKING\n
 # CFLAGS	+=-DMANUAL_LINKING
-OFILES	+=link.o
+OFILES	+=link.$(O)
 LH	+=${ODIR}link.h
 endif
 
 # -- is cmph available? --
 ifeq ($(CMPHDIR),)
-OFILES	+=hash-simple.o ${HASH}.o _funclist.o _enumlist.o
+OFILES	+=hash-simple.$(O) ${HASH}.$(O) _funclist.$(O) _enumlist.$(O)
 else
-OFILES	+=hash-fch.o _funclist_fch.o _enumlist_fch.o
+OFILES	+=hash-fch.$(O) _funclist_fch.$(O) _enumlist_fch.$(O)
 endif
 
 
@@ -55,9 +59,9 @@ config_h:
 
 ${ODIR}${ODLL}: $(addprefix ${ODIR}, ${OFILES})
 	@echo $@
-	$H ${CC} ${CFLAGS} -shared -o $@ $^ ${LIBFFI} ${LUALIB} ${LIBS}
+	$H ${LD} ${LDFLAGS} -shared -o $@ $^ ${LIBFFI} ${LUALIB} ${LIBS}
 
-${ODIR}debug.o: src/debug.c
+${ODIR}debug.$(O): src/debug.c
 	@echo $@
 	$H ${CC} ${CFLAGS} -I lua-5.1/src -c -o $@ $<
 
@@ -83,7 +87,7 @@ ${ODIR}types.xml: script/make-xml.lua
 	@echo "Generating types.xml..."
 	$H script/make-xml.lua "$@"
 
-${ODIR}%.o: ${ODIR}%.c
+${ODIR}%.$(O): ${ODIR}%.c
 	@echo $@
 	$H ${CC} ${CFLAGS} -c -o $@ $<
 
@@ -93,11 +97,11 @@ ${ODIR}luagtk_ffi.h: ${ODIR}ffi-types
 	@echo $@
 	$H ${ODIR}ffi-types > $@
 
-${ODIR}ffi-types.o: src/ffi-types.c
+${ODIR}ffi-types.$(O): src/ffi-types.c
 	@echo $@
 	$H ${HOSTCC} ${CFLAGS} -o $@ -c $<
 
-${ODIR}ffi-types: ${ODIR}ffi-types.o
+${ODIR}ffi-types: ${ODIR}ffi-types.$(O)
 	@echo $@
 	$H ${HOSTCC} -o $@ $< -lffi
 
@@ -123,17 +127,17 @@ ${ODIR}_enumlist_fch.c: ${ODIR}hash-fch-generate ${ODIR}gtkdata.enums.mph
 	$H ${ODIR}hash-fch-generate ${ODIR}gtkdata.enums.mph \
 		${ODIR}gtkdata.enums.txt "enums" > $@
 
-${ODIR}hash-fch.o: src/hash-fch.c
+${ODIR}hash-fch.$(O): src/hash-fch.c
 	@echo $@
 	$H ${CC} ${CFLAGS} -c -o $@ -I ${CMPHDIR} $<
 
 # -- helper programs for fch hash, to be compiled with HOSTCC --
 
-${ODIR}generate.o: src/generate.c
+${ODIR}generate.$(O): src/generate.c
 	@echo $@
 	$H ${HOSTCC} ${CFLAGS} -c -o $@ $<
 
-${ODIR}generate: ${ODIR}generate.o ${ODIR}${HASH}-native.o
+${ODIR}generate: ${ODIR}generate.$(O) ${ODIR}${HASH}-native.$(O)
 	@echo $@
 	$H ${HOSTCC} -o $@ $^
 
@@ -141,11 +145,11 @@ ${ODIR}file2c: src/file2c.c
 	@echo $@
 	$H ${HOSTCC} -o $@ $^
 
-${ODIR}hash-fch-generate: ${ODIR}hash-fch-generate.o
+${ODIR}hash-fch-generate: ${ODIR}hash-fch-generate.$(O)
 	@echo $@
 	$H ${HOSTCC} -g -o $@ $^ $(CMPHLIB)
 
-${ODIR}hash-fch-generate.o: src/hash-fch-generate.c
+${ODIR}hash-fch-generate.$(O): src/hash-fch-generate.c
 	@echo $@
 	$H ${HOSTCC} -g -o $@ -I ${CMPHDIR} -c $< 
 
@@ -158,11 +162,11 @@ ${ODIR}link.c ${ODIR}link.h: src/linklist.txt script/make-link.lua \
 
 # -- general rules --
 
-${ODIR}%-native.o: src/%.c
+${ODIR}%-native.$(O): src/%.c
 	@echo $@
 	$H ${HOSTCC} ${CFLAGS} -c -o $@ $<
 
-${ODIR}%.o: src/%.c
+${ODIR}%.$(O): src/%.c
 	@echo $@
 	$H ${CC} ${CFLAGS} -c -o $@ $<
 
@@ -181,7 +185,7 @@ ${ODIR}%.luac: src/%.lua
 # -- special targets --
 
 clean:
-	rm -f ${ODIR}${ODLL} ${ODIR}generate ${ODIR}_*.c ${ODIR}*.o
+	rm -f ${ODIR}${ODLL} ${ODIR}generate ${ODIR}_*.c ${ODIR}*.$(O)
 	rm -f ${ODIR}file2c ${ODIR}override.luac ${ODIR}hash-fch-generate
 	rm -f ${ODIR}ffi-types
 
@@ -192,7 +196,8 @@ mrproper: clean
 install: all
 	# you need to be root for this!
 	mkdir -p $(INDIR1)
-	cp ${ODIR}${ODLL} $(INDIR1)
+	$(LIBINSTALL) ${ODIR}${ODLL} $(INDIR1)/${ODLL}
+	$(LIBFINAL) $(INDIR1)
 	mkdir -p $(INDIR2)/gtk
 	cp -a lib $(INDIR2)/gtk/
 
@@ -230,20 +235,20 @@ help:
 
 # -- dependencies --
 
-${ODIR}gtk2.o: ${LH}
-${ODIR}data.o: ${LH}
-${ODIR}interface.o: ${LH}
-${ODIR}call.o: ${ODIR}luagtk_ffi.h ${LH}
-${ODIR}callback.o: ${LH}
-${ODIR}channel.o: ${LH}
-${ODIR}widget.o: ${LH}
-${ODIR}widget_types.o: ${LH}
-${ODIR}debug.o: ${LH}
-${ODIR}override.o: ${LH}
-${ODIR}gvalue.o: ${LH}
-${ODIR}types.o: ${ODIR}gtkdata.types.c ${ODIR}luagtk_ffi.h ${LH}
-${ODIR}hash-fch-generate.o: src/hash-fch.h ${LH}
-${ODIR}hash-fch.o: src/hash-jenkins.c ${LH}
-${ODIR}gtkdata.structs.o: ${ODIR}gtkdata.structs.c ${LH}
+${ODIR}gtk2.$(O): ${LH}
+${ODIR}data.$(O): ${LH}
+${ODIR}interface.$(O): ${LH}
+${ODIR}call.$(O): ${ODIR}luagtk_ffi.h ${LH}
+${ODIR}callback.$(O): ${LH}
+${ODIR}channel.$(O): ${LH}
+${ODIR}widget.$(O): ${LH}
+${ODIR}widget_types.$(O): ${LH}
+${ODIR}debug.$(O): ${LH}
+${ODIR}override.$(O): ${LH}
+${ODIR}gvalue.$(O): ${LH}
+${ODIR}types.$(O): ${ODIR}gtkdata.types.c ${ODIR}luagtk_ffi.h ${LH}
+${ODIR}hash-fch-generate.$(O): src/hash-fch.h ${LH}
+${ODIR}hash-fch.$(O): src/hash-jenkins.c ${LH}
+${ODIR}gtkdata.structs.$(O): ${ODIR}gtkdata.structs.c ${LH}
 
 
