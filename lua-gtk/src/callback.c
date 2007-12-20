@@ -19,6 +19,7 @@
 #include <stdarg.h>
 #include <gobject/gvaluecollector.h>
 #include <string.h>	    // memset (in G_VALUE_COLLECT)
+#include "luagtk_ffi.h"
 
 /* one such structure per connected callback */
 struct callback_info {
@@ -327,5 +328,123 @@ int luagtk_disconnect(lua_State *L)
     g_signal_handler_disconnect(w->p, handler_id);
 
     return 0;
+}
+
+
+struct callback {
+    lua_State *L;
+    int func_ref;
+    unsigned const char *sig;
+};
+
+static void closure_handler(ffi_cif *cif, void *retval, void **args,
+    void *userdata)
+{
+    struct callback *cb = (struct callback*) userdata;
+    lua_State *L = cb->L;
+    int top = lua_gettop(L);
+
+    // get the callback
+    lua_rawgeti(L, LUA_REGISTRYINDEX, cb->func_ref);
+
+    struct ffi2lua_arg_t ar;
+    ar.L = L;
+    ar.ci = NULL;
+    ar.func_arg_nr = 0;	    // make the ffi2lua functions think it's always
+    // a return value
+
+    const unsigned char *sig = cb->sig;
+    const unsigned char *sig_end = sig + *sig;
+    int arg_nr, type_nr;
+    sig++;
+
+    // push the arguments to the Lua stack
+    for (arg_nr=0; sig < sig_end; arg_nr ++) {
+	get_next_argument(&sig, &type_nr, &ar.arg_struct_nr);
+	if (arg_nr == 0)
+	    continue;
+	int idx = ffi_type_map[type_nr].ffi2lua_idx;
+	ar.arg = (union gtk_arg_types*) args[arg_nr - 1];
+	ffi_type_ffi2lua[idx](&ar);
+    }
+
+    int arg_cnt = lua_gettop(L) - top - 1;
+
+    // call the lua function, allow one return value
+    lua_call(L, arg_cnt, 1);
+
+    // XXX missing: convert the result to ffi, set *retval
+
+    // clean the stack
+    lua_settop(L, top);
+}
+
+
+/**
+ * Initialize the arg_types array with the types taken from the function's
+ * signature.  If called with arg_types == NULL, just count the number of args.
+ */
+static int set_ffi_types(const unsigned char *sig, ffi_type **arg_types)
+{
+    int type_nr, struct_nr, arg_nr=0;
+    const unsigned char *sig_end = sig + *sig;
+    sig ++;
+
+    while (sig < sig_end) {
+	get_next_argument(&sig, &type_nr, &struct_nr);
+	if (arg_types) {
+	    int idx = ffi_type_map[type_nr].ffi_type_idx;
+	    arg_types[arg_nr] = LUAGTK_FFI_TYPE(idx);
+	}
+	arg_nr ++;
+    }
+
+    return arg_nr;
+}
+
+
+/**
+ * Create a C closure for a Lua function.
+ *
+ * @param L  Lua state
+ * @param index  Stack position of a Lua function
+ * @param signature  Pointer to a binary spec of the function parameters
+ * @return  Pointer to a new closure
+ */
+void *luagtk_make_closure(lua_State *L, int index,
+    const unsigned char *signature)
+{
+    ffi_closure *closure;
+    ffi_cif *cif;
+    void *code;
+    int arg_count;
+    ffi_type **arg_types;
+    struct callback *cb;
+
+    closure = (ffi_closure*) ffi_closure_alloc(sizeof(*closure), &code);
+
+    // the count includes the return value.
+    arg_count = set_ffi_types(signature, NULL);
+
+    // allocate and fill ffi_cif
+    int bytes = sizeof(*cif) + sizeof(*cb) + sizeof(ffi_type*) * arg_count;
+    cif = (ffi_cif*) g_malloc(bytes);
+    cb = (struct callback*) (cif + 1);
+    arg_types = (ffi_type**) (cb + 1);
+
+    cb->L = L;
+    lua_pushvalue(L, index);
+    cb->func_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    cb->sig = signature;
+
+    // fill arg_types
+    set_ffi_types(signature, arg_types);
+
+    ffi_prep_cif(cif, FFI_DEFAULT_ABI, arg_count-1, arg_types[0], arg_types+1);
+
+    ffi_prep_closure(closure, cif, closure_handler, (void*) cb);
+
+    // interestingly, closure should be called, not code.  strange.
+    return (void*) closure;
 }
 
