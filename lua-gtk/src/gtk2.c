@@ -257,11 +257,54 @@ static int read_meta_entry(lua_State *L)
     return _push_attribute(L, struct_list + me->struct_nr, me->se, w->p);
 }
 
+/**
+ * Try to overwrite a function, which is possible if it is in the virtual
+ * table of an interface.
+ */
+static int _try_overwrite_function(lua_State *L, int index)
+{
+    const struct meta_entry *me = lua_topointer(L, -1);
+    struct widget *w = (struct widget*) lua_topointer(L, 1);
+    const char *name = lua_tostring(L, 2);
+
+    // only virtual functions of an interface can be set.
+    if (!me->iface_struct_nr)
+	return luaL_error(L, "%s overwriting method %s.%s not supported.",
+	    msgprefix, WIDGET_NAME(w), name);
+
+    const struct struct_info *si = struct_list + me->iface_struct_nr;
+    const struct struct_elem *se = find_attribute(si, name);
+    if (G_UNLIKELY(!se))
+	return luaL_error(L, "%s attribute %s.%s not found",
+	    msgprefix, STRUCT_NAME(si), name);
+
+    // struct_nr is actually the offset into struct_strings for the
+    // function signature.
+    void *func = luagtk_make_closure(L, index,
+	(const unsigned char*) NAME(se->struct_nr));
+    lua_pushlightuserdata(L, func);
+
+    const struct ffi_type_map_t *arg_type = &ffi_type_map[se->ffi_type_id];
+    if (!arg_type->lua2struct_idx)
+	return luaL_error(L, "%s can't set closure %s.%s - not implemented.",
+	    msgprefix, STRUCT_NAME(si), name);
+
+    // set the function pointer in the object's interface table.
+    void *p = G_TYPE_INSTANCE_GET_INTERFACE(w->p, me->iface_type_id, void);
+    ffi_type_lua2struct[arg_type->lua2struct_idx](L, se, p, -1);
+    lua_pop(L, 1);
+
+    // not used.
+    return 0;
+}
+
 
 /**
  * Assignment to an attribute of a structure.  Must not be a built-in
  * method, but basically could be...
  * Stack: 1=widget, 2=key, ... [-1]=meta entry
+ *
+ * @param index  Lua stack position where the value is at
  */
 static int write_meta_entry(lua_State *L, int index)
 {
@@ -270,8 +313,7 @@ static int write_meta_entry(lua_State *L, int index)
 
     /* the meta entry must describe a structure element, not a method. */
     if (me->struct_nr == 0)
-	return luaL_error(L, "%s overwriting method %s.%s not supported.",
-	    msgprefix, WIDGET_NAME(w), lua_tostring(L, 2));
+	return _try_overwrite_function(L, index);
 
     /* write to attribute using a type-specific handler */
     const struct ffi_type_map_t *arg_type = &ffi_type_map[me->se->ffi_type_id];
