@@ -1,4 +1,3 @@
-#! /usr/bin/env lua
 -- vim:sw=4:sts=4
 --
 

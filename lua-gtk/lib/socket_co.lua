@@ -1,4 +1,3 @@
-#! /usr/bin/env lua
 -- vim:sw=4:sts=4
 
 local base, string, coroutine, print = _G, string, coroutine, print
