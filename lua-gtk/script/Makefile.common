@@ -7,7 +7,7 @@ HASH	:=hash-$(HASHF)
 LD	:=${MINGW}ld
 CC	:=${MINGW}gcc
 HOSTCC	:=gcc -Wall
-VERSION	:=0.6
+VERSION	:=0.7
 O	:=o
 LIBINSTALL := cp
 LIBFINAL := touch
@@ -19,9 +19,10 @@ H	:=@
 .PHONY:	tags wc tar install mrproper clean tests config_h doc
 .PRECIOUS: ${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}%.keys ${ODIR}%.mph
 
-OFILES	:=types.$(O) gtk2.$(O) interface.$(O) data.$(O) \
+OFILES	:=types.$(O) gtk2.$(O) data.$(O) \
 	call.$(O) callback.$(O) channel.$(O) gvalue.$(O) override.$(O) \
-	debug.$(O) widget.$(O) widget_types.$(O) gtkdata.structs.$(O) _override.$(O)
+	debug.$(O) widget.$(O) widget_types.$(O) widget_meta.$(O) \
+	gtkdata.structs.$(O) _override.$(O)
 LH	:=src/luagtk.h ${ODIR}config.h
 
 # -- runtime linking? --
@@ -224,7 +225,8 @@ diff:
 
 # Requires an improved version of luadoc that can read C files
 doc:
-	$H luadoc -d reference lib src/interface.c src/call.c src/callback.c \
+	$H luadoc -d build/reference lib src/gtk2.c \
+		src/call.c src/callback.c \
 		src/channel.c src/override.c
 
 help:
