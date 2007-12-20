@@ -40,6 +40,7 @@ max_struct_id = 0
 max_func_args = 0
 max_struct_size = 0
 fundamental_name2id = {}
+prototypes = {}
 
 type_override = {
     ["GtkObject.flags"] = { "GtkWidgetFlags" },
@@ -118,7 +119,7 @@ fundamental_map = {
     ["void*"] = { "pointer", 0, nil, "void_ptr", nil, nil },
     ["int*"] = { "pointer", 0, "int_ptr", "int_ptr", nil, nil },
     ["unsigned int*"] = { "pointer", 0, "int_ptr", "int_ptr", nil, nil },
-    ["func*"] = { "pointer", 0, "func_ptr" },
+    ["func*"] = { "pointer", 0, "func_ptr", nil, "func_ptr" },
     ["struct**"] = { "pointer", 0, "struct_ptr_ptr", "struct_ptr_ptr" },
 }
 
@@ -130,11 +131,11 @@ function register_fundamental(name, pointer, bit_len)
     name = name .. string.rep("*", pointer)
     id = fundamental_name2id[name]
     if id then return id end
-    table.insert(fundamental_ifo, {
+    fundamental_ifo[#fundamental_ifo + 1] = {
 	name = name,
 	pointer = pointer,
 	bit_len = bit_len
-    })
+    }
     fundamental_name2id[name] = next_fid
     next_fid = next_fid + 1
     return next_fid - 1
@@ -176,14 +177,14 @@ xml_tags = {
     -- discard the argument names, just keep the type.
     Argument = function(p, el)
 	if curr_func then
-	    table.insert(curr_func, el.type)
+	    curr_func[#curr_func + 1] = el.type
 	end
     end,
 
     -- translated to vararg argument later
     Ellipsis = function(p, el)
 	if curr_func then
-	    table.insert(curr_func, "vararg")
+	    curr_func[#curr_func + 1] = "vararg"
 	end
     end,
 
@@ -315,11 +316,11 @@ function xml_struct_union(p, el, what)
 
     if not el.incomplete then
 	for w in string.gmatch(el.members, "[_0-9]+") do
-	    table.insert(members, w)
+	    members[#members + 1] = w
 	end
     end
 
-    typedefs[el.id] = { type=what, name=my_name, struct =  {
+    typedefs[el.id] = { type=what, name=my_name, struct = {
 	name=my_name,
 	size=el.size,	    -- total size in bits (unset for incomplete structs)
 	align=el.align,
@@ -392,6 +393,18 @@ function mark_all_enums_as_used()
     end
 end
 
+---
+-- The structures named *Iface are required to be able to override interface
+-- virtual functions.  They are not intended to be used directly by the user.
+--
+function mark_ifaces_as_used()
+    for type_id, tp in pairs(typedefs) do
+	if tp.type == "struct" and string.match(tp.name, "Iface$") then
+	    mark_typedef_in_use(tp)
+	end
+    end
+end
+
 
 ---
 -- Generate a sorted list of ENUMs suitable for postprocessing with a hashing
@@ -413,7 +426,7 @@ function output_enums(ofname)
     for k, enum in pairs(enum_values) do
 	tp = typedefs[enum.context]
 	if tp.in_use then
-	    table.insert(keys, k)
+	    keys[#keys + 1] = k
 	end
     end
     table.sort(keys)
@@ -469,8 +482,8 @@ function resolve_type(type_id)
 	-- structure or union.
 	elseif tp.type == "struct" or tp.type == "union" then
 	    if tp.size then res.bit_len = tp.size end
-	    res.detail = tp
 	    res.name = tp.type
+	    res.detail = tp
 	    break
 
 	-- fundamental type.
@@ -482,9 +495,8 @@ function resolve_type(type_id)
 
 	-- function pointer
 	elseif tp.type == "func" then
-	    -- print("Function returning " .. tp.prototype[1])
 	    res.name = "func"
-	    -- XXX return type of function tp.prototype[1] is lost.
+	    res.detail = tp
 	    break
 
 	-- an enum
@@ -536,13 +548,26 @@ local elem_start = 0	-- current position in the element table
 -- @param s the string to store
 -- @return byte offset into the string table
 --
-function store_string(s)
+function store_string(s, omit_nul)
     local ofs = string_table[s]
     if ofs ~= nil then return ofs end
     ofs = string_offset
-    string_offset = ofs + string.len(s) + 1	    -- plus NUL byte
+
+    -- escape
+    local len = #s
+--    local s = string.gsub(s, "%c", function(c)
+--	return string.format("\\%03o", string.byte(c)) end)
+
+    if not omit_nul then
+	s = s .. string.char(0) -- "\\000"
+	len = len + 1
+    end
+
+    string_offset = ofs + len
+
+--    string_offset = ofs + string.len(s) + 1	    -- plus NUL byte
     string_table[s] = ofs
-    table.insert(string_buf, s)
+    string_buf[#string_buf + 1] = s
     return ofs
 end
 
@@ -576,17 +601,48 @@ function output_one_struct(ofile, tp)
 		print("no FID for", tp.name, member.name or member_name)
 	    end
 
+	    -- For functions, generate a prototype (or reuse one from the
+	    -- list), and output the proto_id below.  Because the IDs of all
+	    -- used structures must be known, this can only be called after
+	    -- the assignment of struct_ids.
+	    if tp.name == "func" then
+		register_prototype(tp.detail)
+	    end
+
 	    -- name offset, bit offset, bit length (0=see detail),
 	    -- fundamental type id, type detail (0=none)
 	    ofile:write(string.format(" { %d, %d, %d, %d, %d }, /* %s */\n",
 		ofs, member.offset, tp.bit_len, tp.fid,
-		tp.detail and tp.detail.struct_id or 0,
+		tp.detail and (tp.detail.proto_id or tp.detail.struct_id) or 0,
 		member.name or member_name))
 	    elem_start = elem_start + 1
 	end
     end
 end
 
+-- 
+-- @param proto  Array of type_ids describing the return value and arguments
+--   to this function type.
+-- @return  Offset in the string table where the prototype is defined.
+--   It may be reused for identical signatures of different functions.
+--
+function register_prototype(typedef)
+    if typedef.proto_id then return end
+    local sig = table.concat(typedef.prototype, ",")
+    local proto_ofs = prototypes[sig]
+
+    if not proto_ofs then
+	local sig = _function_arglist(typedef.prototype)
+
+	-- prepend a length byte
+	sig = string.char(#sig) .. sig
+
+	proto_ofs = store_string(sig, true)
+	prototypes[sig] = proto_ofs
+    end
+
+    typedef.proto_id = proto_ofs
+end
 
 ---
 -- Write a C file with the structure information, suitable for compilation
@@ -597,11 +653,12 @@ end
 --
 function output_structs(ofname)
     local keys, name2id, ofile, s, val, st, tp =  {}, {}
+    local types = {struct=true, union=true, enum=true}
 
     -- Make a list of used structs/unions/enums to output, sort.
     for k, v in pairs(typedefs) do
-	if v.in_use then
-	    table.insert(keys, v.name)
+	if v.in_use and types[v.type] then
+	    keys[#keys + 1] = v.name
 	    name2id[v.name] = k
 	end
     end
@@ -656,10 +713,13 @@ function output_structs(ofname)
 	0, elem_start, 0))
     ofile:write("const int struct_count = " .. max_struct_id .. ";\n\n")
 
-    -- string table
+    -- string table.  The strings that need it already have a trailing NUL
+    -- byte.  Note that formatting with %q is NOT enough, C needs to escape
+    -- more characters.
     ofile:write("const char struct_strings[] = \n");
     for i, s in pairs(string_buf) do
-	ofile:write(string.format(" \"%s\\000\"\n", s))
+	ofile:write(string.format(" \"%s\"\n", string.gsub(s, "[^a-zA-Z0-9_.]",
+	    function(c) return string.format("\\%03o", string.byte(c)) end)))
     end
     ofile:write(";\n");
 
@@ -681,7 +741,7 @@ function analyze_functions()
     for k, v in pairs(funclist) do
 	pos = k:find("_")
 	if pos ~= nil and inc_prefixes[k:sub(1, pos - 1)] then
-	    table.insert(function_list, k)
+	    function_list[#function_list + 1] = k
 	    _function_analyze(k)
 	end
     end
@@ -692,15 +752,8 @@ end
 -- Mark all data types used by the functions (return type, arguments) as used.
 --
 function _function_analyze(fname)
-    local tp
-
-    for i, arg_i in ipairs(funclist[fname]) do
-	tp = resolve_type(arg_i)
-
-	-- if a structure/union/enum is referenced, mark that as used, too.
-	if tp.detail then
-	    _mark_in_use(tp.detail)
-	end
+    for i, type_id in ipairs(funclist[fname]) do
+	mark_type_id_in_use(type_id)
     end
 end
 
@@ -709,13 +762,8 @@ end
 -- Run through all globals and mark the types as used.
 --
 function analyze_globals()
-    local tp
-
     for k, var in pairs(globals) do
-	tp = resolve_type(var.type)
-	if tp.detail then
-	    _mark_in_use(tp.detail)
-	end
+	mark_type_id_in_use(var.type)
     end
 end
 
@@ -728,36 +776,53 @@ end
 -- corresponding typedef, but that doesn't matter.
 --
 function mark_override()
-    for k, v in pairs(typedefs) do
-	if used_override[v.name] then
-	    -- print("Override in use", k, v.name)
-	    _mark_in_use(v)
+    for k, typedef in pairs(typedefs) do
+	if used_override[typedef.name] then
+	    mark_typedef_in_use(typedef)
 	end
     end
 end
 
+-- given a type_id, make sure the base type for it is marked used.
+function mark_type_id_in_use(type_id)
+    local tp = resolve_type(type_id)
+    if tp.detail then
+	return mark_typedef_in_use(tp.detail)
+    end
+end
+
 ---
--- Recursively mark this structure and all items in it as used.
+-- Recursively mark this typedef and all subtypes as used.
 --
-function _mark_in_use(tp)
+function mark_typedef_in_use(typedef)
     local ignore_types = { constructor=true, union=true, struct=true }
     local field, tp2
 
     -- already marked?
-    if tp.in_use then return end
+    if typedef.in_use then return end
 
-    tp.in_use = true
-    if not tp.struct then return end
-    for i, name in ipairs(tp.struct.members) do
-	field = tp.struct.fields[name]
-	if not ignore_types[field.type] then
-	    tp2 = resolve_type(field.type)
-	    if not tp2.in_use then
-		tp2.in_use = true
-		if tp2.detail then _mark_in_use(tp2.detail) end
+    typedef.in_use = true
+
+    -- mark elements of a structure
+    if typedef.struct then
+
+	for i, name in ipairs(typedef.struct.members) do
+	    field = typedef.struct.fields[name]
+	    if not ignore_types[field.type] then
+		mark_type_id_in_use(field.type)
+	    elseif field.type ~= "constructor" then
+		print("ignore??", name, field.type)
 	    end
 	end
     end
+
+    -- mark types of arguments
+    if typedef.prototype then
+	for i, type_id in ipairs(typedef.prototype) do
+	    mark_type_id_in_use(type_id)
+	end
+    end
+
 end
 
 ---
@@ -792,24 +857,35 @@ end
 -- @return A string with the signature, ready to be written to the function
 --  output file.
 function _function_signature(fname)
-    local s, args, tp, val
+    -- return fname .. "," .. _function_arglist(funclist[fname])
+    return fname .. "," .. string.gsub(_function_arglist(funclist[fname]),
+	".", function(c) return string.format("\\%03o", string.byte(c)) end)
+end
 
-    s = fname .. ","
+function _function_arglist(arg_list)
+    local tp, val, s
 
-    for i, arg_i in ipairs(funclist[fname]) do
-	tp = resolve_type(arg_i)
+    s = ""
+    for i, type_id in ipairs(arg_list) do
+	tp = resolve_type(type_id)
 	val = tp.fid
 	if tp.detail ~= nil then
 	    val = bit.bor(val, 0x80)
 	end
-	s = s .. string.format("\\%03o", val)
+	s = s .. string.char(val)
+	-- s = s .. string.format("\\%03o", val)
 	if tp.detail ~= nil then
-	    s = s .. format_2bytes(tp.detail.struct_id)
+	    if tp.name == "func" then register_prototype(tp.detail) end
+	    local id = tp.detail.struct_id or tp.detail.proto_id
+	    assert(id, "arglist type not registered: " .. type_id)
+	    s = s .. string.char(bit.band(bit.rshift(id, 8), 255),
+		bit.band(id, 255))
+	    -- s = s .. format_2bytes(id)
 	end
     end
 
     -- determine maximum number of function arguments (including return value)
-    max_func_args = math.max(max_func_args, #funclist[fname])
+    max_func_args = math.max(max_func_args, #arg_list)
 
     return s
 end
@@ -845,7 +921,7 @@ local _type_name_offset = 0
 function _type_name_add(s)
     local ofs = _type_name_offset
     _type_name_offset = ofs + string.len(s) + 1	    -- +1 because of NUL byte
-    table.insert(_type_names, '"' .. s .. '\\0"')
+    _type_names[#_type_names + 1] = '"' .. s .. '\\0"'
     return ofs
 end
 
@@ -905,7 +981,7 @@ function output_globals(ofname)
     local count = 0
 
     for k, v in pairs(globals) do
-	table.insert(keys, v.name)
+	keys[#keys + 1] = v.name
     end
     table.sort(keys)
 
@@ -914,9 +990,13 @@ function output_globals(ofname)
     for i, name in pairs(keys) do
 	gl = globals[name]
 	tp = resolve_type(gl.type)
+	if tp.detail and not tp.detail.name then
+	    print("warning, no name for", tp.name, tp.fid)
+	    tp.detail.name = "?"
+	end
 	ofile:write(string.format("  { \"%s\", %d, %d }, /* %s */\n", name,
 	    tp.fid,
-	    tp.detail and tp.detail.struct_id or 0,
+	    tp.detail and (tp.detail.struct_id or tp.detail.proto_id) or 0,
 	    tp.name .. string.rep("*", tp.pointer)
 		.. (tp.detail and (" " .. tp.detail.name) or "") ))
 	count = count + 1
@@ -1008,6 +1088,7 @@ parse_xml(arg[2])
 analyze_functions()
 analyze_globals()
 mark_all_enums_as_used()
+mark_ifaces_as_used()
 mark_override()
 
 -- detect_widgets()
