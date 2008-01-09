@@ -70,7 +70,7 @@ end
 function build_gui()
     local fname, tree, widgets
 
-    fname = arg[1] or string.gsub(arg[0], ".lua", ".glade")
+    fname = arg[1] or string.gsub(arg[0], "%.lua", ".glade")
     tree = gtk.glade.read(fname)
     widgets = gtk.glade.create(tree, "window1")
 

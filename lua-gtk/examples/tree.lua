@@ -8,6 +8,10 @@ require "gtk"
 local MainWin = {}
 MainWin.__index = MainWin
 
+function handle_inserted(model, path, iter, data1, data2)
+    print("handle_inserted", model, path, iter, data1, data2)
+end
+
 function MainWin.new()
 
 	local self = {}
@@ -28,6 +32,7 @@ function MainWin.new()
 	self.store = gtk.tree_store_new(4, gtk.G_TYPE_INT, gtk.G_TYPE_STRING,
 		gtk.G_TYPE_STRING, gtk.G_TYPE_STRING)
 	self.tree_view:set_model(self.store)
+	-- self.store:connect('row-inserted', handle_inserted, "a", "b")
 
 	-- define visible columns
 	local r = gtk.cell_renderer_text_new()

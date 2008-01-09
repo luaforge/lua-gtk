@@ -13,7 +13,7 @@ end
 function main()
     local tree, widgets, fname
 
-    fname = arg[1] or string.gsub(arg[0], ".lua", ".glade")
+    fname = arg[1] or string.gsub(arg[0], "%.lua", ".glade")
     tree = gtk.glade.read(fname)
     widgets = gtk.glade.create(tree, "window1")
     gtk.main()
