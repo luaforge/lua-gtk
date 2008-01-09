@@ -21,6 +21,9 @@
 #include <string.h>	    // memset (in G_VALUE_COLLECT)
 #include "luagtk_ffi.h"
 
+// use this for older FFI versions doesn't detect existing functions!
+// #define ffi_closure_alloc(x,y) g_malloc(x)
+
 /* one such structure per connected callback */
 struct callback_info {
     int handler_ref;		/* reference to the function to call */
