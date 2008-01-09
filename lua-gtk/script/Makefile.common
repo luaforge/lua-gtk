@@ -4,7 +4,7 @@ CFLAGS	+=-g -Wall `pkg-config --cflags gtk+-2.0 lua5.1` -I ${ODIR} -I src
 LDFLAGS	+=-g
 HASHF	:=hsieh
 HASH	:=hash-$(HASHF)
-LD	:=${MINGW}ld
+LD	?=${MINGW}ld
 CC	:=${MINGW}gcc
 HOSTCC	:=gcc -Wall
 VERSION	:=0.7
@@ -86,7 +86,7 @@ ${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}gtkdata.%.h: ${ODIR}types.xml \
 
 ${ODIR}types.xml: script/make-xml.lua
 	@echo "Generating types.xml..."
-	$H script/make-xml.lua "$@"
+	$H script/make-xml.lua "$@" $(PLATFORM)
 
 ${ODIR}%.$(O): ${ODIR}%.c
 	@echo $@

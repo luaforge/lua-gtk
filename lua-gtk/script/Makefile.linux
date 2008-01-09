@@ -18,7 +18,7 @@ LINK	:=1
 MINGW	:=
 ODIR	:=build/linux/
 # -fPIC required for position indendent code in shared objects; besides,
-#  shrinks the library size somewhat.
+#  shrinks the library size somewhat.  For production build, -O2 is probably ok
 CFLAGS	:=-fPIC
 GTKLIB	:=-lgtk-x11-2.0
 ODLL	:=gtk.so

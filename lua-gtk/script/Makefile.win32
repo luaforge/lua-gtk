@@ -13,7 +13,7 @@ CMPHBIN	:=cmph
 CMPHLIB	:=-lcmph
 
 # where to find the precompiled Gtk/Gdk etc. libraries, and libffi
-GTKDIR	:=mingw/gtk-import/
+GTKDIR	:=mingw/gtk/lib/
 LUADIR	:=mingw/lua5.1
 FFIDIR	:=mingw/libffi-mingw
 
@@ -25,14 +25,15 @@ LINK	:=1
 MINGW	:=i586-mingw32msvc-
 ODIR	:=build/win32/
 CFLAGS	:=-DXTHREADS -I $(FFIDIR) -mms-bitfields
-GTKLIB	:=$(GTKDIR)libgtk-win32-2.0-0.dll $(GTKDIR)libgdk-win32-2.0-0.dll \
-	$(GTKDIR)libgobject-2.0-0.dll $(GTKDIR)libglib-2.0-0.dll \
-	$(GTKDIR)libgdk_pixbuf-2.0-0.dll
+GTKLIB	:=$(GTKDIR)gtk-win32-2.0.lib $(GTKDIR)gdk-win32-2.0.lib \
+	$(GTKDIR)gobject-2.0.lib $(GTKDIR)glib-2.0.lib \
+	$(GTKDIR)gdk_pixbuf-2.0.lib $(GTKDIR)pango-1.0.lib
 CROSS	:=1
 ODLL	:=gtk.dll
 LIBFFI	:=$(FFIDIR)/libffi.a
 INDIR1	:=/usr/local/lib/lua/5.1
 INDIR2	:=/usr/local/share/lua/5.1
+LD	:=${MINGW}gcc
 # --- end platform configuration ---
 
 all: checkluabin dirs gtk2dll
