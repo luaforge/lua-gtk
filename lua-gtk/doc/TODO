@@ -2,8 +2,29 @@
 TODO
 ----
 
+- support another hashing method of cmph: bdz.  Lookup seems a bit more
+  code, though.
+  there are _ph variants, which are perfect hashes, but not minimal, i.e.
+  there are gaps in the resulting hash values, which causes unused buckets
+  and therefore space wastage.
+  
+  for bdz_ph and the function list, 5710 keys map to 7139 buckets, wasting
+  1429 buckets, which (at 2 bytes per bucket) means 2858 wasted bytes.
+  for this size, the hash data is (on disk) 1826 bytes.
+
+  the same with bdz, the data size is 2059, only slightly more, but now
+  no buckets are wasted.  some additional code is required though.
+
+  compare that to fch: much longer generation time, but data size is 4468
+  bytes.
+
+	- improve hash-fch-generate.c to also support bdz
+	- write hash-bdz.c to support lookup with the bdz algorithm.
+
+
 - socket_co: connect attempts must be asynchronous, otherwise the GUI can be
   blocked (by a slow DNS server, for example).
+  	see libc-ares1
 
 - review all the code for improvements and maybe some bugs
 
