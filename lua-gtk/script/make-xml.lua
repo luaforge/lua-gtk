@@ -49,7 +49,7 @@ function generate_object(ofname, platform)
     s = string.format("gccxml \$(pkg-config --cflags gtk+-2.0) -fxml=%s %s",
 	ofname, tmp_file)
     os.execute(s)
-    -- os.execute("unlink " .. tmp_file)
+    os.execute("unlink " .. tmp_file)
 end
 
 generate_object(arg[1], arg[2])
