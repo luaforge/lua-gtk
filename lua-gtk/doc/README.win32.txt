@@ -4,40 +4,23 @@ Lua-Gtk2
 
   I assume that you have downloaded the windows binary package for lua-gtk2.
 I suggest you put it into your program files directory.  Unless you already
-have Gtk+2, install the newest version (2.12 or later).  This is somewhat
-tricky, as I don't know of a current installer.
+have Gtk+2, install the newest version (2.12 or later) using the following
+procedure:
 
-  You can get the full Gimp installer at [1], which contains the required
-files, but they are not registered properly so you have to add the Gimp
-directory to the DLL path: using regedit, add the path to C:\Program Files\Gimp-2.0\bin (or wherever you installed it) to this key:
+install.bat
+
+This will download the required ZIP files, and extract them into the bin
+directory.  To use Lua and lua-gtk from anywhere, add the bin directory to
+the search path by editing the this registry key (using regedit):
 
 ...\HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Control\Session Manager\Environment\Path
 
-Log out and log in again.
-
-  Another option is to get the precompiled packages individually [5], extract
-all the ZIP files and do the same registry editing as above.  On Linux, you can
-try to use the script download-gtk-win.lua in the script directory like this:
-
-	mkdir -p mingw/gtk/zip
-	script/download-gtk-win.lua mingw/gtk/zip
-
-  You can also use it on Windows; I suggest you put the ZIP files into some
-download directory, and then unpack all the ZIPs to C:\Program Files\GTK or
-somewhere similar.  The script requires LuaCurl and LuaFilesystem; get
-precompiled packages here:
-
-	http://luaforge.net/frs/?group_id=117
-	http://luaforge.net/frs/?group_id=66
-
-  Optionally get the current Lua binary and library [2], if there's a newer
-version, but the required files are already included in this package.
-
-  Now you can run the examples by clicking on them; the first time select
-lua5.1.exe as program to open it.  Try the other examples.  The ones that
-require additional libraries, like luasocket, won't run unless you compile
-these libraries yourself; I might provide precompiled libraries later.  More
-examples are available in the CVS repository on luaforge:
+  Log out and log in again.  Now you can run the examples by clicking on them;
+the first time select lua5.1.exe as program to open it.  Try the other
+examples.  The ones that require additional libraries, like luasocket, won't
+run unless you compile these libraries yourself; I might provide precompiled
+libraries later.  More examples are available in the CVS repository on
+luaforge:
 
 	http://luaforge.net/plugins/scmcvs/cvsweb.php/?cvsroot=lua-gtk
 	http://luaforge.net/snapshots.php?group_id=121
