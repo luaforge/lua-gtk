@@ -19,7 +19,7 @@ MINGW	:=
 ODIR	:=build/linux/
 # -fPIC required for position indendent code in shared objects; besides,
 #  shrinks the library size somewhat.  For production build, -O2 is probably ok
-CFLAGS	:=-fPIC
+CFLAGS	:=-fPIC -O2
 GTKLIB	:=-lgtk-x11-2.0
 ODLL	:=gtk.so
 # --- end platform configuration ---
@@ -32,12 +32,11 @@ include script/Makefile.common
 # examples, plus an explanatory README file.
 
 tar-bin: all
-	(mkdir lua-gtk2-$(VERSION); \
-	cp $(ODIR)$(ODLL) lua-gtk2-$(VERSION)/; \
-	strip lua-gtk2-$(VERSION)/$(ODLL); \
-	cp -a lib lua-gtk2-$(VERSION)/gtk; \
-	cp examples/* lua-gtk2-$(VERSION); \
-	cp doc/README.binary lua-gtk2-$(VERSION)/README; \
-	tar czvf lua-gtk2-$(VERSION)-linux.tar.gz lua-gtk2-$(VERSION); \
-	rm -r lua-gtk2-$(VERSION) \
+	(D="lua-gtk-$(VERSION)"; mkdir -p $$D/gtk $$D/examples; \
+	cp $(ODIR)$(ODLL) $$D/; strip $$D/$(ODLL); \
+	cp lib/*.lua $$D/gtk/; \
+	cp examples/*.lua $$D/examples/; \
+	cp doc/README.binary $$D/README; \
+	tar czvf lua-gtk-$(VERSION)-linux.tar.gz $$D; \
+	rm -r $$D \
 	)
