@@ -16,7 +16,19 @@ directory to the DLL path: using regedit, add the path to C:\Program Files\Gimp-
 Log out and log in again.
 
   Another option is to get the precompiled packages individually [5], extract
-all the ZIP files and do the same registry editing as above.
+all the ZIP files and do the same registry editing as above.  On Linux, you can
+try to use the script download-gtk-win.lua in the script directory like this:
+
+	mkdir -p mingw/gtk/zip
+	script/download-gtk-win.lua mingw/gtk/zip
+
+  You can also use it on Windows; I suggest you put the ZIP files into some
+download directory, and then unpack all the ZIPs to C:\Program Files\GTK or
+somewhere similar.  The script requires LuaCurl and LuaFilesystem; get
+precompiled packages here:
+
+	http://luaforge.net/frs/?group_id=117
+	http://luaforge.net/frs/?group_id=66
 
   Optionally get the current Lua binary and library [2], if there's a newer
 version, but the required files are already included in this package.
@@ -48,9 +60,9 @@ Links:
 [5] http://ftp.gnome.org/pub/gnome/binaries/win32/
 	Get the newest of each of these (11 packages in total):
 	atk/*/atk-*.zip
-	dependencies/{cairo,gettext-runtime,libiconv,libjpeg,libpng,
-	libtiff,zlib},
 	glib/*/glib-*.zip
 	gtk+/*/gtk+-*.zip
 	pango/*/pango-*.zip
+	dependencies/{cairo,gettext-runtime,libiconv,libjpeg,libpng,
+	libtiff,zlib}
 

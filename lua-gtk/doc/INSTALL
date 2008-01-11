@@ -6,13 +6,13 @@ Installation Instructions for Linux
 My system is Debian/testing, where most of the required libraries are available
 as packages.  Prerequisites:
 
-  - Gtk2 (tested with 2.6.8, 2.8.16, 2.10.13) with devel files
+  - Gtk2 (tested with 2.6.8, 2.8.16, 2.10.13, 2.12.3) with devel files
   - libffi
   - lua5.1, liblua-bit, liblua5.1-expat
+  - lua sockets - required for the http/ftp etc. library
   - cmph (optional, at http://sf.net/projects/cmph)
   - gccxml
   - gcc, binutils, make, ...
-  - lua sockets - required for the http/ftp etc. library
 
 Package names in Debian:
 
@@ -20,10 +20,15 @@ Package names in Debian:
 	libffi4-dev
 	liblua5.1-0-dev
 	liblua5.1-expat0
+	liblua5.1-bit0
 	liblua5.1-socket-dev
+	libcmph-dev
 	gccxml
 	gcc
 	make
+
+Thanks to Enrico Tassi for building all the Lua related packages, and
+even the cmph library.
 
 
 About the optional cmph library
@@ -34,21 +39,28 @@ for a given set of keys, each key is mapped to an integer in the range 0 to
 n-1, n being the number of keys.  There are no hash collisions and no unused
 slots.
 
-  At runtime, cmph is not required.
+  At runtime, cmph is not required.  lua-gtk contains the (simple) code to
+do hash lookups; the code to compute the hash function is much more complex.
 
   If this library is not available at build time, a simple hash method is used
 instead.  There is probably little runtime difference, both size and speed
-wise, although I suppose the cmph generated hash will be faster.
-
+wise, although I suppose the cmph generated hash will be faster; it requires
+two hash values to be computed, but doesn't have collisions, while the simple
+code needs just one hash computation, but has lots of collisions as well as
+empty buckets.
 
 
 Procedure
 ---------
 
- - edit Makefile.linux to suit your installation.  This is NOT an autoconf
-   generated file.  Not many options are useful to change.
- - run make
- - run make install (as root)
+ - edit script/Makefile.linux to suit your installation.  This is NOT an
+   autoconf generated file.  Not many options are useful to change.
+ - make.sh
+ - make.sh install (as root); alternatively, create symlinks to the build
+   directory, which is nice during development, as the install step isn't
+   required:
+   /usr/local/lib/lua/5.1/gtk.so --> ..../lua-gtk/build/linux/gtk.so
+   /usr/local/share/lua/5.1/gtk --> ..../lua-gtk/lib
 
 Now you should be ready to run the example scripts:
 
@@ -57,47 +69,55 @@ $ lua -w examples/pixmap.lua
 
 
 
-Installation Instructions for MingW32
-=====================================
+Documentation
+=============
 
-To build this package for Win32 please use MingW32.  The resulting binaries run
-on native Windows, too.  In other words, the build process is under Linux.
-Therefore, install the mingw32 build environment, e.g. for Debian, try
+  The included documentation is partly built directly from the Lua and C
+sources.  This requires an improved version of luadoc, not yet publicly
+available, but I'm trying to get the changes into the official luadoc.
+
+
+
+Build Instructions for MingW32
+==============================
+
+To build this package for Windows please use MingW32.  The resulting binaries
+run on native Windows.  In other words, you'll be cross-compiling from Linux
+to Windows; I don't have a development environment under Windows to try it
+out.  Therefore, install the mingw32 build environment, e.g. for Debian, try
 "apt-get install mingw32".
+
 
 
 Step 1
 ------
 
-Download the latest Windows binaries from luaforge.net (project LuaBinaries
-[1]), and unpack into the directory mingw/lua5.1.
+  Please refer to README.win32.txt on instructions on how and where to get the
+latest Gtk+2 libraries.  Unfortunately you have to download the (precompiled)
+libraries individually as ZIP files and extract them.  Additionally, you need
+the "dev" versions of the packages too, so you need to get 22 ZIP files in
+total.  Put their contents into mingw/gtk, so that you have
+mingw/gtk/bin/libgtk-win32-2.0-0.dll, and mingw/gtk/lib/libgtk-win32-2.0.dll.a
+and so on for all the other libraries.
+
+  Then install the GTk runtime (not the -dev packages, just the normal ones)
+onto a Windows box.  Again, see README.win32.txt on how to edit the registry
+to add the install path to the search path.  It is possible to try it out with
+wine, although the fonts are at a huge size, I haven't figured out why, YMMV.
 
 
 Step 2
 ------
 
-Download the latest Gtk+2 Runtime Environment for Windows [2] and install it
-on a Windows box.  Copy the following DLLs from wherever they are (e.g. [3])
-to mingw/gtk:
+Build the library by calling
 
-	libgtk-win32-2.0-0.dll
-	libgdk-win32-2.0-0.dll
-	libgobject-2.0-0.dll
-	libglib-2.0-0.dll
-	libgdk_pixbuf-2.0-0.dll
+	./make.sh win32
 
+This builds the file build/win32/gtk.dll.  The script make.sh "remembers" which
+platform you built for, so you don't have to specify win32 in subsequent
+calls.  To obtain a ZIP file with all the required files, do this:
 
-Step 3
-------
-
-Run the Makefile like this:
-
-	make -f Makefile.win32
-
-This builds the file build-win32/gtk.dll.  To obtain a ZIP file with all the
-required files, do this:
-
-	make -f Makefile.win32 zip
+	./make.sh zip
 
 This will create the tree /tmp/lua-gtk-$(VERSION), along with a suitable
 ZIP file.  Copy that to the windows box, and try it out.
@@ -107,8 +127,4 @@ ZIP file.  Copy that to the windows box, and try it out.
 [1] http://luabinaries.luaforge.net/packaging.html,
     http://luabinaries.luaforge.net/download.html
     The file to get is lua...._Win32_bin.zip
-
-[2] http://gimp-win.sourceforge.net/stable.html
-
-[3] C:\Programme\Gemeinsame Dateien\GTK\2.0\bin
 
