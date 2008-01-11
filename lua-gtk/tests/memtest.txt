@@ -1,0 +1,5 @@
+-- sample script to be analyzed by valgrind.
+-- the constant 16 (see luagtk.h) enables valgrind-friendly runtime options.
+require "gtk"
+gtk.init(16)
+
