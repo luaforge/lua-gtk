@@ -208,7 +208,7 @@ tar:
 	tar czvfh lua-gtk-${VERSION}.tar.gz \
 		--exclude build --exclude CVS --exclude mingw/gtk \
 		--exclude tags --exclude ".*.swp" --exclude attic \
-		--exclude private \
+		--exclude private --exclude win32 \
 		lua-gtk-${VERSION}; \
 	rm lua-gtk-${VERSION})
 
