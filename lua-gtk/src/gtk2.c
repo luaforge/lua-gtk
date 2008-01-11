@@ -123,6 +123,12 @@ static int l_gtk_lookup(lua_State *L)
     memcpy(fi2+1, fi.name, name_len);
     fi2->name = (char*) (fi2+1);
     lua_pushcclosure(L, _call_wrapper, 1);
+
+    // cache the result of this lookup
+    lua_pushvalue(L, 2);	// key
+    lua_pushvalue(L, -2);	// the new closure
+    lua_rawset(L, 1);		// [1]=table
+
     return 1;
 }
 
@@ -224,10 +230,14 @@ int luaopen_gtk(lua_State *L)
     lua_setfield(L, -2, "__mode");	// gtk mt
 
     // Table with all widget metatables; [name] = table.  When no widgets
-    // of the given type exist anymore, they may be removed (weak values).
+    // of the given type exist anymore, they may be removed if weak values
+    // are used; this doesn't make much sense, as a program will most likely
+    // use a certain widget type again if it is used once.
     lua_newtable(L);			// gtk mt t
+    /* make it have weak values
     lua_pushvalue(L, -2);		// gtk mt t mt
     lua_setmetatable(L, -2);		// gtk mt t
+    */
     lua_setfield(L, LUA_ENVIRONINDEX, LUAGTK_METATABLES);   // gtk mt
     
     // widgets: not a weak table.  It only contains references to entries
