@@ -11,6 +11,7 @@ VERSION	:=0.7
 O	:=o
 LIBINSTALL := cp
 LIBFINAL := touch
+CONFIG_H+=\#define USE_GTK_BUILDER\n
 # -- end general configuration --
 
 # run make with "H=" as an argument to show all build commands.
