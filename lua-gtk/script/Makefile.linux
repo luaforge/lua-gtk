@@ -14,7 +14,7 @@ INDIR1	:=/usr/local/lib/lua/5.1
 INDIR2	:=/usr/local/share/lua/5.1
 
 # you probably don't want to change these...
-LINK	:=1
+LINK	:=0
 MINGW	:=
 ODIR	:=build/linux/
 # -fPIC required for position indendent code in shared objects; besides,

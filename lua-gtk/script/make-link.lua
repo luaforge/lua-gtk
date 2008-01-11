@@ -23,8 +23,9 @@
 
 require "lxp"
 
-funclist = {}		    -- [name] = { rettype, arg1, arg, ... }
+funclist = {}		    -- [name] = { type, { rettype, arg1, arg, ... } }
 typedefs = {}		    -- [id] = { type, name/id }
+globals = {}		    -- [name] = { type }
 curr_func = nil
 
 ---
@@ -34,7 +35,7 @@ curr_func = nil
 xml_tags = {
     Function = function(p, el)
 	if funclist[el.name] then
-	    curr_func = { el.returns }
+	    curr_func = { "func", { el.returns } }
 	    funclist[el.name] = curr_func
 	else
 	    curr_func = nil
@@ -43,13 +44,13 @@ xml_tags = {
 
     Argument = function(p, el)
 	if curr_func then
-	    table.insert(curr_func, el.type)
+	    table.insert(curr_func[2], el.type)
 	end
     end,
 
     Ellipsis = function(p, el)
 	if curr_func then
-	    table.insert(curr_func, "...")
+	    table.insert(curr_func[2], "...")
 	end
     end,
 
@@ -73,6 +74,12 @@ xml_tags = {
 
     Enumeration = function(p, el)
 	typedefs[el.id] = { "type", el.name }
+    end,
+
+    Variable = function(p, el)
+	if funclist[el.name] then
+	    funclist[el.name] = { "var", { el.type } }
+	end
     end,
 }
 
@@ -192,14 +199,21 @@ function output_header(ofname, ifname)
     for name, def in pairs(funclist) do
 
 	ar = {}
-	for k, v in pairs(def) do
+	for k, v in pairs(def[2]) do
 	    table.insert(ar, resolve_type(v))
 	end
 
-	-- definition to redirect uses of the function to the pointer
-	ar1 = table.remove(ar, 1)
-	sig = string.format("#define %s ((%s(*)(%s)) dl_link[%d])\n",
-	    name, ar1, table.concat(ar, ","), func_nr)
+	if def[1] == "func" then
+
+	    -- definition to redirect uses of the function to the pointer
+	    ar1 = table.remove(ar, 1)
+	    sig = string.format("#define %s ((%s(*)(%s)) dl_link[%d])\n",
+		name, ar1, table.concat(ar, ","), func_nr)
+	
+	else	    -- "var"
+	    sig = string.format("#define %s (*(%s*) dl_link[%d])\n",
+		name, ar[1], func_nr)
+	end
 	ofile:write(sig)
 
 	func_nr = func_nr + 1

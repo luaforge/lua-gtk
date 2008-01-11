@@ -245,6 +245,7 @@ ${ODIR}callback.$(O): ${LH}
 ${ODIR}channel.$(O): ${LH}
 ${ODIR}widget.$(O): ${LH}
 ${ODIR}widget_types.$(O): ${LH}
+${ODIR}widget_meta.$(O): ${LH}
 ${ODIR}debug.$(O): ${LH}
 ${ODIR}override.$(O): ${LH}
 ${ODIR}gvalue.$(O): ${LH}
