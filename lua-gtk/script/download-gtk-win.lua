@@ -23,6 +23,7 @@ packages1 = { "atk", "glib", "gtk+", "pango" }
 packages2 = { "cairo", "gettext%-runtime", "libiconv", "libjpeg",
     "libpng", "libtiff", "zlib" }
 
+devel = false
 
 ---
 -- Look for the newest versions of the given packages including the -dev
@@ -39,7 +40,9 @@ function get_main_packages(c, list)
 	    pat = string.gsub(package, "%+", "%%+")
 	    dir_list = get_directory_listing(c, dir)
 	    get_file(c, dir_list, dir, string.format("^%s%%-%%d.*zip$", pat))
-	    get_file(c, dir_list, dir, string.format("^%s%%-dev.*zip$", pat))
+	    if devel then
+		get_file(c, dir_list, dir, string.format("^%s%%-dev.*zip$", pat))
+	    end
 	end
     end
 
@@ -136,8 +139,13 @@ end
 
 
 -- MAIN --
+if arg[1] == "-d" then
+    devel = true
+    table.remove(arg, 1)
+end
+
 if #arg ~= 1 then
-    print "Parameter: output directory"
+    print(string.format("Usage: %s [-d] output_dir", arg[0]))
     return
 end
 
