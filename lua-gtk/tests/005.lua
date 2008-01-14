@@ -31,7 +31,7 @@ function http_download()
 	if not val then break end
 	-- print("got data with length", #val)
 	lbl:set_text(lbl:get_text() .. val)
-	coroutine.yield("sleep", 100)
+	-- coroutine.yield("sleep", 100)
     end
 
     print("end", msg)
@@ -46,7 +46,7 @@ function background_task()
 	coroutine.yield("sleep", 100)
     end
     http_download()
-    coroutine.yield("sleep", 5000)
+    coroutine.yield("sleep", 500)
     gtk.main_quit()
 end
 
