@@ -3,19 +3,37 @@
 -- test pixbuf to resize an image.
 
 require "gtk"
+require "lfs"
 
-ifile = "demo.jpg"
-ofile = "demo-out.jpg"
+ifname = "demo.jpg"
+ofname = "demo-out.jpg"
+osize_target = 26645
+rc = 0
 
 gtk.init()
-pixbuf = gtk.gdk_pixbuf_new_from_file_at_size(ifile, 800, 600, nil)
+pixbuf = gtk.gdk_pixbuf_new_from_file_at_size(ifname, 800, 600, nil)
 if not pixbuf then
-	print("Can't load image from " .. ifile)
+	print("Can't load image from " .. ifname)
 	os.exit(1)
 end
 
 buffer = pixbuf:save_to_buffer("jpeg")
-ofile = io.open(ofile, "w")
+ofile = io.open(ofname, "w")
 ofile:write(buffer)
 ofile:close()
+
+-- if the input file is this known size, then the output size should be
+-- as expected.
+isize = lfs.attributes(ifname, "size")
+if isize == 5770 then
+	osize = lfs.attributes(ofname, "size")
+	if osize ~= osize_target then
+		print(string.format("Output file size is %s, not %s!",
+			osize, osize_target))
+		rc = 1
+	end
+end
+
+os.remove(ofname)
+os.exit(rc)
 
