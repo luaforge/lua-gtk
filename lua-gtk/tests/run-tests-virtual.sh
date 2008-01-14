@@ -72,6 +72,7 @@ function show_help() {
     echo "  -v         View virtual X server window"
     echo "  -o         Log to stdout"
     echo "  -l [file]  Log to the given file (append)"
+    echo "  -d [disp]  Use this virtual display number"
     echo "  -h         This help message"
 }
 
@@ -82,6 +83,7 @@ while test "$1"; do
 	-v) VIEW=1 ;;
 	-o) LOGFILE="" ;;
 	-l) LOGFILE="$2"; shift ;;
+	-d) VIRTDISP="$2"; shift ;;
 	-h) show_help; exit 1 ;;
 	*) echo "$0: Unknown option $1"; show_help; exit 1 ;;
     esac
