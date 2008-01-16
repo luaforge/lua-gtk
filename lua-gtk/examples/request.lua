@@ -131,7 +131,7 @@ end
 --
 -- Main
 --
-gtk.init(4)
+gtk.set_debug_flags("memory")
 build_gui()
 gtk.main()
 

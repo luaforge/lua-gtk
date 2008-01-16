@@ -90,7 +90,7 @@ function on_expose(da, ev, ifo)
     return false
 end
 
-gtk.init(0)	-- show memory allocation profile if 8
+-- gtk.set_debug_flags("memory")
 mywin1 = mywin_new("One")
 mywin2 = mywin_new("Two")
 gtk.main()
