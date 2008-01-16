@@ -272,6 +272,7 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 	    call_info_msg(ci, LUAGTK_WARNING,
 		"Argument %d (type %s) not handled\n", arg_nr,
 		LUAGTK_TYPE_NAME(ar.arg_type));
+	    luaL_error(L, "call error\n");
 	    ci->ffi_args[arg_nr].l = 0;
 	}
     }
@@ -343,6 +344,18 @@ static int _call_return_values(lua_State *L, struct call_info *ci)
 
     /* return number of return values now on the stack. */
     return lua_gettop(L) - stack_pos;
+}
+
+/**
+ * Call the given function by name, and use the current Lua stack
+ * as parameters.
+ */
+int luagtk_call_byname(lua_State *L, const char *func_name)
+{
+    struct func_info fi;
+    if (find_func(func_name, &fi))
+	return luagtk_call(L, &fi, 1);
+    return -1;
 }
 
 
