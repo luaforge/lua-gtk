@@ -152,6 +152,8 @@ static int l_new(lua_State *L)
     const char *struct_name = luaL_checkstring(L, 1);
     struct struct_info *si;
     void *p;
+    struct func_info fi;
+    char tmp_name[80];
 
     GTK_INITIALIZE();
 
@@ -160,10 +162,16 @@ static int l_new(lua_State *L)
 	return 0;
     }
 
+    /* There may be an allocator function; if so, use it; any additional
+     * parameters to this function start at Lua stack position 2, use them. */
+    luagtk_make_func_name(tmp_name, sizeof(tmp_name), struct_name, "new");
+    if (find_func(tmp_name, &fi))
+	return luagtk_call(L, &fi, 2);
+
     /* Allocate and initialize the object.  I used to allocate just one
-     * userdata big enough for both the wrapper and the widget, but many
-     * free functions exist, like gtk_tree_iter_free, and they expect a memory
-     * block allocated by g_slice_alloc0.  Therefore this optimization is not
+     * userdata big enough for both the wrapper and the widget, but many free
+     * functions exist, like gtk_tree_iter_free, and they expect a memory block
+     * allocated by g_slice_alloc0.  Therefore this optimization is not
      * possible. */
     p = g_slice_alloc0(si->struct_size);
 
