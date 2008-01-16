@@ -113,10 +113,11 @@ fundamental_map = {
 
     -- pointer types
     ["struct*"] = { "pointer", 0, "struct_ptr", "struct_ptr", nil, "struct_ptr" },
+    ["union*"] = { "pointer", 0, "struct_ptr", "struct_ptr", nil, "struct_ptr" },
     ["char*"] = { "pointer", 0, "char_ptr", "char_ptr", nil, "char_ptr" },
     ["char**"] = { "pointer", 0, "char_ptr_ptr", "char_ptr_ptr", nil, nil },
     ["unsigned char*"] = { "pointer", 0, "char_ptr", "char_ptr", nil, "char_ptr" },
-    ["void*"] = { "pointer", 0, nil, "void_ptr", nil, nil },
+    ["void*"] = { "pointer", 0, "void_ptr", "void_ptr", nil, nil },
     ["int*"] = { "pointer", 0, "int_ptr", "int_ptr", nil, nil },
     ["unsigned int*"] = { "pointer", 0, "int_ptr", "int_ptr", nil, nil },
     ["func*"] = { "pointer", 0, "func_ptr", nil, "func_ptr" },
