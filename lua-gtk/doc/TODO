@@ -65,6 +65,9 @@ TODO
 - running Win executables with wine under Linux, and using glade.lua - font
   sizes are insanely large.
 
+- add support for Cairo
+  http://cairographics.org/
+
 - try LuaJIT - should speed everything up.  at least check that it works with
   it because in a larger project, somebody might want to use it.
 

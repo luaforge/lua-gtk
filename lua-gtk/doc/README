@@ -71,3 +71,13 @@ Lua stack and invokes the user provided Lua function.
 
 
 
+About GtkWindow refcounting
+---------------------------
+
+When you create a GtkWindow with gtk.window_new(), the returned window does not
+have a floating reference as is usual with other widgets.  The reason is that
+this widget is in the toplevel_list of Gtk; therefore it has two regular
+references: one for the Lua proxy object, and one from Gtk.  If you just
+"forget" about the GtkWindow, it will not be garbage collected.  Instead, you
+have to call w:destroy() on it.
+

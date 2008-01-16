@@ -368,6 +368,15 @@ Don Dez 20 23:42:03 CET 2007
 * more function comments
 
 
-Mit Jän  9 22:04:34 CET 2008
+Mit Jan  9 22:04:34 CET 2008
 * mingw build works again
- 
+
+
+Mit Jan 16 14:26:01 CET 2008
+* GtkTreeIter free works for Gtk version < 2.10.12
+* memory management fixes
+* gtk.init renamed to gtk.set_debug_flags and improved
+* support void* return type from Gtk functions, treat as widget
+* support union* type (same as struct*)
+
+
