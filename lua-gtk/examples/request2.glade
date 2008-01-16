@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE glade-interface SYSTEM "glade-2.0.dtd">
-<!--Generated with glade3 3.2.2 on Tue Oct 16 17:29:33 2007 by wolfgang@wolfgang-->
+<!--Generated with glade3 3.2.2 on Wed Jan 16 14:17:42 2008 by wolfgang@wolfgang-->
 <glade-interface>
   <widget class="GtkWindow" id="window1">
     <property name="width_request">600</property>
@@ -8,7 +8,7 @@
     <property name="visible">True</property>
     <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
     <property name="title" translatable="yes">HTTP Demo</property>
-    <signal name="destroy" handler="main_quit"/>
+    <signal name="destroy" handler="gtk_main_quit"/>
     <child>
       <widget class="GtkVBox" id="vbox1">
         <property name="visible">True</property>
@@ -99,7 +99,7 @@
                     <property name="label" translatable="yes">_Quit</property>
                     <property name="use_underline">True</property>
                     <property name="response_id">0</property>
-                    <signal name="clicked" handler="main_quit"/>
+                    <signal name="clicked" handler="gtk_main_quit"/>
                   </widget>
                   <packing>
                     <property name="position">1</property>
