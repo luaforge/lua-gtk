@@ -140,20 +140,11 @@ static int _callback(void *data, ...)
     }
 
     /* The widget is the last parameter to this function.  The Lua callback
-     * gets it as the first parameter, though. */
+     * gets it as the first parameter, though, so it isn't really used. */
     void *widget = va_arg(ap, void*);
     if (widget != w->p) {
 	fprintf(stderr, "Warning: _callback on different widget: %p %p\n",
 	    w->p, widget);
-
-    /* Not required anymore, because the widget is already retrieved using
-     * the reference stored in the callback_info structure.
-	luagtk_get_widget(L, widget, 0, FLAG_NOT_NEW_OBJECT);
-	if (lua_isnil(L, -1))
-	    fprintf(stderr, "Warning: _callback couldn't find widget %p\n",
-		widget);
-	lua_insert(L, stack_top + 2);
-    */
     }
     va_end(ap);
 
@@ -340,6 +331,10 @@ struct callback {
     unsigned const char *sig;
 };
 
+
+/**
+ * Call the Lua function from C, passing the required parameters.
+ */
 static void closure_handler(ffi_cif *cif, void *retval, void **args,
     void *userdata)
 {
