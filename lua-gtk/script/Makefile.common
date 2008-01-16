@@ -229,6 +229,7 @@ doc:
 	$H luadoc -d build/reference lib src/gtk2.c \
 		src/call.c src/callback.c \
 		src/channel.c src/override.c
+	( cd html_in; ../script/gen-html.lua )
 
 help:
 	@echo "Usage: make.sh [platform] [target]"
