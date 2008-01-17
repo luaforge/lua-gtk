@@ -12,6 +12,8 @@
 --  2007-10-03	lots of improvements to date: write function information, add
 --		ENUMs as types, resolve types to base types.  Mark all ENUMs as
 --		used.  Write a list of globals.  Determine ffi_types.
+--  2008-01-17	Special char* type that advises to free it when used as return
+--              value of a function.
 --
 
 
@@ -28,7 +30,7 @@ require "bit"
 package.path = package.path .. ";" .. string.gsub(arg[0], "%/[^/]+$", "/?.lua")
 require "common"
 
-funclist = {}	    -- [name] = [rettype, arg1type, arg2type, ...]
+funclist = {}	    -- [name] = [ [rettype,"retval"], [arg1type, arg1name], ...]
 unhandled = {}	    -- [name] = true
 globals = {}	    -- [name] = {...}
 typedefs = {}	    -- [id] = { type=..., name=..., struct=... }
@@ -41,6 +43,8 @@ max_func_args = 0
 max_struct_size = 0
 fundamental_name2id = {}
 prototypes = {}
+char_ptr_second = 0
+free_methods = {}	-- [name] = 0/1
 
 type_override = {
     ["GtkObject.flags"] = { "GtkWidgetFlags" },
@@ -129,9 +133,14 @@ fundamental_map = {
 -- add it.  Anyway, return the fid for this type.
 --
 function register_fundamental(name, pointer, bit_len)
+    local fid
+
+    assert(name, "Trying to register fundamental type with null name")
     name = name .. string.rep("*", pointer)
-    id = fundamental_name2id[name]
-    if id then return id end
+    fid = fundamental_name2id[name]
+    if fid then return fid end
+    fid = next_fid
+
     fundamental_ifo[#fundamental_ifo + 1] = {
 	name = name,
 	pointer = pointer,
@@ -139,7 +148,18 @@ function register_fundamental(name, pointer, bit_len)
     }
     fundamental_name2id[name] = next_fid
     next_fid = next_fid + 1
-    return next_fid - 1
+
+    -- Special case for char*: add another entry for const char*, which
+    -- must directly follow the regular char* entry.
+    if name == "char*" then
+	-- print "register_fundamental: adding const char*"
+	fundamental_ifo[#fundamental_ifo + 1] =
+	    fundamental_ifo[#fundamental_ifo]
+	char_ptr_second = next_fid
+	next_fid = next_fid + 1
+    end
+
+    return fid
 end
 
 ---
@@ -171,27 +191,28 @@ xml_tags = {
 
     -- store functions
     Function = function(p, el)
-	curr_func = { el.returns }
+	curr_func = { { el.returns, "retval" } }
 	funclist[el.name] = curr_func
     end,
 
     -- discard the argument names, just keep the type.
     Argument = function(p, el)
 	if curr_func then
-	    curr_func[#curr_func + 1] = el.type
+	    curr_func[#curr_func + 1] = { el.type, el.name or
+		string.format("arg_%d", #curr_func) }
 	end
     end,
 
     -- translated to vararg argument later
     Ellipsis = function(p, el)
 	if curr_func then
-	    curr_func[#curr_func + 1] = "vararg"
+	    curr_func[#curr_func + 1] = { "vararg", "vararg" }
 	end
     end,
 
     -- declare a type being a function prototype
     FunctionType = function(p, el)
-	curr_func = { el.returns }
+	curr_func = { { el.returns, "retval" } }
 	typedefs[el.id] = { type="func", prototype=curr_func }
     end,
 
@@ -474,7 +495,10 @@ function resolve_type(type_id)
 
 	-- a typedef, i.e. an alias
 	elseif tp.type == "typedef" or tp.type == "qualifier" then
-	    -- qualifier: discarded
+	    -- copy qualifiers; they add up if multiple are used
+	    if tp.const then res.const = true end
+	    if tp.volatile then res.volatile = true end
+	    if tp.restrict then res.restrict = true end
 	    type_id = tp.what
 
 	    -- special case gboolean (typedef to some numeric type)
@@ -530,6 +554,12 @@ function resolve_type(type_id)
     -- register this type
     res.fid = register_fundamental(res.name, res.pointer, res.bit_len)
 
+    -- compute a full name
+    res.full_name = string.format("%s%s%s",
+	res.const and "const " or "",
+	res.name,
+	string.rep("*", res.pointer))
+
     return res
 end
 
@@ -575,7 +605,7 @@ end
 ---
 -- Add the information for one structure (with all its fields) to the output.
 --
-function output_one_struct(ofile, tp)
+function output_one_struct(ofile, tp, struct_name)
     local st, member, ofs
     st = tp.struct
     st.elem_start = elem_start
@@ -607,7 +637,8 @@ function output_one_struct(ofile, tp)
 	    -- used structures must be known, this can only be called after
 	    -- the assignment of struct_ids.
 	    if tp.name == "func" then
-		register_prototype(tp.detail)
+		register_prototype(tp.detail, string.format("%s.%s",
+		    struct_name, member.name or member_name))
 	    end
 
 	    -- name offset, bit offset, bit length (0=see detail),
@@ -621,25 +652,43 @@ function output_one_struct(ofile, tp)
     end
 end
 
--- 
+---
+-- A pointer to a function appeared as an argument type to another function,
+-- or as the type of a member of a structure.  In both cases, make sure this
+-- function's signature is stored as usual.  The "proto_id" of the given
+-- typedef will be set.
+--
 -- @param proto  Array of type_ids describing the return value and arguments
 --   to this function type.
--- @return  Offset in the string table where the prototype is defined.
---   It may be reused for identical signatures of different functions.
 --
-function register_prototype(typedef)
-    if typedef.proto_id then return end
-    local sig = table.concat(typedef.prototype, ",")
-    local proto_ofs = prototypes[sig]
+function register_prototype(typedef, name)
+    
+    local key = {}
+
+    -- Compute a string to identify this prototype.  It contains the types of
+    -- return value and all the arguments' types, but without their names.
+    for i, arg_info in ipairs(typedef.prototype) do
+	local tp = resolve_type(arg_info[1])
+	key[#key + 1] = tp.full_name
+    end
+    key = table.concat(key, ',')
+
+    local proto_ofs = prototypes[key]
 
     if not proto_ofs then
-	local sig = _function_arglist(typedef.prototype)
+	local sig = _function_arglist(typedef.prototype, name)
 
 	-- prepend a length byte
 	sig = string.char(#sig) .. sig
 
 	proto_ofs = store_string(sig, true)
 	prototypes[sig] = proto_ofs
+    end
+
+    -- this can happen when there are inconsistencies of free methods.
+    if typedef.proto_id and typedef.proto_id ~= proto_ofs then
+	print(string.format("Warning: differing prototypes %d and %d for %s, "
+	    .. "key=%s", typedef.proto_id, proto_ofs, name, key))
     end
 
     typedef.proto_id = proto_ofs
@@ -685,7 +734,7 @@ function output_structs(ofname)
 	tp = typedefs[name2id[name]]
 	tp.name_ofs = store_string(name)
 	if tp.struct then
-	    output_one_struct(ofile, tp)
+	    output_one_struct(ofile, tp, name)
 	else
 	    -- If it is not a structure, still memorize the current elem_start.
 	    -- It will be output, causing the correct element count for the
@@ -753,8 +802,9 @@ end
 -- Mark all data types used by the functions (return type, arguments) as used.
 --
 function _function_analyze(fname)
-    for i, type_id in ipairs(funclist[fname]) do
-	mark_type_id_in_use(type_id)
+    -- arg_info: [ arg_type, arg_name ]
+    for arg_nr, arg_info in ipairs(funclist[fname]) do
+	mark_type_id_in_use(arg_info[1])
     end
 end
 
@@ -819,7 +869,8 @@ function mark_typedef_in_use(typedef)
 
     -- mark types of arguments
     if typedef.prototype then
-	for i, type_id in ipairs(typedef.prototype) do
+	for i, arg_info in ipairs(typedef.prototype) do
+	    local type_id = arg_info[1]
 	    mark_type_id_in_use(type_id)
 	end
     end
@@ -858,30 +909,39 @@ end
 -- @return A string with the signature, ready to be written to the function
 --  output file.
 function _function_signature(fname)
-    -- return fname .. "," .. _function_arglist(funclist[fname])
-    return fname .. "," .. string.gsub(_function_arglist(funclist[fname]),
+    return fname .. "," .. string.gsub(_function_arglist(funclist[fname],
+	fname),
 	".", function(c) return string.format("\\%03o", string.byte(c)) end)
 end
 
-function _function_arglist(arg_list)
-    local tp, val, s
+function _function_arglist(arg_list, fname)
+    local tp, val, s, type_id
 
     s = ""
-    for i, type_id in ipairs(arg_list) do
+    for i, arg_info in ipairs(arg_list) do
+	type_id = arg_info[1]
 	tp = resolve_type(type_id)
 	val = tp.fid
 	if tp.detail ~= nil then
 	    val = bit.bor(val, 0x80)
 	end
+
+	-- char* return values
+	if i == 1 and tp.name == "char" and tp.pointer == 1 then
+	    val = val + _handle_char_ptr_returns(arg_list, tp, fname)
+	end
+
+
 	s = s .. string.char(val)
-	-- s = s .. string.format("\\%03o", val)
 	if tp.detail ~= nil then
-	    if tp.name == "func" then register_prototype(tp.detail) end
+	    if tp.name == "func" then
+		register_prototype(tp.detail,
+		    string.format("%s.%s", fname, arg_info[2]))
+	    end
 	    local id = tp.detail.struct_id or tp.detail.proto_id
 	    assert(id, "arglist type not registered: " .. type_id)
 	    s = s .. string.char(bit.band(bit.rshift(id, 8), 255),
 		bit.band(id, 255))
-	    -- s = s .. format_2bytes(id)
 	end
     end
 
@@ -889,6 +949,46 @@ function _function_arglist(arg_list)
     max_func_args = math.max(max_func_args, #arg_list)
 
     return s
+end
+
+---
+-- The function returns char* or const char*.  Determine whether the returned
+-- string should be g_free()d, which should coincide with the const attribute:
+-- const strings are not freed, while non-const are.
+--
+-- Returns 1 if the returned string should be freed, 0 otherwise.
+--
+function _handle_char_ptr_returns(arg_list, tp, fname)
+
+    local method
+
+    -- this is what the API says; consts should not be freed.
+    local default_method = tp.const and 0 or 1
+
+    -- The free_method may have been defined by reading the
+    -- char_ptr_handling.txt file.
+    if arg_list.free_method then
+	method = arg_list.free_method
+    else
+
+	-- This might be a function argument or structure member, and therefore
+	-- should have an entry in this table:
+	method = free_methods[fname]
+
+	if not method then
+	    print(string.format("Warning: free method not defined for %s",
+		fname))
+	    method = default_method
+	end
+    end
+
+    -- Warn if API and my list differ.  Sometimes this is intentionally,
+    -- but then should be documented in char_ptr_handling.txt.
+    if method ~= default_method then
+	print("Warning: inconsistency of free method of function " .. fname)
+    end
+
+    return method
 end
 
 
@@ -951,12 +1051,16 @@ function output_types(ofname)
     for i, v in ipairs(fundamental_ifo) do
 	ffitype = fundamental_to_ffi(v) or { nil, 0, nil, nil, nil, nil }
 
+	-- Here the second char* entry gets the "4" flag to mark it as const.
+	-- This is then used in src/types.c:ffi2lua_char_ptr.
+	local flags = (i == char_ptr_second) and 4 or 0
+
 	ofs = _type_name_add(v.name)
 	ofile:write(string.format("  { %d, %d, %d, %d, %s, %s, %s, %s, %s },\n",
 	    ofs,		-- name_ofs
 	    v.bit_len or 0,	-- bit_len
 	    v.pointer,		-- indirections
-	    ffitype[2],		-- flags
+	    ffitype[2] + flags,	-- flags
 	    ffitype[3] and "LUA2FFI_" .. string.upper(ffitype[3]) or 0,
 	    ffitype[4] and "FFI2LUA_" .. string.upper(ffitype[4]) or 0,
 	    ffitype[5] and "LUA2STRUCT_" .. string.upper(ffitype[5]) or 0,
@@ -1077,6 +1181,49 @@ function look_at(tp)
 
     tp.is_widget = false
 end
+
+-- Read a list of specs how to handle char* return values of functions.
+function get_extra_data()
+    for line in io.lines("src/char_ptr_handling.txt") do
+	local func, method = string.match(line, '^([^#,]*),(%d)$')
+	if func and method then
+	    _set_char_ptr_handling(func, tonumber(method))
+	end
+    end
+end
+
+---
+-- Set the free_method of a given function
+--
+function _set_char_ptr_handling(funcname, method)
+
+    -- funcnames that include a dot are not simple functions, but refer to
+    -- an argument of a function, or a member of a structure.
+    local parent, item = string.match(funcname, "^([^.]+)%.(.*)$")
+    if parent and item then
+	-- print("ignore char handling", parent, item)
+	free_methods[funcname] = method
+	return
+    end
+
+    local fi = funclist[funcname]
+    assert(fi, "Undefined function in char_ptr_handling.txt: " .. funcname)
+    assert(fi.free_method == nil, "Duplicate in char_ptr_handling.txt: "
+	.. funcname)
+    tp = resolve_type(fi[1][1])
+
+    -- must be a char*, i.e. with one level of indirection
+    assert(tp.name == "char")
+    assert(tp.pointer == 1)
+
+    -- If a return type is "const char*", then this usually means "do not
+    -- free it".  Alas, this rule of thumb has exceptions.
+    if not (method == 0 and tp.const or method == 1 and not tp.const) then
+	print("Warning: inconsistency of free method of function " .. funcname)
+    end
+
+    fi.free_method = method
+end
     
 
 -- MAIN --
@@ -1086,6 +1233,7 @@ if #arg ~= 2 then
 end
 
 parse_xml(arg[2])
+get_extra_data()
 analyze_functions()
 analyze_globals()
 mark_all_enums_as_used()
