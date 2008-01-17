@@ -1,6 +1,5 @@
 #! /usr/bin/lua
 require "gtk"
-gtk.init()
 
 -- test ENUMs
 
@@ -24,6 +23,19 @@ assert(rc == false)
 -- unset flags
 w = w - gtk.GTK_CAN_DEFAULT
 assert(tostring(w) == "GtkWidgetFlags:realized")
+
+-- comparison, conversion to integer (possibly negative)
+v = gtk.GTK_CAN_DEFAULT
+w = gtk.GTK_REALIZED
+assert(v == v)
+assert(v ~= w)
+assert(v:tonumber() == 8192)
+assert(gtk.GTK_RESPONSE_OK:tonumber() == -5)
+
+-- can't compare different enums
+rc, msg = pcall(function() return gtk.GTK_STATE_NORMAL == gtk.GTK_WINDOW_TOPLEVEL end)
+assert(rc == false)
+
 
 -- integer constants
 v = gtk.G_TYPE_INT
