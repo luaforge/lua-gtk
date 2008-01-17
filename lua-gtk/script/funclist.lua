@@ -8,22 +8,12 @@
 
 require "gtk"
 
----
--- Generate a function signature
---
--- @param fname    Name of the function
---
-function func_sig(fname)
-    return gtk.function_sig(fname)
-end
-
-
 function main(ifname)
     local fname
 
     for line in io.lines(ifname) do
 	fname = line:match("^([^,]+)")
-	print(func_sig(fname))
+	print(gtk.function_sig(fname) or "not found: " .. fname)
     end
 end
 
