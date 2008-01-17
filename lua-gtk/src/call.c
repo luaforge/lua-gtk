@@ -204,7 +204,7 @@ inline void get_next_argument(const unsigned char **p, int *type_nr,
 static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 {
     const unsigned char *s, *s_end;
-    struct lua2ffi_arg_t ar;
+    struct argconv_t ar;
     int arg_nr, stack_top = lua_gettop(L), idx;
 
     /* build the call stack by parsing the parameter list */
@@ -303,12 +303,11 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
  * Note: the stack still contains the parameters to the called function;
  * these are currently not used, though.
  */
-static int _call_return_values(lua_State *L, struct call_info *ci)
+static int _call_return_values(lua_State *L, int index, struct call_info *ci)
 {
-    int stack_pos = lua_gettop(L), arg_nr, arg_struct_nr, ffi_type_nr;
+    int stack_pos = lua_gettop(L), arg_nr;
     const unsigned char *s, *s_end;
-    const struct ffi_type_map_t *arg_type;
-    struct ffi2lua_arg_t ar;
+    struct argconv_t ar;
 
     ar.L = L;
     ar.ci = ci;
@@ -319,26 +318,27 @@ static int _call_return_values(lua_State *L, struct call_info *ci)
     s_end = s + ci->fi->args_len;
 
     for (arg_nr = 0; s < s_end; arg_nr++) {
-	get_next_argument(&s, &ffi_type_nr, &arg_struct_nr);
-	arg_type = &ffi_type_map[ffi_type_nr];
+	get_next_argument(&s, &ar.ffi_type_nr, &ar.arg_struct_nr);
+	ar.arg_type = &ffi_type_map[ar.ffi_type_nr];
 
 	// always return the actual return value; others only if they are
 	// pointers and thus can be an output value.
-	if (arg_nr != 0 && arg_type->indirections == 0)
+	if (arg_nr != 0 && ar.arg_type->indirections == 0)
 	    continue;
 	
 	// return all arguments that look like output arguments.
-	int idx = arg_type->ffi2lua_idx;
+	int idx = ar.arg_type->ffi2lua_idx;
 	if (idx) {
-	    ar.func_arg_nr = arg_nr;
+	    ar.index = index + arg_nr;
 	    ar.arg = &ci->ffi_args[arg_nr];
-	    ar.arg_struct_nr = arg_struct_nr;
+	    ar.func_arg_nr = arg_nr;
+	    ar.lua_type = lua_type(L, index+arg_nr);
 	    ffi_type_ffi2lua[idx](&ar);
 	} else if (arg_nr == 0) {
 	    // all direct return values must be handled.
 	    call_info_warn(ci);
 	    luaL_error(L, "%s unhandled return type %s\n",
-		msgprefix, LUAGTK_TYPE_NAME(arg_type));
+		msgprefix, LUAGTK_TYPE_NAME(ar.arg_type));
 	}
     }
 
@@ -397,7 +397,7 @@ int luagtk_call(lua_State *L, struct func_info *fi, int index)
 	    ffi_call(&cif, fi->func, &ci->ffi_args[0], ci->argvalues + 1);
 
 	    /* evaluate the return values */
-	    rc = _call_return_values(L, ci);
+	    rc = _call_return_values(L, index, ci);
 	} else {
 	    printf("FFI call to %s couldn't be initialized\n", fi->name);
 	}
