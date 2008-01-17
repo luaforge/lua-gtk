@@ -133,6 +133,39 @@ static int l_gtk_lookup(lua_State *L)
 }
 
 
+/*-
+ * For some classes, no _new function exists, but a _free function does.
+ * Newer Gtk versions tend to use GSlice, but this hasn't always been so.
+ * In order to make lua-gtk compatible with older versions, in certain
+ * cases g_malloc has to be used to allocate certain classes.
+ */
+#define _VERSION(x,y,z) ((x)*10000 + (y)*100 + (z))
+struct uses_g_malloc {
+    const char *struct_name;
+    int version_from, version_to;	// range of Gtk versions using g_malloc
+} uses_g_malloc[] = {
+    { "GtkTreeIter", 0, _VERSION(2,10,11) },	// SVN version 17761
+    { "GdkColor", 0, _VERSION(2,8,8) },		// SVN version 14359
+    { NULL, 0, 0 }
+};
+
+
+static int _need_g_malloc(const char *struct_name)
+{
+    struct uses_g_malloc *p;
+    int version = _VERSION(GTK_MAJOR_VERSION, GTK_MINOR_VERSION,
+	GTK_MICRO_VERSION);
+
+    for (p=uses_g_malloc; p->struct_name; p++)
+	if (!strcmp(struct_name, p->struct_name)
+	    && p->version_from <= version && version <= p->version_to)
+	    return 1;
+
+    return 0;
+}
+#undef _VERSION
+
+
 /**
  * Allocate a structure, initialize with zero and return it.
  *
@@ -168,12 +201,19 @@ static int l_new(lua_State *L)
     if (find_func(tmp_name, &fi))
 	return luagtk_call(L, &fi, 2);
 
+    /* Some objects don't use the GSlice mechanism, depending on the
+     * Gtk version.  Allocation would be fine, but calling the free
+     * function or copy function would mess things up. */
+    if (_need_g_malloc(struct_name))
+	p = g_malloc(si->struct_size);
+    else
+	p = g_slice_alloc0(si->struct_size);
+
     /* Allocate and initialize the object.  I used to allocate just one
      * userdata big enough for both the wrapper and the widget, but many free
      * functions exist, like gtk_tree_iter_free, and they expect a memory block
      * allocated by g_slice_alloc0.  Therefore this optimization is not
      * possible. */
-    p = g_slice_alloc0(si->struct_size);
 
     /* Make a Lua wrapper for it, push it on the stack.  FLAG_ALLOCATED causes
      * the _malloc_handler be used, and FLAG_NEW_OBJECT makes it not complain
