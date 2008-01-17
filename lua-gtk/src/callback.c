@@ -345,25 +345,31 @@ static void closure_handler(ffi_cif *cif, void *retval, void **args,
     // get the callback
     lua_rawgeti(L, LUA_REGISTRYINDEX, cb->func_ref);
 
-    struct ffi2lua_arg_t ar;
+    struct argconv_t ar;
     ar.L = L;
     ar.ci = NULL;
-    ar.func_arg_nr = 0;	    // make the ffi2lua functions think it's always
-    // a return value
+    ar.func_arg_nr = 0;	    // make ffi2lua_xxx() think it's always a retval
 
     const unsigned char *sig = cb->sig;
     const unsigned char *sig_end = sig + 1 + *sig;
-    int arg_nr, type_nr;
+    int arg_nr;
     sig++;
 
     // push the arguments to the Lua stack
     for (arg_nr=0; sig < sig_end; arg_nr ++) {
-	get_next_argument(&sig, &type_nr, &ar.arg_struct_nr);
-	if (arg_nr == 0)
+	get_next_argument(&sig, &ar.ffi_type_nr, &ar.arg_struct_nr);
+	if (arg_nr == 0)    // skip retval
 	    continue;
-	int idx = ffi_type_map[type_nr].ffi2lua_idx;
-	ar.arg = (union gtk_arg_types*) args[arg_nr - 1];
-	ffi_type_ffi2lua[idx](&ar);
+	ar.arg_type = &ffi_type_map[ar.ffi_type_nr];
+	int idx = ar.arg_type->ffi2lua_idx;
+	if (idx) {
+	    ar.index = arg_nr;
+	    ar.arg = (union gtk_arg_types*) args[arg_nr - 1];
+	    ar.lua_type = lua_type(L, ar.index);
+	    ffi_type_ffi2lua[idx](&ar);
+	} else
+	    luaL_error(L, "%s unhandled argument type %s in closure",
+		msgprefix, LUAGTK_TYPE_NAME(ar.arg_type));
     }
 
     int arg_cnt = lua_gettop(L) - top - 1;
@@ -375,7 +381,7 @@ static void closure_handler(ffi_cif *cif, void *retval, void **args,
     // stack: [top+1]=return value
     // Convert the result to ffi, set *retval
     {
-	struct lua2ffi_arg_t ar;
+	struct argconv_t ar;
 	int idx;
 
 	ar.L = L;
