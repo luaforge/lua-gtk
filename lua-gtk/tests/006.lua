@@ -3,7 +3,6 @@
 
 require "gtk"
 
-gtk.init(0)
 w = gtk.combo_box_new()
 ls = gtk.list_store_new(2, gtk.G_TYPE_INT, gtk.G_TYPE_STRING)
 w:set_model(ls)

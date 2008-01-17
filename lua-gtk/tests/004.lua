@@ -10,7 +10,6 @@ ofname = "demo-out.jpg"
 osize_target = 26645
 rc = 0
 
-gtk.init()
 pixbuf = gtk.gdk_pixbuf_new_from_file_at_size(ifname, 800, 600, nil)
 if not pixbuf then
 	print("Can't load image from " .. ifname)
