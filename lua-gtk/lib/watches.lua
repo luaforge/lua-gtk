@@ -47,22 +47,22 @@ function _watch_func(thread, channel, cond)
 	    gtk.main_quit()
 	end
 	remove_watch(thread, nil, nil)
-	return rc
+	return false
     end
 
     -- Blocked on a channel? if the IOWait doesn't exist yet, add it.
     if msg == "iowait" then
 	add_watch(thread, channel, cond)
-	return rc
+	return false
     end
 
     -- not blocked on this channel; either sleep, or exit.
     remove_watch(thread, nil, nil)
 
-    -- sleep a certain interval?
+    -- sleep a certain interval?  channel is the interval
     if msg == "sleep" then
 	gtk.g_timeout_add(channel, _watch_func, thread)
-	return rc
+	return false
     end
 
     if (not msg) and channel then print(channel) end
