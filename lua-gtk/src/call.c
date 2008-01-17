@@ -152,7 +152,7 @@ void call_info_msg(struct call_info *ci, enum luagtk_msg_level level,
     call_info_warn(ci);
     if (level > 3)
 	luaL_error(ci->L, "call_info_msg(): Invalid level %d\n", level);
-    puts(_call_info_messages[level]);
+    printf("%s ", _call_info_messages[level]);
     va_list ap;
     va_start(ap, format);
     vprintf(format, ap);
