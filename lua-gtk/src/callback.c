@@ -352,7 +352,7 @@ static void closure_handler(ffi_cif *cif, void *retval, void **args,
     // a return value
 
     const unsigned char *sig = cb->sig;
-    const unsigned char *sig_end = sig + *sig;
+    const unsigned char *sig_end = sig + 1 + *sig;
     int arg_nr, type_nr;
     sig++;
 
@@ -369,9 +369,30 @@ static void closure_handler(ffi_cif *cif, void *retval, void **args,
     int arg_cnt = lua_gettop(L) - top - 1;
 
     // call the lua function, allow one return value
+    // printf("call from closure cb %p\n", cb);
     lua_call(L, arg_cnt, 1);
 
-    // XXX missing: convert the result to ffi, set *retval
+    // stack: [top+1]=return value
+    // Convert the result to ffi, set *retval
+    {
+	struct lua2ffi_arg_t ar;
+	int idx;
+
+	ar.L = L;
+	ar.ci = NULL;
+	sig = cb->sig + 1;
+	get_next_argument(&sig, &ar.ffi_type_nr, &ar.arg_struct_nr);
+	ar.arg_type = &ffi_type_map[ar.ffi_type_nr];
+	ar.index = top + 1;
+	ar.lua_type = lua_type(L, ar.index);
+
+	// if index is 0, no lua2ffi function is defined for this type.
+	idx = ar.arg_type->lua2ffi_idx;
+	if (idx) {
+	    ar.arg = (union gtk_arg_types*) retval;
+	    ffi_type_lua2ffi[idx](&ar);
+	}
+    }
 
     // clean the stack
     lua_settop(L, top);
@@ -381,11 +402,13 @@ static void closure_handler(ffi_cif *cif, void *retval, void **args,
 /**
  * Initialize the arg_types array with the types taken from the function's
  * signature.  If called with arg_types == NULL, just count the number of args.
+ *
+ * The first byte is the length of the following data.
  */
 static int set_ffi_types(const unsigned char *sig, ffi_type **arg_types)
 {
     int type_nr, struct_nr, arg_nr=0;
-    const unsigned char *sig_end = sig + *sig;
+    const unsigned char *sig_end = sig + 1 + *sig;
     sig ++;
 
     while (sig < sig_end) {
@@ -421,8 +444,10 @@ void *luagtk_make_closure(lua_State *L, int index,
 
     closure = (ffi_closure*) ffi_closure_alloc(sizeof(*closure), &code);
 
-    // the count includes the return value.
+    // The count includes the return value, and therefore must be at least 1.
     arg_count = set_ffi_types(signature, NULL);
+    if (arg_count <= 0)
+	luaL_error(L, "luagtk_make_closure: invalid signature");
 
     // allocate and fill ffi_cif
     int bytes = sizeof(*cif) + sizeof(*cb) + sizeof(ffi_type*) * arg_count;
@@ -435,7 +460,7 @@ void *luagtk_make_closure(lua_State *L, int index,
     cb->func_ref = luaL_ref(L, LUA_REGISTRYINDEX);
     cb->sig = signature;
 
-    // fill arg_types
+    // fill arg_types (including the return value)0
     set_ffi_types(signature, arg_types);
 
     ffi_prep_cif(cif, FFI_DEFAULT_ABI, arg_count-1, arg_types[0], arg_types+1);
