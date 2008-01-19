@@ -153,8 +153,8 @@ struct uses_g_malloc {
 static int _need_g_malloc(const char *struct_name)
 {
     struct uses_g_malloc *p;
-    int version = _VERSION(GTK_MAJOR_VERSION, GTK_MINOR_VERSION,
-	GTK_MICRO_VERSION);
+    int version = _VERSION(gtk_major_version, gtk_minor_version,
+	gtk_micro_version);
 
     for (p=uses_g_malloc; p->struct_name; p++)
 	if (!strcmp(struct_name, p->struct_name)
