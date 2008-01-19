@@ -1,4 +1,4 @@
-#! /usr/bin/lua
+#! /usr/bin/env lua
 require "gtk"
 
 -- test that arbitrary values can be stored in a widget.

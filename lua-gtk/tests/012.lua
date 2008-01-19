@@ -1,4 +1,4 @@
-#! /usr/bin/lua
+#! /usr/bin/env lua
 -- Test reference counting and memory management.
 
 require "gtk"

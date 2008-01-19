@@ -1,9 +1,9 @@
-#! /usr/bin/lua
+#! /usr/bin/env lua
+require "gtk"
 
 -- call g_convert functions; this also tests how char** arguments
 -- are handled; right now not very well.
 
-require "gtk"
 
 latin1_string = "Teststring - öäü ÖÄÜ ß ENDE AAAAAAAAAAAAAAA ENDE2"
 

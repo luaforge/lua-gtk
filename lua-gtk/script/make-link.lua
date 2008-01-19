@@ -1,4 +1,4 @@
-#! /usr/bin/lua
+#! /usr/bin/env lua
 -- vim:sw=4:sts=4
 --
 -- Read linklist.txt and the type XML file to generate the C and header files.

@@ -1,4 +1,4 @@
-#! /usr/bin/lua
+#! /usr/bin/env lua
 -- vim:sw=4:sts=4
 --
 -- Certain #defines from the Gtk/Gdk include files are relevant, but not

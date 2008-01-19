@@ -1,4 +1,4 @@
-#! /usr/bin/lua
+#! /usr/bin/env lua
 require "gtk"
 
 -- test access to widget functions

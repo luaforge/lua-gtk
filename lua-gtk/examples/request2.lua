@@ -1,4 +1,4 @@
-#! /usr/bin/lua
+#! /usr/bin/env lua
 -- vim:sw=4:sts=4
 --
 -- Same example as request.lua, but this time use a Glade XML file to create

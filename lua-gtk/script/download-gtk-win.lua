@@ -1,4 +1,4 @@
-#! /usr/bin/lua
+#! /usr/bin/env lua
 -- vim:sw=4:sts=4
 --
 -- Download required prebuilt Gtk related libraries from gnome.org  The

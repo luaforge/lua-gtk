@@ -1,4 +1,4 @@
-#! /usr/bin/lua
+#! /usr/bin/env lua
 -- vim:sw=4:sts=4
 -- Test assignment to a structure element and using arbitrary keys.
 

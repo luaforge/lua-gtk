@@ -1,4 +1,4 @@
-#! /usr/bin/lua
+#! /usr/bin/env lua
 -- vim:sw=4:sts=4
 --
 -- Dump a list of function signatures of all supported functions to stdout.

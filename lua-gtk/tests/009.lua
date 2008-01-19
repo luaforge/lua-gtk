@@ -1,4 +1,4 @@
-
+#! /usr/bin/env lua
 require "gtk"
 
 gtk.set_debug_flags("valgrind")
