@@ -55,8 +55,8 @@ Procedure
 
  - edit script/Makefile.linux to suit your installation.  This is NOT an
    autoconf generated file.  Not many options are useful to change.
- - make.sh
- - make.sh install (as root); alternatively, create symlinks to the build
+ - make
+ - make install (as root); alternatively, create symlinks to the build
    directory, which is nice during development, as the install step isn't
    required:
    /usr/local/lib/lua/5.1/gtk.so --> ..../lua-gtk/build/linux/gtk.so
@@ -111,13 +111,13 @@ Step 2
 
 Build the library by calling
 
-	./make.sh win32
+	make win32
 
-This builds the file build/win32/gtk.dll.  The script make.sh "remembers" which
+This builds the file build/win32/gtk.dll.  The Makefile "remembers" which
 platform you built for, so you don't have to specify win32 in subsequent
 calls.  To obtain a ZIP file with all the required files, do this:
 
-	./make.sh zip
+	make zip
 
 This will create the tree /tmp/lua-gtk-$(VERSION), along with a suitable
 ZIP file.  Copy that to the windows box, and try it out.
