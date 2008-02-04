@@ -1,6 +1,7 @@
 #! /usr/bin/env lua
 -- vim:sw=4:sts=4
--- Test assignment to a structure element and using arbitrary keys.
+-- Test reading and writing an integer in a structure, and using arbitrary
+-- keys.
 
 require "gtk"
 
@@ -30,4 +31,8 @@ assert(x.something == "hello")
 -- objects of this class.  instead, it is stored in the (hidden) environment
 -- of the object.
 assert(mt.something == nil)
+
+-- not shared between instances; access must fail
+rc, msg = pcall(function() foo = y.something end)
+assert(rc == false, "y.something must not be set")
 
