@@ -80,7 +80,7 @@ ${ODIR}_override.c: ${ODIR}override.luac ${ODIR}file2c
 	$H ${ODIR}file2c override < $< > $@
 	
 ${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}gtkdata.%.h: ${ODIR}types.xml \
-	script/parse-xml.lua script/get-defines.lua
+	script/parse-xml.lua script/get-defines.lua src/fundamental.lua
 	@echo "Generating Gtk Data..."
 	$H script/parse-xml.lua "${ODIR}" $<
 	$H script/get-defines.lua >> ${ODIR}gtkdata.enums.txt
@@ -236,6 +236,9 @@ help:
 	@echo "  platform:  optional, may be linux, archlinux or win32"
 	@echo "  target: optional, default is all, also known:"
 	@echo "    help, doc, install, clean, mrproper and maybe more."
+
+funclist: ${ODIR}gtkdata.funcs.txt
+	$H script/funclist.lua ${ODIR}gtkdata.funcs.txt
 
 # -- dependencies --
 
