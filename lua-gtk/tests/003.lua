@@ -45,3 +45,17 @@ assert(type(v) == "number")
 v = gtk.GTK_STOCK_OPEN
 assert(v == "gtk-open")
 
+-- access a structure with ENUMs in it.  accessor function should be used,
+-- though.
+tree = gtk.tree_view_new()
+sel = tree:get_selection()
+assert(sel.type == gtk.GTK_SELECTION_SINGLE)
+
+sel.type = gtk.GTK_SELECTION_BROWSE
+assert(sel.type == gtk.GTK_SELECTION_BROWSE)
+
+rc, msg = pcall(function() sel.type = gtk.GTK_WINDOW_TOPLEVEL end)
+assert(not rc)
+
+
+
