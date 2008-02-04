@@ -305,9 +305,11 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
  */
 static int _call_return_values(lua_State *L, int index, struct call_info *ci)
 {
-    int stack_pos = lua_gettop(L), arg_nr;
+    int stack_pos = lua_gettop(L), arg_nr, skip=0;
     const unsigned char *s, *s_end;
     struct argconv_t ar;
+
+//    printf("return values for %s\n", ci->fi->name);
 
     ar.L = L;
     ar.ci = ci;
@@ -319,6 +321,12 @@ static int _call_return_values(lua_State *L, int index, struct call_info *ci)
 
     for (arg_nr = 0; s < s_end; arg_nr++) {
 	get_next_argument(&s, &ar.ffi_type_nr, &ar.arg_struct_nr);
+
+	if (skip) {
+	    skip--;
+	    continue;
+	}
+
 	ar.arg_type = &ffi_type_map[ar.ffi_type_nr];
 
 	// always return the actual return value; others only if they are
@@ -329,11 +337,15 @@ static int _call_return_values(lua_State *L, int index, struct call_info *ci)
 	// return all arguments that look like output arguments.
 	int idx = ar.arg_type->ffi2lua_idx;
 	if (idx) {
-	    ar.index = index + arg_nr;
+	    ar.index = index + arg_nr - 1;
 	    ar.arg = &ci->ffi_args[arg_nr];
 	    ar.func_arg_nr = arg_nr;
-	    ar.lua_type = lua_type(L, index+arg_nr);
-	    ffi_type_ffi2lua[idx](&ar);
+	    ar.lua_type = arg_nr ? lua_type(L, ar.index) : LUA_TNIL;
+//	    printf("retval #%d, index %d, type %s\n", arg_nr, ar.index,
+//		lua_typename(L, ar.lua_type));
+	    int cnt = ffi_type_ffi2lua[idx](&ar);
+	    if (cnt > 0)
+		skip = cnt - 1;
 	} else if (arg_nr == 0) {
 	    // all direct return values must be handled.
 	    call_info_warn(ci);
