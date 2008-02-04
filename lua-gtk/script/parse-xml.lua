@@ -31,6 +31,7 @@ package.path = package.path .. ";" .. string.gsub(arg[0], "%/[^/]+$", "/?.lua")
 require "common"
 
 funclist = {}	    -- [name] = [ [rettype,"retval"], [arg1type, arg1name], ...]
+funclist2 = {}
 unhandled = {}	    -- [name] = true
 globals = {}	    -- [name] = {...}
 typedefs = {}	    -- [id] = { type=..., name=..., struct=... }
@@ -38,7 +39,7 @@ typedefs = {}	    -- [id] = { type=..., name=..., struct=... }
 enum_values = {}    -- [name] = { val, context }
 max_bit_offset = 0
 max_bit_length = 0
-max_struct_id = 0
+max_struct_id = 0   -- last struct_id in use
 max_func_args = 0
 max_struct_size = 0
 fundamental_name2id = {}
@@ -57,76 +58,14 @@ used_override = {
     ["GtkFileChooserDialog"] = true,
 }
 
--- List of fundamental types existing.  the fid (fundamental id) is an index
--- into this table.  Append as many "*" to the name as there are indirections.
--- More fundamental types will be created and added as found.  No in_use field
--- exists, as these entries are only created during the mark_as_used phase.
-fundamental_ifo = {
-    { name="vararg" },
-    { name="func" },
-    { name="struct" },
-    { name="union" },
-    { name="enum" },
-}
+-- List of fundamental types existing.  The fid (fundamental id) is an index
+-- into this table; the first entry starts at index 1.  Append as many "*" to
+-- the name as there are indirections.  The entries are added as found and
+-- therefore are all in use.
+fundamental_ifo = {}
 
--- init fundamental types
-for i, v in ipairs(fundamental_ifo) do
-    fundamental_name2id[v.name] = i
-    v.pointer = 0	-- number of indirections
-end
-next_fid = #fundamental_ifo + 1
-
-
----
--- For each fundamental type, give the FFI type to use when building
--- the parameter list, and a numerical type for handling the types in
--- a switch statement.
---
--- {ffi_type, flags, lua2ffi, ffi2lua, lua2struct, struct2lua}
---
-fundamental_map = {
-    -- Note: ffi_type for vararg is "void".  This is not exactly true, as
-    -- a vararg will be replaced by zero or more arguments of variable type in
-    -- an actual function call.  types.c:lua2ffi_vararg will replace it anyway
-    -- so it could be anything, but it can't be nil, because then
-    -- call.c:_call_build_parameters would complain about using a type with
-    -- undefined ffi_type.
-    ["vararg"] = { "void", 0, "vararg", nil, nil, nil },
-    ["void"] = { "void", 0, nil, "void", nil, nil },
-    ["enum"] = { "uint", 3, "enum", "enum", "enum", "enum" },
-    ["struct"] = { "pointer", 0, nil, nil, nil, "struct" },
-	    -- for globals XXX may be wrong
-    ["union"] = { "pointer", 0, nil, nil, nil, "struct" },
-	    -- same as struct, actually
-
-    ["short unsigned int"] = { "ushort", 3, "long", "long", "long", "long" },
-    ["short int"] = { "sshort", 3, "long", "long", "long", "long" },
-    ["unsigned char"] = { "uchar", 3 },
-    ["signed char"] = { "schar", 3 },
-    ["char"] = { "schar", 3 },
-    ["long long unsigned int"] = { "ulong", 3, "longlong" },
-    ["long unsigned int"] = { "ulong", 3, "long", "long", "long" },
-    ["long long int"] = { "slong", 3, "longlong" },
-    ["long int"] = { "slong", 3, "long", "long", "long", "long" },
-    ["int"] = { "sint", 3, "long", "long", "long", "long" },
-    ["unsigned int"] = { "uint", 3, "long", "long", "long", "long" },
-    ["long double"] = { "double", 1, "double" },
-    ["double"] = { "double", 1, "double", "double" },
-    ["float"] = { "float", 1, "float" },
-    ["boolean"] = { "uint", 3, "bool", "bool" },
-
-    -- pointer types
-    ["struct*"] = { "pointer", 0, "struct_ptr", "struct_ptr", nil, "struct_ptr" },
-    ["union*"] = { "pointer", 0, "struct_ptr", "struct_ptr", nil, "struct_ptr" },
-    ["char*"] = { "pointer", 0, "char_ptr", "char_ptr", nil, "char_ptr" },
-    ["char**"] = { "pointer", 0, "char_ptr_ptr", "char_ptr_ptr", nil, nil },
-    ["unsigned char*"] = { "pointer", 0, "char_ptr", "char_ptr", nil, "char_ptr" },
-    ["void*"] = { "pointer", 0, "void_ptr", "void_ptr", nil, nil },
-    ["int*"] = { "pointer", 0, "int_ptr", "int_ptr", nil, nil },
-    ["unsigned int*"] = { "pointer", 0, "int_ptr", "int_ptr", nil, nil },
-    ["func*"] = { "pointer", 0, "func_ptr", nil, "func_ptr" },
-    ["struct**"] = { "pointer", 0, "struct_ptr_ptr", "struct_ptr_ptr" },
-}
+-- get the list of supported fundamental data types.
+require "src/fundamental"
 
 ---
 -- Check whether a given fundamental type is already known.  If not,
@@ -136,29 +75,38 @@ function register_fundamental(name, pointer, bit_len)
     local fid
 
     assert(name, "Trying to register fundamental type with null name")
+
+    -- fixup for atk_object_connect_property_change_handler.  The second
+    -- argument's type seems to be "func**", but it really is "func*".
+    if name == 'func' and pointer > 1 then pointer = 1 end
+
     name = name .. string.rep("*", pointer)
     fid = fundamental_name2id[name]
     if fid then return fid end
-    fid = next_fid
 
-    fundamental_ifo[#fundamental_ifo + 1] = {
+    -- register new fundamental type
+    fid = #fundamental_ifo + 1
+    assert(fid < 100, "Too many fundamental types!")
+
+    fundamental_ifo[fid] = {
 	name = name,
 	pointer = pointer,
 	bit_len = bit_len
     }
-    fundamental_name2id[name] = next_fid
-    next_fid = next_fid + 1
+    fundamental_name2id[name] = fid
 
     -- Special case for char*: add another entry for const char*, which
     -- must directly follow the regular char* entry.
     if name == "char*" then
-	-- print "register_fundamental: adding const char*"
-	fundamental_ifo[#fundamental_ifo + 1] =
-	    fundamental_ifo[#fundamental_ifo]
-	char_ptr_second = next_fid
-	next_fid = next_fid + 1
+	fundamental_ifo[fid + 1] = {
+	    name = "const char*",
+	    pointer = pointer,
+	    bit_len = bit_len
+	}
+	char_ptr_second = fid + 1
     end
 
+    -- print("register fundamental type", fid, name, bit_len)
     return fid
 end
 
@@ -246,7 +194,7 @@ xml_tags = {
 	    el.type = do_override(override)
 	end
 	st.fields[el.id] = { name=el.name, type=el.type, offset=el.offset,
-	    bits=el.bits }
+	    size=el.bits }
 	max_bit_offset = math.max(max_bit_offset, el.offset)
 	-- in most cases, no bit length is given; mostly it derives from the
 	-- referenced type.
@@ -289,12 +237,6 @@ xml_tags = {
 	local fid = register_fundamental(el.name, 0, el.size)
 	typedefs[el.id] = { type="fundamental", name=el.name, size=el.size,
 	    align=el.align, fid=fid }
-
---	fundamental_name2id[el.name] = next_fid
---	fundamental_ifo[next_fid] = { name=el.name, type_id=el.id, pointer=0,
---	    bit_len=el.size }
---	next_fid = next_fid + 1
-
 	if not el.size and el.name ~= "void" then
 	    print("Warning: fundamental type without size: " .. el.name)
 	end
@@ -359,6 +301,8 @@ function xml_struct_union(p, el, what)
 	    return
 	end
 	local st = t.struct
+	assert(not st.fields[el.id], "repeated ID " .. el.id .. " in "
+	    .. my_name)
 	st.fields[el.id] = { type=what, id=el.id }
     end
 end
@@ -422,7 +366,7 @@ end
 function mark_ifaces_as_used()
     for type_id, tp in pairs(typedefs) do
 	if tp.type == "struct" and string.match(tp.name, "Iface$") then
-	    mark_typedef_in_use(tp)
+	    mark_typedef_in_use(tp, tp.name)
 	end
     end
 end
@@ -470,14 +414,17 @@ end
 -- union, fundamental type, function, enum, array, pointer or maybe other
 -- things.
 --
--- @param type_id Type identifier, which is a number with leading _
+-- @param type_id  Type identifier, which is a number with leading _
+-- @param size  For structure elements, a bitsize is usually given and can
+--   override the default size; only useful for integers.
 --
 -- @return Table with fields name, bit_len, bit_size, detail, pointer, array,
 --  fid
 --
-function resolve_type(type_id)
+function resolve_type(type_id, size)
     if type_id == nil then return {} end
-    local res = { bit_len=0, detail=nil, pointer=0, array=0 }
+    local res = { bit_len=size or 0, detail=nil, pointer=0, array=0,
+	name=nil, name2=nil }
 
     if type_id == "vararg" then
 	res.name = type_id
@@ -485,6 +432,9 @@ function resolve_type(type_id)
 
     while typedefs[type_id] do
 	tp = typedefs[type_id]
+
+	-- use the most generic name for this type
+	res.name2 = tp.name or res.name2
 
 	-- pointer to something
 	if tp.type == "pointer" then
@@ -522,6 +472,7 @@ function resolve_type(type_id)
 	elseif tp.type == "func" then
 	    res.name = "func"
 	    res.detail = tp
+	    -- res.prototype = tp.prototype
 	    break
 
 	-- an enum
@@ -576,27 +527,24 @@ local elem_start = 0	-- current position in the element table
 -- Add another string to the string table and return the offset.  If the string
 -- already exists, reuse.
 --
--- @param s the string to store
+-- @param s  the string to store
+-- @param omit_nul  If true, don't append a nul byte
 -- @return byte offset into the string table
 --
 function store_string(s, omit_nul)
-    local ofs = string_table[s]
-    if ofs ~= nil then return ofs end
-    ofs = string_offset
-
-    -- escape
-    local len = #s
---    local s = string.gsub(s, "%c", function(c)
---	return string.format("\\%03o", string.byte(c)) end)
 
     if not omit_nul then
-	s = s .. string.char(0) -- "\\000"
-	len = len + 1
+	s = s .. string.char(0)
     end
+    local len = #s
 
+    -- if already in the string table, reuse.
+    local ofs = string_table[s]
+    if ofs ~= nil then return ofs end
+
+    -- store a new entry.
+    ofs = string_offset
     string_offset = ofs + len
-
---    string_offset = ofs + string.len(s) + 1	    -- plus NUL byte
     string_table[s] = ofs
     string_buf[#string_buf + 1] = s
     return ofs
@@ -627,25 +575,31 @@ function output_one_struct(ofile, tp, struct_name)
 	else
 	    ofs = store_string(member.name or member_name)
 
-	    tp = resolve_type(member.type)
+	    tp = resolve_type(member.type, member.size)
 	    if not tp.fid then
 		print("no FID for", tp.name, member.name or member_name)
 	    end
+
+	    local detail_id = 0
 
 	    -- For functions, generate a prototype (or reuse one from the
 	    -- list), and output the proto_id below.  Because the IDs of all
 	    -- used structures must be known, this can only be called after
 	    -- the assignment of struct_ids.
-	    if tp.name == "func" then
-		register_prototype(tp.detail, string.format("%s.%s",
-		    struct_name, member.name or member_name))
+	    if tp.detail then
+		if tp.name == 'func' then
+		    register_prototype(tp.detail, string.format("%s.%s",
+			struct_name, member.name or member_name))
+		    detail_id = tp.detail.proto_id
+		else
+		    detail_id = tp.detail.struct_id
+		end
 	    end
 
 	    -- name offset, bit offset, bit length (0=see detail),
 	    -- fundamental type id, type detail (0=none)
 	    ofile:write(string.format(" { %d, %d, %d, %d, %d }, /* %s */\n",
-		ofs, member.offset, tp.bit_len, tp.fid,
-		tp.detail and (tp.detail.proto_id or tp.detail.struct_id) or 0,
+		ofs, member.offset, tp.bit_len, tp.fid, detail_id,
 		member.name or member_name))
 	    elem_start = elem_start + 1
 	end
@@ -658,8 +612,8 @@ end
 -- function's signature is stored as usual.  The "proto_id" of the given
 -- typedef will be set.
 --
--- @param proto  Array of type_ids describing the return value and arguments
---   to this function type.
+-- @param typedef   An entry of typedefs[] with .prototype set
+-- @return  true on success, false on error (some arg type not defined yet)
 --
 function register_prototype(typedef, name)
     
@@ -668,6 +622,7 @@ function register_prototype(typedef, name)
     -- Compute a string to identify this prototype.  It contains the types of
     -- return value and all the arguments' types, but without their names.
     for i, arg_info in ipairs(typedef.prototype) do
+	-- no bit size given for function parameters.
 	local tp = resolve_type(arg_info[1])
 	key[#key + 1] = tp.full_name
     end
@@ -677,6 +632,7 @@ function register_prototype(typedef, name)
 
     if not proto_ofs then
 	local sig = _function_arglist(typedef.prototype, name)
+	if not sig then return false end
 
 	-- prepend a length byte
 	sig = string.char(#sig) .. sig
@@ -692,6 +648,7 @@ function register_prototype(typedef, name)
     end
 
     typedef.proto_id = proto_ofs
+    return true
 end
 
 ---
@@ -706,22 +663,26 @@ function output_structs(ofname)
     local types = {struct=true, union=true, enum=true}
 
     -- Make a list of used structs/unions/enums to output, sort.
-    for k, v in pairs(typedefs) do
-	if v.in_use and types[v.type] then
-	    keys[#keys + 1] = v.name
-	    name2id[v.name] = k
+    for k, tp in pairs(typedefs) do
+	if tp.in_use and types[tp.type] then
+	    keys[#keys + 1] = tp.name
+	    name2id[tp.name] = k
 	end
     end
     table.sort(keys)
 
-    -- assign numbers to the structures; don't use 0.
-    local struct_id = 1
-    for i, name in ipairs(keys) do
+    -- Assign numbers to the structures; don't use 0.  Note that the
+    -- structure IDs must start at 1 and not have holes, and be sorted by name
+    -- because a bsearch() is done on the structure array.
+    for id, name in ipairs(keys) do
 	tp = typedefs[name2id[name]]
-	tp.struct_id = struct_id
-	struct_id = struct_id + 1
+	tp.struct_id = id
     end
-    max_struct_id = struct_id - 1
+    max_struct_id = #keys
+
+    -- Now that all used structures have their IDs, the function prototypes
+    -- can be registered.
+    register_function_prototypes()
 
     ofile = io.open(ofname, "w")
     ofile:write("#include \"luagtk.h\"\n")
@@ -750,6 +711,8 @@ function output_structs(ofname)
 	.. " { 0, 0, 0 }, /* placeholder for undefined structures */\n")
     for i, name in ipairs(keys) do
 	tp = typedefs[name2id[name]]
+	assert(tp.struct_id)
+	assert(tp.struct_id == i)
 	st = tp.struct or { elem_start=tp.elem_start, size=0 }
 	local struct_size = (st.size or 0)/8
 	ofile:write(string.format(" { %d, %d, %d }, /* %s */\n",
@@ -780,7 +743,8 @@ function_list = {}
 
 ---
 -- Take a look at all relevant functions and the data types they reference.
--- Mark all these data types as used.
+-- Mark all these data types as used.  Note that functions that only appear
+-- in structures (i.e., function pointers) are not considered here.
 --
 function analyze_functions()
     local inc_prefixes = { pango=true, gtk=true, gdk=true, g=true, atk=true,
@@ -799,12 +763,44 @@ function analyze_functions()
 end
 
 ---
+-- Look at all structures that have been marked in use.  make sure that all
+-- their elements' types are registered; this includes function pointers.
+--
+function analyze_structs()
+    for id, tp in pairs(typedefs) do
+	if tp.in_use and (tp.type == 'struct' or tp.type == 'union') then
+	    analyze_struct(tp)
+	end
+    end
+end
+
+function analyze_struct(tp)
+
+    local st = tp.struct
+    local ignorelist = { constructor=true, union=true, struct=true }
+    local name, tp2
+
+    --print("analyze_struct", tp.name)
+
+    for _, member_name in pairs(st.members) do
+	member = st.fields[member_name]
+	if member and not ignorelist[member.type] then
+	    tp2 = resolve_type(member.type, member.size)
+	    assert(tp2.fid)
+	    name = string.format("%s.%s", tp.name, member.name or member_name)
+	    mark_typedef_in_use(tp2, name)
+	end
+    end
+end
+
+---
 -- Mark all data types used by the functions (return type, arguments) as used.
 --
 function _function_analyze(fname)
     -- arg_info: [ arg_type, arg_name ]
     for arg_nr, arg_info in ipairs(funclist[fname]) do
-	mark_type_id_in_use(arg_info[1])
+	mark_type_id_in_use(arg_info[1],
+	    string.format("%s.%s", fname, arg_info[2]))
     end
 end
 
@@ -814,7 +810,7 @@ end
 --
 function analyze_globals()
     for k, var in pairs(globals) do
-	mark_type_id_in_use(var.type)
+	mark_type_id_in_use(var.type, k)
     end
 end
 
@@ -829,23 +825,30 @@ end
 function mark_override()
     for k, typedef in pairs(typedefs) do
 	if used_override[typedef.name] then
-	    mark_typedef_in_use(typedef)
+	    mark_typedef_in_use(typedef, typedef.name)
 	end
     end
 end
 
 -- given a type_id, make sure the base type for it is marked used.
-function mark_type_id_in_use(type_id)
+function mark_type_id_in_use(type_id, name)
+
+    -- resolve this type ID, resulting in a fundamental type.  These are
+    -- all available; but if it is a structure, union, enum, function etc.
+    -- that have additional info, this must be marked in use.
     local tp = resolve_type(type_id)
     if tp.detail then
-	return mark_typedef_in_use(tp.detail)
+	-- tp.name2 may be set, but not for anonymous prototypes
+	name = tp.name2 or name
+	return mark_typedef_in_use(tp.detail, name)
     end
+
 end
 
 ---
 -- Recursively mark this typedef and all subtypes as used.
 --
-function mark_typedef_in_use(typedef)
+function mark_typedef_in_use(typedef, name)
     local ignore_types = { constructor=true, union=true, struct=true }
     local field, tp2
 
@@ -856,13 +859,14 @@ function mark_typedef_in_use(typedef)
 
     -- mark elements of a structure
     if typedef.struct then
-
-	for i, name in ipairs(typedef.struct.members) do
-	    field = typedef.struct.fields[name]
+	local st = typedef.struct
+	for i, member_id in ipairs(st.members) do
+	    field = st.fields[member_id]
 	    if not ignore_types[field.type] then
-		mark_type_id_in_use(field.type)
+		mark_type_id_in_use(field.type, string.format("%s.%s",
+		    name, field.name or member_id))
 	    elseif field.type ~= "constructor" then
-		print("ignore??", name, field.type)
+		print("ignore??", member_id, field.type)
 	    end
 	end
     end
@@ -871,10 +875,31 @@ function mark_typedef_in_use(typedef)
     if typedef.prototype then
 	for i, arg_info in ipairs(typedef.prototype) do
 	    local type_id = arg_info[1]
-	    mark_type_id_in_use(type_id)
+	    mark_type_id_in_use(type_id, nil)
+		-- string.format("%s.%s", name, arg_info[2] .. "XX"))
 	end
+	-- Can't call register_prototype yet, because no struct_ids are
+	-- assigned yet.  Instead, add this to a list.
+	assert(not funclist2[name], "double funclist2 entry " .. name)
+	funclist2[name] = typedef
     end
 
+
+end
+
+function register_function_prototypes()
+    local cnt, funclist3 = 1
+
+    for loops = 1, 3 do
+	funclist3 = {}
+	for name, tp in pairs(funclist2) do
+	    if not register_prototype(tp, name) then
+		-- Could not resolve the prototype yet; try again
+		funclist3[name] = tp
+	    end
+	end
+	funclist2 = funclist3
+    end
 end
 
 ---
@@ -920,26 +945,36 @@ function _function_arglist(arg_list, fname)
     s = ""
     for i, arg_info in ipairs(arg_list) do
 	type_id = arg_info[1]
+	-- no bit size given for function parameters.
 	tp = resolve_type(type_id)
 	val = tp.fid
-	if tp.detail ~= nil then
-	    val = bit.bor(val, 0x80)
-	end
 
 	-- char* return values
 	if i == 1 and tp.name == "char" and tp.pointer == 1 then
-	    val = val + _handle_char_ptr_returns(arg_list, tp, fname)
+	    val = _handle_char_ptr_returns(arg_list, tp, fname)
 	end
 
+	if tp.detail ~= nil then
+	    val = bit.bor(val, 0x80)
+	end
+	-- print("func", fname, "arg", i, "type", tp.name, "val", val)
 
 	s = s .. string.char(val)
 	if tp.detail ~= nil then
+	    local id
 	    if tp.name == "func" then
-		register_prototype(tp.detail,
-		    string.format("%s.%s", fname, arg_info[2]))
+		-- A function's prototype might not yet be registered.  This
+		-- can happen if a function has a function parameter that will
+		-- be registered later.  See ... for how this is handled.
+		id = tp.detail.proto_id
+		if not id then return nil end
+	    else
+		-- structures must be registered already
+		id = tp.detail.struct_id
 	    end
-	    local id = tp.detail.struct_id or tp.detail.proto_id
-	    assert(id, "arglist type not registered: " .. type_id)
+
+	    assert(id, "arglist type not registered: " .. type_id
+		.. " in function " .. fname)
 	    s = s .. string.char(bit.band(bit.rshift(id, 8), 255),
 		bit.band(id, 255))
 	end
@@ -956,7 +991,7 @@ end
 -- string should be g_free()d, which should coincide with the const attribute:
 -- const strings are not freed, while non-const are.
 --
--- Returns 1 if the returned string should be freed, 0 otherwise.
+-- Returns the FID (fundamental_id) to use.
 --
 function _handle_char_ptr_returns(arg_list, tp, fname)
 
@@ -988,7 +1023,7 @@ function _handle_char_ptr_returns(arg_list, tp, fname)
 	print("Warning: inconsistency of free method of function " .. fname)
     end
 
-    return method
+    return tp.fid + method
 end
 
 
@@ -1056,7 +1091,8 @@ function output_types(ofname)
 	local flags = (i == char_ptr_second) and 4 or 0
 
 	ofs = _type_name_add(v.name)
-	ofile:write(string.format("  { %d, %d, %d, %d, %s, %s, %s, %s, %s },\n",
+	ofile:write(string.format("  { %d, %d, %d, %d, %s, %s, %s, %s, %s }, "
+	    .. "/* %s */\n",
 	    ofs,		-- name_ofs
 	    v.bit_len or 0,	-- bit_len
 	    v.pointer,		-- indirections
@@ -1065,7 +1101,8 @@ function output_types(ofname)
 	    ffitype[4] and "FFI2LUA_" .. string.upper(ffitype[4]) or 0,
 	    ffitype[5] and "LUA2STRUCT_" .. string.upper(ffitype[5]) or 0,
 	    ffitype[6] and "STRUCT2LUA_" .. string.upper(ffitype[6]) or 0,
-	    ffitype[1] and "LUAGTK_FFI_TYPE_" .. string.upper(ffitype[1]) or 0
+	    ffitype[1] and "LUAGTK_FFI_TYPE_" .. string.upper(ffitype[1]) or 0,
+	    v.name
 	))
     end
 
@@ -1082,7 +1119,7 @@ end
 -- hurt.  It is not used yet.
 --
 function output_globals(ofname)
-    local keys, ofile, gl, tp, ffitype = {}
+    local keys, ofile, gl, tp, ffitype, detail_id = {}
     local count = 0
 
     for k, v in pairs(globals) do
@@ -1094,14 +1131,26 @@ function output_globals(ofname)
     ofile:write "const struct globals[] = {\n"
     for i, name in pairs(keys) do
 	gl = globals[name]
+	-- Globals (from "Variable" XML tags) don't have a specific bit size
+	-- given.
 	tp = resolve_type(gl.type)
 	if tp.detail and not tp.detail.name then
 	    print("warning, no name for", tp.name, tp.fid)
 	    tp.detail.name = "?"
 	end
+
+	if tp.name == 'func' then
+	    detail_id = tp.detail.proto_id
+	    assert(detail_id, "function without proto_id")
+	elseif tp.detail then
+	    detail_id = tp.detail.struct_id
+	    assert(detail_id, "structure without struct_id")
+	else
+	    detail_id = 0
+	end
+
 	ofile:write(string.format("  { \"%s\", %d, %d }, /* %s */\n", name,
-	    tp.fid,
-	    tp.detail and (tp.detail.struct_id or tp.detail.proto_id) or 0,
+	    tp.fid, detail_id,
 	    tp.name .. string.rep("*", tp.pointer)
 		.. (tp.detail and (" " .. tp.detail.name) or "") ))
 	count = count + 1
@@ -1207,7 +1256,11 @@ function _set_char_ptr_handling(funcname, method)
     end
 
     local fi = funclist[funcname]
-    assert(fi, "Undefined function in char_ptr_handling.txt: " .. funcname)
+    if not fi then
+	print("Warning: undefined function in char_ptr_handling: " .. funcname)
+	return
+    end
+--    assert(fi, "Undefined function in char_ptr_handling.txt: " .. funcname)
     assert(fi.free_method == nil, "Duplicate in char_ptr_handling.txt: "
 	.. funcname)
     tp = resolve_type(fi[1][1])
@@ -1234,13 +1287,17 @@ end
 
 parse_xml(arg[2])
 get_extra_data()
+mark_ifaces_as_used()
 analyze_functions()
 analyze_globals()
+analyze_structs()
 mark_all_enums_as_used()
-mark_ifaces_as_used()
 mark_override()
 
 -- detect_widgets()
+
+-- before writing the structures, the functions must be looked at to
+-- find prototypes that need registering.
 
 output_structs(arg[1] .. "/gtkdata.structs.c")
 output_enums(arg[1] .. "/gtkdata.enums.txt")
@@ -1255,7 +1312,7 @@ print("max_bit_offset", max_bit_offset)
 print("max_bit_length", max_bit_length)
 print("max_struct_string_offset", string_offset)
 print("max_struct_size", max_struct_size)
-print("max_type_id", next_fid - 1)
+print("max_type_id", #fundamental_ifo)
 print("max_struct_id", max_struct_id)
 print("max_func_args", max_func_args)
 
