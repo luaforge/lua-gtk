@@ -553,6 +553,10 @@ end
 ---
 -- Add the information for one structure (with all its fields) to the output.
 --
+-- @param ofile  Output file handle
+-- @param tp  typedef of the structure
+-- @param struct_name  Name of the structure
+--
 function output_one_struct(ofile, tp, struct_name)
     local st, member, ofs
     st = tp.struct
@@ -598,9 +602,15 @@ function output_one_struct(ofile, tp, struct_name)
 
 	    -- name offset, bit offset, bit length (0=see detail),
 	    -- fundamental type id, type detail (0=none)
-	    ofile:write(string.format(" { %d, %d, %d, %d, %d }, /* %s */\n",
-		ofs, member.offset, tp.bit_len, tp.fid, detail_id,
-		member.name or member_name))
+	    local s = string.format(" { %d, %d, %d, %d, %d }, ",
+		ofs, member.offset, tp.bit_len, tp.fid, detail_id)
+	    s = s .. string.rep(" ", #s < 32 and (32 - #s) or 0)
+	    s = s .. string.format("/* %s %s.%s */\n",
+		(tp.name2 == tp.name) and tp.full_name or tp.name2 or tp.name,
+		struct_name, member.name or member_name)
+	    ofile:write(s)
+
+	    if detail_id > max_struct_id then max_struct_id = detail_id end
 	    elem_start = elem_start + 1
 	end
     end
@@ -678,7 +688,7 @@ function output_structs(ofname)
 	tp = typedefs[name2id[name]]
 	tp.struct_id = id
     end
-    max_struct_id = #keys
+    -- max_struct_id = #keys
 
     -- Now that all used structures have their IDs, the function prototypes
     -- can be registered.
@@ -724,7 +734,7 @@ function output_structs(ofname)
     -- isn't being counted in the struct_count.
     ofile:write(string.format(" { %d, %d, %d }\n};\n",
 	0, elem_start, 0))
-    ofile:write("const int struct_count = " .. max_struct_id .. ";\n\n")
+    ofile:write("const int struct_count = " .. #keys .. ";\n\n")
 
     -- string table.  The strings that need it already have a trailing NUL
     -- byte.  Note that formatting with %q is NOT enough, C needs to escape
