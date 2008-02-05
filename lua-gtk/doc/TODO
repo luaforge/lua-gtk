@@ -1,6 +1,66 @@
 
-TODO
-----
+BUGS
+====
+
+- review all the code for improvements and maybe some bugs
+
+- GdkAtom represented in the function list with one level of indirection too
+  many?  Like, GdkAtom* should be GdkAtom etc.  This is because GdkAtom is
+  defined to be a pointer to the opaque _GdkAtom structure.
+
+- check refcounting usage, memory leaks
+	- valgrind
+	- glib memory statistics
+	- make sure my reference counting (g_object_ref/_unref) is correct.
+	  seems to be ok...
+	- refcounting on GIOChannel not OK.  Sometimes in-use channels are
+	  freed, which aborts communication. (probably already fixed)
+	- GObject documentation on memory management says that when an object
+	  is destroyed, the "dispose" handler should release all references
+	  it might hold, while finalize really frees the object.  Does this
+	  apply to lua-gtk?  Usually GObjects will have just one ref from
+	  Lua, while the Lua proxy object may have multiple references.
+
+- running Win executables with wine under Linux, and using glade.lua - font
+  sizes are insanely large.
+
+
+
+MISSING FEATURES
+================
+
+- in lua2ffi_vararg(struct argconv_t *ar), support TABLE input as
+  array of pointers to strings.
+
+- socket_co: connect attempts must be asynchronous, otherwise the GUI can be
+  blocked (by a slow DNS server, for example).
+  	see libc-ares1
+
+- wrapper for gtk_tree_model_get would be nice.
+
+- add more #defines from the Gtk includes to the ENUM list automatically.
+	gdk/gdkkeysyms.h
+	gdk/gdkselection.h
+
+- more documentation
+	- improve the homepage, add more content, better layout
+	- use luadoc tags for all user visible functions in the C modules
+	- developer documentation to give pointers for hacking
+
+- call tracing should show the actual values of the arguments; would require
+  a new callback for each parameter type, some kind of tostring.
+
+- try LuaJIT - should speed everything up.  at least check that it works with
+  it because in a larger project, somebody might want to use it.
+
+- GCC attributes.  Use when GCC is available.
+
+http://gcc.gnu.org/onlinedocs/gcc-4.1.1/gcc/Function-Attributes.html
+
+
+
+IMPROVEMENTS
+============
 
 - support another hashing method of cmph: bdz.  Lookup seems a bit more
   code, though.
@@ -22,52 +82,44 @@ TODO
 	- write hash-bdz.c to support lookup with the bdz algorithm.
 
 
-- socket_co: connect attempts must be asynchronous, otherwise the GUI can be
-  blocked (by a slow DNS server, for example).
-  	see libc-ares1
+- Additional Library Support.  If available at compile time and enabled,
+  compile it in.  If not available at runtime, disable this part of the API.
 
-- review all the code for improvements and maybe some bugs
+  - cairo - http://cairographics.org/
+  	partly working, not tested much
 
-- GdkAtom represented in the function list with one level of indirection too
-  many?  Like, GdkAtom* should be GdkAtom etc.  This is because GdkAtom is
-  defined to be a pointer to the opaque _GdkAtom structure.
+  - GL
+  	libgtkgl2.0-dev
+	libgtkglext1-dev
 
-- wrapper for gtk_tree_model_get would be nice.
+  - GDA
+  	libgda3-dev
+	libxslt1-dev
 
-- add more #defines from the Gtk includes to the ENUM list automatically.
-	gdk/gdkkeysyms.h
-	gdk/gdkselection.h
+  - GConf2
+  	libgconf2-dev
+	liborbit2-dev
 
-- mingw port:
-	- test it, users report that it's broken
+  - GD2
+  	libgd2-xpm-dev
+	libfreetype6-dev
+	libpng12-dev
+	libjpeg62-dev
 
-- check refcounting usage, memory leaks
-	- valgrind
-	- glib memory statistics
-	- make sure my reference counting (g_object_ref/_unref) is correct.
-	  seems to be ok...
-	- refcounting on GIOChannel not OK.  Sometimes in-use channels are
-	  freed, which aborts communication. (probably already fixed)
-	- GObject documentation on memory management says that when an object
-	  is destroyed, the "dispose" handler should release all references
-	  it might hold, while finalize really frees the object.  Does this
-	  apply to lua-gtk?  Usually GObjects will have just one ref from
-	  Lua, while the Lua proxy object may have multiple references.
+  - GAIL
+  	libgail-dev
 
-- more documentation
-	- improve the homepage, add more content, better layout
-	- use luadoc tags for all user visible functions in the C modules
-	- developer documentation to give pointers for hacking
+  - GtkHTML
+  	libgtkhtml2-dev
 
-- call tracing should show the actual values of the arguments; would require
-  a new callback for each parameter type, some kind of tostring.
+  - Gnome Libraries
+  	libgnome2-dev
+  	libgnomedb3-dev
+	libgnomeprint2.2-dev
+	libart-2.0-dev
 
-- running Win executables with wine under Linux, and using glade.lua - font
-  sizes are insanely large.
+  - xml2
+  	libxml2-dev
 
-- add support for Cairo
-  http://cairographics.org/
 
-- try LuaJIT - should speed everything up.  at least check that it works with
-  it because in a larger project, somebody might want to use it.
 
