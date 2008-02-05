@@ -35,14 +35,19 @@ function http_download()
 
     -- read the response in many small pieces, with small delays in between.
     s = ""
+    -- obuf = string.rep('\000', 100)
     while true do
 	val, msg = gtk.socket_co.read_chars(gio, 50)
 	if not val then break end
 
-	-- print("got data with length", #val)
-	obuf = string.rep(' ', #val)
-	a, b, c, d, e = gtk.g_iconv(conv, val, #val, obuf, #obuf)
-	print(a, b, c, d, e)
+	-- Doesn't work properly.  conversion might not be complete, i.e.
+	-- leave some bytes unused in "val".  The override doesn't work
+	-- yet, see src/override.c:l_g_iconv
+	print("got data with length", #val)
+	obuf = gtk.g_iconv(conv, val)
+	print(">>", #obuf, obuf)
+	s = s .. obuf
+	buf:set_text(s, #s)
 
 
 	-- local val2, x, y, err = gtk.g_locale_from_utf8(val, #val, nil, nil, nil)
