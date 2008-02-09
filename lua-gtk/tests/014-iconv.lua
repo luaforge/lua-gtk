@@ -17,13 +17,14 @@ print("Ergebnis von g_convert", s, read, written, err)
 -- set up conversion to utf8
 conv = gtk.g_iconv_open("UTF8", "ISO-8859-1")
 
-val = latin1_string
-obuf = string.rep(' ', #val)
+-- val = latin1_string
 
 -- This call will modify obuf - which is usually not OK, because in Lua
 -- strings are immutable - but anyway works somewhat.
-a, b, c, d, e = gtk.g_iconv(conv, val, #val, obuf, #obuf)
-print(a, b, c, d, e)
-print("eingabestring - sollte nicht gut lesbar sein, weil nicht utf8:\n", val)
-print("obuf", obuf)
+
+a, b, c = gtk.g_iconv(conv, latin1_string)
+
+print("ERG:", a, #b, #c, b, c)
+-- print("eingabestring - sollte nicht gut lesbar sein, weil nicht utf8:\n", val)
+-- print("obuf", obuf)
 
