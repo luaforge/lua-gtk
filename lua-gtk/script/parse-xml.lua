@@ -850,7 +850,9 @@ function mark_type_id_in_use(type_id, name)
     if tp.detail then
 	-- tp.name2 may be set, but not for anonymous prototypes
 	name = tp.name2 or name
-	return mark_typedef_in_use(tp.detail, name)
+	if name then
+	    return mark_typedef_in_use(tp.detail, name)
+	end
     end
 
 end
