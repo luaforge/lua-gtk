@@ -205,7 +205,7 @@ function request(arg)
     rc, msg = request_2(arg)
 
     -- clean up
-    gtk.watches.remove_watch(nil, arg.channel, nil)
+    -- gtk.watches.remove_watch(nil, arg.channel, nil)
 
     if not arg.response_headers
 	or arg.response_headers['connection'] == 'close' then

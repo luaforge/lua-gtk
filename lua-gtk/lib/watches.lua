@@ -19,24 +19,24 @@ gtk = base.gtk
 -- with appropriate parameters.
 --
 
-_watches = {}		-- key = thread/channel/cond, true
+-- _watches = {}		-- key = thread/channel/cond, true
 
 --
 -- Callback when a watch fired; it is normally called via _watch_handler
 -- in src/channel.c.  Resume the coroutine waiting for this event.  It can also
 -- be used to start a thread.
 --
+-- If this watch should be kept, return true, else false.
+--
 -- Note: it is called in the global Lua state (thread) for callbacks, or
 -- in any thread when called from start_watch().
 --
-function _watch_func(thread, channel, cond)
-    local rc, msg
+function _watch_func(thread, channel, cond, old_cond)
 
     -- Run the coroutine (thread) until it has to block; it either calls
     -- yield(), exits normally or calls error().
-    -- print("run", thread)
-    rc, msg, channel, cond = coroutine.resume(thread, channel, cond)
-    -- print("done", thread, rc, msg, channel, cond)
+    local rc, msg, new_channel, new_cond = coroutine.resume(thread, channel,
+	cond)
 
     -- if resume returns false, then an error was raised in the thread.
     if not rc then
@@ -46,91 +46,51 @@ function _watch_func(thread, channel, cond)
 	if msg == "cannot resume dead coroutine" then
 	    gtk.main_quit()
 	end
-	remove_watch(thread, nil, nil)
 	return false
     end
 
     -- Blocked on a channel? if the IOWait doesn't exist yet, add it.
     if msg == "iowait" then
-	add_watch(thread, channel, cond)
+
+	-- must also watch for IO Errors, otherwise endless loops may happen.
+	new_cond = new_cond + gtk.G_IO_ERR
+
+	-- keep same watch if waiting for the same thing.
+	if channel == new_channel and old_cond == new_cond then
+	    return true
+	end
+
+	-- add a new watch and discard the previous one
+	local id = gtk.g_io_add_watch(new_channel, new_cond, _watch_func_2,
+	    { thread, new_cond })
 	return false
     end
 
-    -- not blocked on this channel; either sleep, or exit.
-    remove_watch(thread, nil, nil)
-
-    -- sleep a certain interval?  channel is the interval
+    -- sleep a certain interval?  new_channel is the interval
     if msg == "sleep" then
-	gtk.g_timeout_add(channel, _watch_func, thread)
+	gtk.g_timeout_add(new_channel, _watch_func_1, thread)
 	return false
     end
 
-    if (not msg) and channel then print(channel) end
+    if (not msg) and new_channel then print(channel) end
     return false
 end
 
-
---
--- Return a key for the _watches table
---
-function _watch_key(thread, channel, cond)
-    local s = (thread and base.tostring(thread) or ".-") .. ","
-    s = s .. (channel and base.tostring(channel) or ".-") .. ","
-    s = s .. (cond and base.tostring(cond) or ".-")
-    return s
+-- prototype GSourceFunc(gpointer data)
+function _watch_func_1(thread)
+    return _watch_func(thread)
 end
 
----
--- Watch a channel.
---
--- When an appropriate event (specified by cond) happens, The function
--- _watch_func will be invoked, which then resumes the given thread.
---
--- @param thread       The thread to resume when the event happens
--- @param channel      The channel to wait on
--- @param cond         The condition to wait for
---
-function add_watch(thread, channel, cond)
-    local key = _watch_key(thread, channel, cond)
-    if _watches[key] then return end
-    -- print("ADD WATCH", key)
-
-    -- First, remove other watches on this channel.  For example, if there's
-    -- a write watch, but now the user wants to read something, then the write
-    -- watch would always fire even though there's nothing to read.
-    remove_watch(thread, channel, nil)
-
-    -- always include G_IO_ERR, otherwise on error a 100% busy loop ensues.
-    local id = gtk.my_g_io_add_watch(channel, cond + gtk.G_IO_ERR,
-	_watch_func, thread)
-    -- print("ADD WATCH", id, key)
-    _watches[key] = id or true
+-- prototype GIOFunc(GIOChannel, GIOCondition, gpointer)
+function _watch_func_2(channel, condition, data)
+    return _watch_func(data[1], channel, condition, data[2])
 end
 
-
---
--- Remove unused watches.
---
--- thread, channel and/or cond can be nil; in this case, they act as wildcard.
---
-function remove_watch(thread, channel, cond)
-    local key = _watch_key(thread, channel, cond)
-
-    -- print("Removing watches for", key)
-    for k, v in base.pairs(_watches) do
-	if base.string.match(k, key) then
-	    -- print("REMOVE WATCH", k, _watches[k])
-	    gtk.g_source_remove(_watches[k])
-	    _watches[k] = nil
-	end
-    end
-end
-
-function start_watch(thread, arg1)
-    if base.type(thread) == "function" then
+function start_watch(thread, channel)
+    if base.type(thread) ~= "thread" then
 	thread = coroutine.create(thread)
     end
-    return _watch_func(thread, arg1, 0)
+    return _watch_func(thread, channel, 0, 0)
 end
 
 gtk.strict.lock()

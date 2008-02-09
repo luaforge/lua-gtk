@@ -134,7 +134,7 @@ function put(arg)
 
     rc, msg = put_2(arg)
 
-    gtk.watches.remove_watch(nil, arg.channel, nil)
+    -- gtk.watches.remove_watch(nil, arg.channel, nil)
     arg.channel:shutdown(false, nil)
     gtk.widgets[arg.channel] = nil
     arg.channel = nil
@@ -147,7 +147,7 @@ function put(arg)
     arg.channel_socket = nil
 
     if not rc then
-	print("TRANFER FAILED", msg)
+	print("TRANSFER FAILED", msg)
     end
 
   
@@ -185,7 +185,7 @@ function put_2(arg)
     rc, msg = put_3(arg, data_ioc)
 
     -- closing the data channel tell the FTP server that the transfer is over
-    gtk.watches.remove_watch(nil, data_ioc, nil)
+    -- gtk.watches.remove_watch(nil, data_ioc, nil)
     data_ioc:shutdown(false, nil)
     gtk.widgets[data_ioc] = nil
     -- MUST do this, otherwise... se note #sc above
