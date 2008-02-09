@@ -26,7 +26,7 @@ submake = $(MAKE) -r --no-print-directory -f script/Makefile.$(PLATFORM)
 # Make goals by running make again with the appropriate Makefile.  Thereby
 # also disable the automatic rules (-r) which might give a slight performance
 # increase.
-all .DEFAULT::
+all tags .DEFAULT::
 	@$(submake) $@
 
 # Setting of a new target.  First, the variable $PLATFORM is set, so that later
