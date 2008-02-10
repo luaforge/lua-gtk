@@ -610,6 +610,8 @@ function output_one_struct(ofile, tp, struct_name)
 		struct_name, member.name or member_name)
 	    ofile:write(s)
 
+	    -- struct_id "misused" as offset into struct_strings for
+	    -- functions, there's the prototype.
 	    if detail_id > max_struct_id then max_struct_id = detail_id end
 	    elem_start = elem_start + 1
 	end
