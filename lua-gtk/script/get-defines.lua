@@ -14,8 +14,9 @@ require "common"
 
 enums = {}
 
-function parse_file(fname)
+function parse_file(fname, nums)
     local line2 = ""
+    local name, value
 
     for line in io.lines(fname) do
 	-- emulate "continue" command
@@ -29,8 +30,18 @@ function parse_file(fname)
 	    line = line2 .. line
 	    line2 = ""
 
+	    -- numeric defines
+	    if nums then
+		name, value = string.match(line,
+		    "^#define ([A-Z][A-Za-z0-9_]+) +([0-9a-fx]+)$")
+		if name and value then
+		    print(encode_enum(name, tonumber(value), 0))
+		    break
+		end
+	    end
+
 	    -- string defines
-	    local name, value = string.match(line,
+	    name, value = string.match(line,
 		"^#define ([A-Z_]+) +\"([^\"]+)\"")
 	    if name and value then
 		print(encode_enum(name, value, 0))
@@ -55,6 +66,8 @@ end
 -- main --
 path_gtk = "/usr/include/gtk-2.0"
 path_glib = "/usr/include/glib-2.0"
-parse_file(path_gtk .. "/gtk/gtkstock.h")
-parse_file(path_glib .. "/gobject/gtype.h")
+parse_file(path_gtk .. "/gtk/gtkstock.h", false)
+parse_file(path_glib .. "/gobject/gtype.h", false)
+
+parse_file(path_gtk .. "/gdk/gdkkeysyms.h", true)
 
