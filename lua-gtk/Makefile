@@ -10,7 +10,7 @@
 
 # Read existing state if exists.  Don't use :=, because then the new state (if
 # changed) wouldn't be used in the submake invocation.
-FILE=$(wildcard make.state)
+FILE:=$(wildcard make.state)
 ifneq ($(FILE), )
 PLATFORM = $(shell cat $(FILE))
 endif
@@ -23,11 +23,20 @@ endif
 # how to run the submake.
 submake = $(MAKE) -r --no-print-directory -f script/Makefile.$(PLATFORM)
 
+# If not configured yet, do it now
+FILE2:=$(wildcard build/$(PLATFORM)/config.make)
+ifeq ($(FILE2), )
+all tags .DEFAULT::
+	@echo "Running script/configure..."
+	script/configure $(PLATFORM) && make --no-print-directory $@
+else
+
 # Make goals by running make again with the appropriate Makefile.  Thereby
 # also disable the automatic rules (-r) which might give a slight performance
 # increase.
 all tags .DEFAULT::
 	@$(submake) $@
+endif
 
 # Setting of a new target.  First, the variable $PLATFORM is set, so that later
 # goals on the command line use it right away, then it is written to the state

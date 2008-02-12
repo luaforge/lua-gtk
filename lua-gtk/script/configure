@@ -1,0 +1,233 @@
+#! /bin/sh
+# vim:sw=4:sts=4
+
+# Setup script for lua-gtk
+# by Wolfgang Oertl 2008
+
+
+# - arg check -
+PLATFORM=
+DEBUG=
+
+HELP="Usage: $0 [args] {platform}
+  --debug   compile with debugging information"
+
+while test "$1"; do
+
+    case "$1" in
+	--debug) DEBUG=1 ;;
+
+	--help)
+	    echo "$HELP"
+	    exit 1
+	    ;;
+
+	-*)
+	    echo "$0: unrecognized option $1"
+	    echo "Try \`$0 --help' for more information."
+	    exit 1
+	    ;;
+
+	*)
+	    if test "$PLATFORM"; then
+		echo "$0: unexpected option $1"
+		echo "Try \`$0 --help' for more information."
+		exit 1
+	   fi
+	   PLATFORM=$1 ;;
+    esac
+
+    shift
+
+done
+
+if test ! "$PLATFORM"; then
+    echo "$HELP"
+    exit 1
+fi
+
+# - general setup -
+
+VERSION="0.7"
+PC=pkg-config
+ODIR=build/$PLATFORM
+CFG_H_REAL=$ODIR/config.h
+CFG_M_REAL=$ODIR/config.make
+HASHF=hsieh
+
+ERR=0
+CFG_H=$CFG_H_REAL.tmp
+CFG_M=$CFG_M_REAL.tmp
+
+
+# - start -
+
+test -d build || mkdir build
+test -d $ODIR || mkdir $ODIR
+echo -n > $CFG_H
+echo -n > $CFG_M
+
+echo "PLATFORM    :=$PLATFORM" >> $CFG_M
+echo "VERSION     :=$VERSION" >> $CFG_M
+echo "ODIR        :=$ODIR/" >> $CFG_M
+echo "CFLAGS      =" >> $CFG_M
+
+
+# - Gtk -
+
+if $PC --exists gtk+-2.0; then
+    GTK_CFLAGS=$($PC --cflags gtk+-2.0)
+    echo "CFLAGS      +=$GTK_CFLAGS" >> $CFG_M
+else
+    echo "Gtk 2.0 with development headers not installed."
+    ERR=1
+fi
+
+
+# - Lua -
+
+if $PC --exists lua5.1; then
+    LUA_CFLAGS=$($PC --cflags lua5.1)
+    echo "CFLAGS      +=$LUA_CFLAGS" >> $CFG_M
+else
+    echo "Lua 5.1 not installed."
+    ERR=1
+fi
+
+
+# - platform specific config -
+
+case $PLATFORM in
+
+    linux)
+    LINK=0
+    GTK_LIBS=$($PC --libs gtk+-2.0)
+    PLATFORMDEF=LINUX
+    echo "LIBFFI      :=/usr/lib/libffi_pic.a" >> $CFG_M
+    echo "INDIR1      :=/usr/local/lib/lua/5.1" >> $CFG_M
+    echo "INDIR2      :=/usr/local/share/lua/5.1" >> $CFG_M
+    echo "MINGW       :=" >> $CFG_M
+    echo "CFLAGS      +=-fPIC" >> $CFG_M
+    echo "ODLL        :=gtk.so" >> $CFG_M
+    ;;
+
+    win32)
+    LINK=1
+    PLATFORMDEF=WIN32
+
+    GTKDIR=mingw/gtk/lib
+    if test ! -d $GTKDIR; then
+	echo "Gtk not found in $GTKDIR"
+	ERR=1
+    fi
+    GTK_LIBS="$GTKDIR/gtk-win32-2.0.lib $GTKDIR/gdk-win32-2.0.lib \
+	$GTKDIR/gobject-2.0.lib $GTKDIR/glib-2.0.lib \
+	$GTKDIR/gdk_pixbuf-2.0.lib $GTKDIR/pango-1.0.lib"
+
+    LUADIR=mingw/lua5.1
+    if test ! -d $LUADIR -o ! -f $LUADIR/lua5.1.dll; then
+	echo "Lua 5.1 not found in $LUADIR"
+	ERR=1
+    fi
+
+    FFIDIR=mingw/libffi-mingw
+    if test ! -d $FFIDIR -o ! -f $FFIDIR/libffi.a; then
+	echo "LibFFI not found in $FFIDIR"
+	ERR=1
+    fi
+
+    # mingw
+    MINGW=i586-mingw32msvc-
+    which ${MINGW}gcc > /dev/null
+    if test $? -ne 0; then
+	echo "MingW GCC not found."
+	ERR=1
+    fi
+
+    # output
+    echo "LIBFFI      :=$FFIDIR/libffi.a" >> $CFG_M
+    echo "INDIR1      :=/usr/local/lib/lua/5.1" >> $CFG_M
+    echo "INDIR2      :=/usr/local/share/lua/5.1" >> $CFG_M
+    echo "MINGW       :=$MINGW" >> $CFG_M
+    echo "CFLAGS      +=-DXTHREADS -I $FFIDIR -mms-bitfields" >> $CFG_M
+    echo "ODLL        :=gtk.dll" >> $CFG_M
+    echo "CROSS       :=1" >> $CFG_M
+    echo "LD          :=\${MINGW}gcc" >> $CFG_M
+    echo "EXTRA_LIB   +=$LUADIR/lua5.1.dll" >> $CFG_M
+    echo "LUADIR      :=$LUADIR" >> $CFG_M
+    ;;
+
+    *)
+    echo "$0: unsupported platform $PLATFORM."
+    rm -rf $ODIR
+    exit 1
+    ;;
+esac
+
+# common makefile settings from above
+echo "LINK        :=$LINK" >> $CFG_M
+echo "GTK_LIBS    :=$GTK_LIBS" >> $CFG_M
+
+if test $LINK -eq 0; then
+    echo "#define MANUAL_LINKING" >> $CFG_H
+fi
+
+# - cmph -
+# platform independet; it is required for build, not for runtime.
+
+if $PC --exists cmph; then
+    echo "HAVE_CMPH   :=1" >> $CFG_M
+    echo "CMPH_CFLAGS :=$(pkg-config --cflags cmph)" >> $CFG_M
+    echo "CMPH_BIN    :=cmph" >> $CFG_M
+    echo "CMPH_LIBS   :=$(pkg-config --libs cmph)" >> $CFG_M
+fi
+
+
+# - general configuration -
+
+echo "CFLAGS      +=-Wall -I $ODIR -I src" >> $CFG_M
+echo "HASHF       :=$HASHF" >> $CFG_M
+echo "HASH        :=hash-\$(HASHF)" >> $CFG_M
+
+if test "$DEBUG"; then
+    echo "CFLAGS      +=-g" >> $CFG_M
+    echo "LDFLAGS     +=-g" >> $CFG_M
+fi
+
+
+# - output config.h -
+
+echo "#ifndef $PLATFORMDEF" >> $CFG_H
+echo " #define $PLATFORMDEF" >> $CFG_H
+echo "#endif" >> $CFG_H
+echo "#define HASHFUNC hash_$HASHF" >> $CFG_H
+echo "#define USE_GTK_BUILDER" >> $CFG_H
+
+
+# - check for errors -
+
+if test $ERR -gt 0; then
+    echo "Errors during configuration."
+    rm -f $CFG_H $CFG_M
+    exit 1
+fi
+
+
+# replace real config files with new ones if they have changed.
+if test -f $CFG_H_REAL; then
+    if diff -q $CFG_H_REAL $CFG_H > /dev/null; then
+	rm $CFG_H
+    fi
+fi
+
+if test -f $CFG_H; then
+    mv -f $CFG_H $CFG_H_REAL
+fi
+
+# no need to check for differences here.
+mv -f $CFG_M $CFG_M_REAL
+
+# - success -
+echo "lua-gtk configured successfully.  Type make to build."
+exit 0
+

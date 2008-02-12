@@ -1,17 +1,12 @@
 
 # -- general configuration --
-CFLAGS	+=-g -Wall `pkg-config --cflags gtk+-2.0 lua5.1` -I ${ODIR} -I src
-LDFLAGS	+=-g
-HASHF	:=hsieh
 HASH	:=hash-$(HASHF)
 LD	?=${MINGW}ld
 CC	:=${MINGW}gcc
 HOSTCC	:=gcc -Wall
-VERSION	:=0.7
 O	:=o
 LIBINSTALL := cp
 LIBFINAL := touch
-CONFIG_H+=\#define USE_GTK_BUILDER\n
 # -- end general configuration --
 
 # run make with "H=" as an argument to show all build commands.
@@ -28,40 +23,30 @@ LH	:=src/luagtk.h ${ODIR}config.h
 
 # -- runtime linking? --
 ifeq ($(LINK), 1)
-LIBS	:=${GTKLIB}
+LIBS	:=${GTK_LIBS}
 else
-CONFIG_H+=\#define MANUAL_LINKING\n
-# CFLAGS	+=-DMANUAL_LINKING
 OFILES	+=link.$(O)
 LH	+=${ODIR}link.h
 endif
 
 # -- is cmph available? --
-ifeq ($(CMPHDIR),)
-OFILES	+=hash-simple.$(O) ${HASH}.$(O) _funclist.$(O) _enumlist.$(O)
-else
+ifeq ($(HAVE_CMPH), 1)
 OFILES	+=hash-fch.$(O) _funclist_fch.$(O) _enumlist_fch.$(O)
+else
+OFILES	+=hash-simple.$(O) ${HASH}.$(O) _funclist.$(O) _enumlist.$(O)
 endif
 
 
-gtk2dll: config_h ${ODIR}${ODLL}
+gtk2dll: ${ODIR}${ODLL}
 
-dirs:
-	$H mkdir -p ${ODIR}
-
-# Create the config.h file
-
-config_h:
-	@echo "#define HASHFUNC hash_${HASHF}" > ${ODIR}config.h.tmp
-	$H /bin/echo -e "#ifndef ${PLATFORM}\n #define ${PLATFORM}\n#endif" >> ${ODIR}config.h.tmp
-	$H /bin/echo -e "${CONFIG_H}" >> ${ODIR}config.h.tmp
-	$H if diff -q ${ODIR}config.h ${ODIR}config.h.tmp >/dev/null 2>&1; then rm -f ${ODIR}config.h.tmp; else mv -f ${ODIR}config.h.tmp ${ODIR}config.h; fi
+config configure:
+	$H script/configure $(PLATFORM)
 
 # rule to build the library.
 
 ${ODIR}${ODLL}: $(addprefix ${ODIR}, ${OFILES})
 	@echo $@
-	$H ${LD} ${LDFLAGS} -shared -o $@ $^ ${LIBFFI} ${LUALIB} ${LIBS}
+	$H ${LD} ${LDFLAGS} -shared -o $@ $^ ${LIBFFI} ${EXTRA_LIB} ${LIBS}
 
 ${ODIR}debug.$(O): src/debug.c
 	@echo $@
@@ -117,7 +102,7 @@ ${ODIR}%.keys: ${ODIR}%.txt
 #  value = more effort. 2.0 is about the minimum.
 ${ODIR}%.mph: ${ODIR}%.keys
 	@echo $@
-	$H $(CMPHBIN) -a fch -c 2.0 -m $@ -g $^
+	$H $(CMPH_BIN) -a fch -c 2.0 -m $@ -g $^
 
 ${ODIR}_funclist_fch.c: ${ODIR}hash-fch-generate ${ODIR}gtkdata.funcs.mph
 	@echo $@
@@ -131,7 +116,7 @@ ${ODIR}_enumlist_fch.c: ${ODIR}hash-fch-generate ${ODIR}gtkdata.enums.mph
 
 ${ODIR}hash-fch.$(O): src/hash-fch.c
 	@echo $@
-	$H ${CC} ${CFLAGS} -c -o $@ -I ${CMPHDIR} $<
+	$H ${CC} ${CFLAGS} -c -o $@ ${CMPH_CFLAGS} $<
 
 # -- helper programs for fch hash, to be compiled with HOSTCC --
 
@@ -149,11 +134,11 @@ ${ODIR}file2c: src/file2c.c
 
 ${ODIR}hash-fch-generate: ${ODIR}hash-fch-generate.$(O)
 	@echo $@
-	$H ${HOSTCC} -g -o $@ $^ $(CMPHLIB)
+	$H ${HOSTCC} -g -o $@ $^ $(CMPH_LIBS)
 
 ${ODIR}hash-fch-generate.$(O): src/hash-fch-generate.c
 	@echo $@
-	$H ${HOSTCC} -g -o $@ -I ${CMPHDIR} -c $< 
+	$H ${HOSTCC} -g -o $@ ${CMPH_CFLAGS} -c $< 
 
 # -- dynamic runtime linking --
 ${ODIR}link.c ${ODIR}link.h: src/linklist.txt script/make-link.lua \
@@ -192,7 +177,7 @@ clean:
 	rm -f ${ODIR}ffi-types
 
 mrproper: clean
-	rm -f ${ODIR}gtkdata.* ${ODIR}hash-fch-* ${ODIR}config.h \
+	rm -f ${ODIR}gtkdata.* ${ODIR}hash-fch-* ${ODIR}config.* \
 		${ODIR}types.xml ${ODIR}ffi-ofs ${ODIR}link.[ch] \
 		${ODIR}luagtk_ffi.h
 install: all
