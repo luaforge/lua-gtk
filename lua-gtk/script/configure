@@ -94,6 +94,18 @@ else
     ERR=1
 fi
 
+# - cmph -
+# platform independet; it is required for build, not for runtime.
+
+if $PC --exists cmph; then
+    HAVE_CMPH=1
+    echo "HAVE_CMPH   :=1" >> $CFG_M
+    CMPH_CFLAGS="$(pkg-config --cflags cmph)"
+    echo "CMPH_CFLAGS :=$CMPH_CFLAGS" >> $CFG_M
+    echo "CMPH_BIN    :=cmph" >> $CFG_M
+    echo "CMPH_LIBS   :=$(pkg-config --libs cmph)" >> $CFG_M
+fi
+
 
 # - platform specific config -
 
@@ -144,6 +156,16 @@ case $PLATFORM in
 	ERR=1
     fi
 
+    # cmph.  if CMPH_CFLAGS is empty, then the includes are in the
+    # default include path which is not the same for mingw.  Copy the
+    # required include file.
+    if test "$HAVE_CMPH" = 1; then
+	set -- $CMPH_CFLAGS
+	if test -z "$1"; then
+	    cp /usr/include/cmph_types.h $ODIR
+	fi
+    fi
+
     # output
     echo "LIBFFI      :=$FFIDIR/libffi.a" >> $CFG_M
     echo "INDIR1      :=/usr/local/lib/lua/5.1" >> $CFG_M
@@ -170,16 +192,6 @@ echo "GTK_LIBS    :=$GTK_LIBS" >> $CFG_M
 
 if test $LINK -eq 0; then
     echo "#define MANUAL_LINKING" >> $CFG_H
-fi
-
-# - cmph -
-# platform independet; it is required for build, not for runtime.
-
-if $PC --exists cmph; then
-    echo "HAVE_CMPH   :=1" >> $CFG_M
-    echo "CMPH_CFLAGS :=$(pkg-config --cflags cmph)" >> $CFG_M
-    echo "CMPH_BIN    :=cmph" >> $CFG_M
-    echo "CMPH_LIBS   :=$(pkg-config --libs cmph)" >> $CFG_M
 fi
 
 
