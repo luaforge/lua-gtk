@@ -65,6 +65,7 @@ static int _call_wrapper(lua_State *L)
 /**
  * Look up a name in gtk.  This works for any Gtk function, like
  * gtk.window_new(), and ENUMs, like gtk.GTK_WINDOW_TOPLEVEL.
+ * Lua Stack: [1]=gtk [2]=name
  *
  * @name __index
  * @luaparam table     The table to look in; is automatically set to gtk
@@ -105,11 +106,16 @@ static int l_gtk_lookup(lua_State *L)
     strcpy(func_name, s);
     if (!find_func(func_name, &fi)) {
 	sprintf(func_name, "gtk_%s", s);
-	if (!find_func(func_name, &fi)) {
+
+	// check for overrides
+	lua_pushstring(L, func_name);
+	lua_rawget(L, 1);
+	if (!lua_isnil(L, -1))
+	    return 1;
+	lua_pop(L, 1);
+
+	if (!find_func(func_name, &fi))
 	    return luaL_error(L, "[gtk] not found: gtk.%s", s);
-	    // printf("%s attribute or method not found: %s\n", msgprefix, s);
-	    // return 0;
-	}
     }
 
     /* A function has been found, so return a closure that can call it. */
