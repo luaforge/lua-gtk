@@ -1,15 +1,9 @@
 # Makefile for cross compilation via MinGW for Windows
 
-# --- begin platform configuration ---
-#
 #  NOTE: compilation for Win32 using MinGW requires precompiled Gtk/Gdk
 #  libraries, and the lua51 library.  see doc/INSTALL for more info.
 
-include build/win32/config.make
-
-all: gtk2dll
-
-include script/Makefile.common
+# Create a ZIP file for distribution of the win32 build.
 
 zip: all
 	(D=/tmp/lua-gtk-$(VERSION); rm -rf $$D /tmp/lua-gtk-$(VERSION).zip; \

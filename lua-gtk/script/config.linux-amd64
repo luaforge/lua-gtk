@@ -1,0 +1,6 @@
+#! /bin/sh
+
+. script/config.linux-i386
+
+echo "#define AMD64" >> $CFG_H
+

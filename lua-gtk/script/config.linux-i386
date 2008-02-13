@@ -1,0 +1,15 @@
+#! /bin/sh
+
+LINK=0
+GTK_LIBS=$($PC --libs gtk+-2.0)
+ARCHDEF=LINUX
+echo "LIBFFI      :=/usr/lib/libffi_pic.a" >> $CFG_M
+echo "INDIR1      :=/usr/local/lib/lua/5.1" >> $CFG_M
+echo "INDIR2      :=/usr/local/share/lua/5.1" >> $CFG_M
+#echo "MINGW       :=" >> $CFG_M
+echo "CFLAGS      +=-fPIC" >> $CFG_M
+echo "ODLL        :=gtk.so" >> $CFG_M
+
+# possibly extra for archlinux.  How to detect that?
+#echo "CFLAGS      +=-I /usr/include/g-wrap"
+

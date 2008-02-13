@@ -3,22 +3,41 @@
 
 # Setup script for lua-gtk
 # by Wolfgang Oertl 2008
+# tested with bash, dash.
 
 
 # - arg check -
-PLATFORM=
+ARCH=
 DEBUG=
+SUMMARY=
 
-HELP="Usage: $0 [args] {platform}
-  --debug   compile with debugging information"
+known_architectures () {
+    S="Known architectures:"
+    for file in script/config.*; do
+	S="$S ${file#script/config.}"
+    done
+    echo "$S."
+}
+
+show_help () {
+    echo "Usage: $0 [args] [architecture]"
+    echo "Configure lua-gtk for compilation."
+    echo ""
+    echo "  --debug   compile with debugging information"
+    echo "  --summary show results"
+    echo ""
+    known_architectures
+    echo "If no architecture is given, a default is determined."
+}
 
 while test "$1"; do
 
     case "$1" in
 	--debug) DEBUG=1 ;;
+	--summary) SUMMARY=1 ;;
 
 	--help)
-	    echo "$HELP"
+	    show_help
 	    exit 1
 	    ;;
 
@@ -29,28 +48,45 @@ while test "$1"; do
 	    ;;
 
 	*)
-	    if test "$PLATFORM"; then
+	    if test "$ARCH"; then
 		echo "$0: unexpected option $1"
 		echo "Try \`$0 --help' for more information."
 		exit 1
 	   fi
-	   PLATFORM=$1 ;;
+	   ARCH=$1 ;;
     esac
 
     shift
 
 done
 
-if test ! "$PLATFORM"; then
-    echo "$HELP"
+# without architecture, determine default
+if test ! "$ARCH"; then
+
+    if which dpkg-architecture > /dev/null; then
+	eval $(dpkg-architecture)
+	ARCH=$DEB_BUILD_ARCH_OS-$DEB_BUILD_ARCH_CPU
+    fi
+fi
+
+
+# check for valid architecture
+
+if test ! "$ARCH"; then
+    show_help
+    exit 1
+fi
+
+if test ! -f script/config.$ARCH; then
+    echo "Unknown architecture - script/config.$ARCH is missing."
+    known_architectures
     exit 1
 fi
 
 # - general setup -
 
 VERSION="0.7"
-PC=pkg-config
-ODIR=build/$PLATFORM
+ODIR=build/$ARCH
 CFG_H_REAL=$ODIR/config.h
 CFG_M_REAL=$ODIR/config.make
 HASHF=hsieh
@@ -59,15 +95,21 @@ ERR=0
 CFG_H=$CFG_H_REAL.tmp
 CFG_M=$CFG_M_REAL.tmp
 
+# - pkg-config -
+if which pkg-config > /dev/null; then
+    PC=pkg-config
+else
+    echo "pkg-config not installed - required for setup."
+    exit 1
+fi
 
-# - start -
 
 test -d build || mkdir build
 test -d $ODIR || mkdir $ODIR
 echo -n > $CFG_H
 echo -n > $CFG_M
 
-echo "PLATFORM    :=$PLATFORM" >> $CFG_M
+echo "ARCH        :=$ARCH" >> $CFG_M
 echo "VERSION     :=$VERSION" >> $CFG_M
 echo "ODIR        :=$ODIR/" >> $CFG_M
 echo "CFLAGS      =" >> $CFG_M
@@ -77,6 +119,7 @@ echo "CFLAGS      =" >> $CFG_M
 
 if $PC --exists gtk+-2.0; then
     GTK_CFLAGS=$($PC --cflags gtk+-2.0)
+    GTK_VERSION=$($PC --modversion gtk+-2.0)
     echo "CFLAGS      +=$GTK_CFLAGS" >> $CFG_M
 else
     echo "Gtk 2.0 with development headers not installed."
@@ -88,6 +131,7 @@ fi
 
 if $PC --exists lua5.1; then
     LUA_CFLAGS=$($PC --cflags lua5.1)
+    LUA_VERSION=$($PC --modversion lua5.1)
     echo "CFLAGS      +=$LUA_CFLAGS" >> $CFG_M
 else
     echo "Lua 5.1 not installed."
@@ -95,98 +139,45 @@ else
 fi
 
 # - cmph -
-# platform independet; it is required for build, not for runtime.
+# architecture independet; it is required for build, not for runtime.
 
 if $PC --exists cmph; then
     HAVE_CMPH=1
     echo "HAVE_CMPH   :=1" >> $CFG_M
-    CMPH_CFLAGS="$(pkg-config --cflags cmph)"
+    CMPH_CFLAGS="$($PC --cflags cmph)"
+    CMPH_VERSION=$($PC --modversion cmph)
     echo "CMPH_CFLAGS :=$CMPH_CFLAGS" >> $CFG_M
     echo "CMPH_BIN    :=cmph" >> $CFG_M
-    echo "CMPH_LIBS   :=$(pkg-config --libs cmph)" >> $CFG_M
+    echo "CMPH_LIBS   :=$($PC --libs cmph)" >> $CFG_M
+else
+    CMPH_VERSION="not available"
 fi
 
+# C compiler
+if which gcc > /dev/null; then
+    HOSTCC=gcc
+    CC=gcc
+else
+    echo "GCC not found."
+    ERR=1
+fi
 
-# - platform specific config -
+# - architecture specific config -
 
-case $PLATFORM in
+. script/config.$ARCH
 
-    linux)
-    LINK=0
-    GTK_LIBS=$($PC --libs gtk+-2.0)
-    PLATFORMDEF=LINUX
-    echo "LIBFFI      :=/usr/lib/libffi_pic.a" >> $CFG_M
-    echo "INDIR1      :=/usr/local/lib/lua/5.1" >> $CFG_M
-    echo "INDIR2      :=/usr/local/share/lua/5.1" >> $CFG_M
-    echo "MINGW       :=" >> $CFG_M
-    echo "CFLAGS      +=-fPIC" >> $CFG_M
-    echo "ODLL        :=gtk.so" >> $CFG_M
-    ;;
+# get versions of c compiler
+if test "$HOSTCC"; then
+    HOSTCC_VERSION=`$HOSTCC --version | head -1`
+fi
 
-    win32)
-    LINK=1
-    PLATFORMDEF=WIN32
-
-    GTKDIR=mingw/gtk/lib
-    if test ! -d $GTKDIR; then
-	echo "Gtk not found in $GTKDIR"
-	ERR=1
-    fi
-    GTK_LIBS="$GTKDIR/gtk-win32-2.0.lib $GTKDIR/gdk-win32-2.0.lib \
-	$GTKDIR/gobject-2.0.lib $GTKDIR/glib-2.0.lib \
-	$GTKDIR/gdk_pixbuf-2.0.lib $GTKDIR/pango-1.0.lib"
-
-    LUADIR=mingw/lua5.1
-    if test ! -d $LUADIR -o ! -f $LUADIR/lua5.1.dll; then
-	echo "Lua 5.1 not found in $LUADIR"
-	ERR=1
-    fi
-
-    FFIDIR=mingw/libffi-mingw
-    if test ! -d $FFIDIR -o ! -f $FFIDIR/libffi.a; then
-	echo "LibFFI not found in $FFIDIR"
-	ERR=1
-    fi
-
-    # mingw
-    MINGW=i586-mingw32msvc-
-    which ${MINGW}gcc > /dev/null
-    if test $? -ne 0; then
-	echo "MingW GCC not found."
-	ERR=1
-    fi
-
-    # cmph.  if CMPH_CFLAGS is empty, then the includes are in the
-    # default include path which is not the same for mingw.  Copy the
-    # required include file.
-    if test "$HAVE_CMPH" = 1; then
-	set -- $CMPH_CFLAGS
-	if test -z "$1"; then
-	    cp /usr/include/cmph_types.h $ODIR
-	fi
-    fi
-
-    # output
-    echo "LIBFFI      :=$FFIDIR/libffi.a" >> $CFG_M
-    echo "INDIR1      :=/usr/local/lib/lua/5.1" >> $CFG_M
-    echo "INDIR2      :=/usr/local/share/lua/5.1" >> $CFG_M
-    echo "MINGW       :=$MINGW" >> $CFG_M
-    echo "CFLAGS      +=-DXTHREADS -I $FFIDIR -mms-bitfields" >> $CFG_M
-    echo "ODLL        :=gtk.dll" >> $CFG_M
-    echo "CROSS       :=1" >> $CFG_M
-    echo "LD          :=\${MINGW}gcc" >> $CFG_M
-    echo "EXTRA_LIB   +=$LUADIR/lua5.1.dll" >> $CFG_M
-    echo "LUADIR      :=$LUADIR" >> $CFG_M
-    ;;
-
-    *)
-    echo "$0: unsupported platform $PLATFORM."
-    rm -rf $ODIR
-    exit 1
-    ;;
-esac
+if test "$CC" -a "$CC" != "$HOSTCC"; then
+    CC_VERSION=`$CC --version | head -1`
+fi
 
 # common makefile settings from above
+echo "CC          :=$CC" >> $CFG_M
+echo "HOSTCC      :=$HOSTCC" >> $CFG_M
 echo "LINK        :=$LINK" >> $CFG_M
 echo "GTK_LIBS    :=$GTK_LIBS" >> $CFG_M
 
@@ -209,11 +200,10 @@ fi
 
 # - output config.h -
 
-echo "#ifndef $PLATFORMDEF" >> $CFG_H
-echo " #define $PLATFORMDEF" >> $CFG_H
+echo "#ifndef $ARCHDEF" >> $CFG_H
+echo " #define $ARCHDEF" >> $CFG_H
 echo "#endif" >> $CFG_H
 echo "#define HASHFUNC hash_$HASHF" >> $CFG_H
-echo "#define USE_GTK_BUILDER" >> $CFG_H
 
 
 # - check for errors -
@@ -225,7 +215,8 @@ if test $ERR -gt 0; then
 fi
 
 
-# replace real config files with new ones if they have changed.
+# Replace real config files with new ones if they have changed.  This preserves
+# the timestamp and avoids complete rebuilds after reconfiguration.
 if test -f $CFG_H_REAL; then
     if diff -q $CFG_H_REAL $CFG_H > /dev/null; then
 	rm $CFG_H
@@ -239,7 +230,28 @@ fi
 # no need to check for differences here.
 mv -f $CFG_M $CFG_M_REAL
 
+# set the default architecture for make.
+echo $ARCH > build/make.state
+
+if test "$SUMMARY"; then
+    if test "$DEBUG"; then DEBUG_ONOFF="on"; else DEBUG_ONOFF="off"; fi
+    echo ""
+    echo "lua-gtk configured successfully.  Settings:"
+    echo ""
+    echo "   Build architecture:   $ARCH"
+    echo "   C compiler:           $HOSTCC_VERSION"
+    if test "$CC_VERSION"; then
+    echo "   Cross compiler:       $CC_VERSION"
+    fi
+    echo "   Lua version:          $LUA_VERSION"
+    echo "   Gtk version:          $GTK_VERSION"
+    echo "   Cmph library:         $CMPH_VERSION"
+    echo "   Debugging:            $DEBUG_ONOFF"
+    echo ""
+    echo "Type make to build."
+    echo ""
+fi
+
 # - success -
-echo "lua-gtk configured successfully.  Type make to build."
 exit 0
 

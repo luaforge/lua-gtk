@@ -5,46 +5,56 @@
 # For copyright information, see doc/COPYING.  For information how to build
 # this library, see doc/INSTALL.
 #
-# Run make with the appropriate makefile.  Special goals can be given to set
-# the platform, which will be memorized in "make.state".
+
+# run make with "H=" as an argument to show all build commands.
+H	:=@
+
+# how to recursively call make (if required)
+submake = $(MAKE) -r --no-print-directory
 
 # Read existing state if exists.  Don't use :=, because then the new state (if
-# changed) wouldn't be used in the submake invocation.
-FILE:=$(wildcard make.state)
+# changed) wouldn't be used in the submake invocation.  May be overridden on
+# the command line.
+FILE := $(wildcard build/make.state)
 ifneq ($(FILE), )
-PLATFORM = $(shell cat $(FILE))
+    ARCH = $(shell cat $(FILE))
 endif
 
-# Handle the case of an empty or missing make.state.
-ifeq ($(PLATFORM), )
-PLATFORM = linux
-endif
 
-# how to run the submake.
-submake = $(MAKE) -r --no-print-directory -f script/Makefile.$(PLATFORM)
 
 # If not configured yet, do it now
-FILE2:=$(wildcard build/$(PLATFORM)/config.make)
-ifeq ($(FILE2), )
-all tags .DEFAULT::
-	@echo "Running script/configure..."
-	script/configure $(PLATFORM) && make --no-print-directory $@
+ifeq ($(wildcard build/$(ARCH)/config.make), )
+
+tags .DEFAULT::
+	@echo Running the configure script...
+	$H script/configure --summary $(ARCH) && $(submake) $(MAKECMDGOALS)
 else
 
-# Make goals by running make again with the appropriate Makefile.  Thereby
-# also disable the automatic rules (-r) which might give a slight performance
-# increase.
-all tags .DEFAULT::
-	@$(submake) $@
+$(warning Building for $(ARCH)...)
+
+
+# default target.
+all: gtk2dll
+
+# include the config file
+include build/$(ARCH)/config.make
+
+# extra rules (if available)
+ifneq ($(wildcard script/Makefile.$(ARCH)), )
+    include script/Makefile.$(ARCH)
 endif
 
-# Setting of a new target.  First, the variable $PLATFORM is set, so that later
-# goals on the command line use it right away, then it is written to the state
-# file.  If no other goals are given, run the submake anyway with the default
-# goal "all".
-linux win32:: PLATFORM=$@
+# generic targets
+include script/Makefile.common
 
-linux win32::
-	@echo $@ > make.state
-	@if test "$(MAKECMDGOALS)" = "$@"; then $(submake) all; fi
+endif
+
+# New arch: a convenience function; instead you could call script/configure
+# $(arch) If the architecture isn't configured yet, make will (on recursive
+# call) call configure and then invoke itself again.
+linux-i386 win32-i386:
+	$H test -d build || mkdir build
+	$H echo $@ > build/make.state
+	$H $(submake) $(wordlist 2, 99, $(MAKECMDGOALS))
+
 

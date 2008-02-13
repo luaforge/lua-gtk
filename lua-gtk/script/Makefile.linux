@@ -1,11 +1,5 @@
 # Makefile for lua-gtk2 (Linux)
 
-include build/linux/config.make
-
-all: gtk2dll
-
-include script/Makefile.common
-
 # Build a tarball with the stripped library, the Lua library code and all the
 # examples, plus an explanatory README file.
 
@@ -18,3 +12,4 @@ tar-bin: all
 	tar czvf lua-gtk-$(VERSION)-linux.tar.gz $$D; \
 	rm -r $$D \
 	)
+

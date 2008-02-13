@@ -1,8 +1,0 @@
-# Makefile for lua-gtk2 (Linux, AMD64)
-
-CONFIG_H:=\#define AMD64\n
-include script/Makefile.linux
-
-CMPHDIR :=~/cmph-0.6/src
-CMPHBIN :=cmph
-CMPHLIB :=~/bin/libcmph.a -lm

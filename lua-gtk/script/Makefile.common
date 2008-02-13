@@ -1,16 +1,10 @@
 
 # -- general configuration --
 HASH	:=hash-$(HASHF)
-LD	?=${MINGW}ld
-CC	:=${MINGW}gcc
-HOSTCC	:=gcc -Wall
 O	:=o
 LIBINSTALL := cp
 LIBFINAL := touch
 # -- end general configuration --
-
-# run make with "H=" as an argument to show all build commands.
-H	:=@
 
 .PHONY:	tags wc tar install mrproper clean tests config_h doc
 .PRECIOUS: ${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}%.keys ${ODIR}%.mph
@@ -40,7 +34,7 @@ endif
 gtk2dll: ${ODIR}${ODLL}
 
 config configure:
-	$H script/configure $(PLATFORM)
+	$H script/configure $(ARCH)
 
 # rule to build the library.
 
@@ -72,7 +66,7 @@ ${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}gtkdata.%.h: ${ODIR}types.xml \
 
 ${ODIR}types.xml: script/make-xml.lua
 	@echo "Generating types.xml..."
-	$H script/make-xml.lua "$@" $(PLATFORM)
+	$H script/make-xml.lua "$@" $(ARCH)
 
 ${ODIR}%.$(O): ${ODIR}%.c
 	@echo $@
@@ -217,13 +211,13 @@ doc:
 	( cd html_in; ../script/gen-html.lua )
 
 help:
-	@echo "Usage: make.sh [platform] [target]"
-	@echo "  platform:  optional, may be linux, archlinux or win32"
+	@echo "Usage: make.sh [architecture] [target]"
+	@echo "  architecture:  optional, may be linux-i386, linux-amd64 or win32-i386"
 	@echo "  target: optional, default is all, also known:"
 	@echo "    help, doc, install, clean, mrproper and maybe more."
 
-funclist: ${ODIR}gtkdata.funcs.txt
-	$H script/funclist.lua ${ODIR}gtkdata.funcs.txt
+funclist: all ${ODIR}gtkdata.funcs.txt
+	$H script/funclist.lua ${ODIR}gtkdata.funcs.txt > $@
 
 # -- dependencies --
 
