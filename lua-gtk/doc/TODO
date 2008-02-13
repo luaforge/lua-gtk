@@ -2,6 +2,12 @@
 BUGS
 ====
 
+- GtkTextTag sometimes freed with refcount 1, and later tagbuffer frees
+  it again.  some override is required!
+
+- GSList.  you have to call g_slist_free() yourself.  what about the
+  items pointed to?  
+
 - review all the code for improvements and maybe some bugs
 
 - GdkAtom represented in the function list with one level of indirection too
@@ -32,14 +38,36 @@ MISSING FEATURES
 - in lua2ffi_vararg(struct argconv_t *ar), support TABLE input as
   array of pointers to strings.
 
+- gtk_stock_list_ids returns GSList; the individual strings in it must
+  be freed with g_free, but this doesn't happen automatically, and there's
+  no way to do it manually either.
+
+- GSList: can't access the "gpointer data" structure element.  The application
+  needs to know what it is supposed to point to.  A typecast function is
+  needed, e.g. like this.
+
+  	gtk.cast(list, "data", "GtkTextTag")
+		simple to implement
+
+	list.data:cast("GtkTextTag")
+		requires a void* in a structure to be returned as userdata
+		with a metatable with a "cast" function.
+
+
 - socket_co: connect attempts must be asynchronous, otherwise the GUI can be
   blocked (by a slow DNS server, for example).
-  	see libc-ares1
+	getaddrinfo_a in libc.  available in mingw?
+		libws2_32.a has _getaddrinfo@16, but not getaddrinfo_w.
+  	libc-ares1
+	adns -- quite "fat" according to udns description
+	write an own non-recursing simple dns resolver?  might be easy.
+	http://www.network-research.org/udns.html
+	udns
+
 
 - wrapper for gtk_tree_model_get would be nice.
 
 - add more #defines from the Gtk includes to the ENUM list automatically.
-	gdk/gdkkeysyms.h
 	gdk/gdkselection.h
 
 - more documentation
@@ -85,6 +113,8 @@ IMPROVEMENTS
 - Additional Library Support.  If available at compile time and enabled,
   compile it in.  If not available at runtime, disable this part of the API.
 
+  Done: Cairo, GLib, GObject, ATK, Pango, gdk-pixbuf, GDK, GTK+
+
   - cairo - http://cairographics.org/
   	partly working, not tested much
 
@@ -94,7 +124,6 @@ IMPROVEMENTS
 
   - GDA
   	libgda3-dev
-	libxslt1-dev
 
   - GConf2
   	libgconf2-dev
@@ -120,6 +149,12 @@ IMPROVEMENTS
 
   - xml2
   	libxml2-dev
+
+  - libxslt
+	libxslt1-dev
+
+  - libglade - maybe not, use GtkBuilder
+
 
 
 
