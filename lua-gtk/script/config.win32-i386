@@ -4,7 +4,9 @@
 # configuration specific to win32 on i386
 #
 
+# use compile time linking.
 LINK=1
+
 ARCHDEF=WIN32
 
 GTKDIR=mingw/gtk/lib
