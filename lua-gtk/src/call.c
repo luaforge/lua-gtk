@@ -361,13 +361,16 @@ static int _call_return_values(lua_State *L, int index, struct call_info *ci)
 /**
  * Call the given function by name, and use the current Lua stack
  * as parameters.
+ *
+ * Note: this does NOT consider overrides, which is intentional as some
+ * override functions use this to call into Gtk.
  */
 int luagtk_call_byname(lua_State *L, const char *func_name)
 {
     struct func_info fi;
     if (find_func(func_name, &fi))
 	return luagtk_call(L, &fi, 1);
-    return -1;
+    return luaL_error(L, "%s function %s not found", msgprefix, func_name);
 }
 
 
