@@ -6,7 +6,10 @@
  *
  * Exported functions:
  *   luagtk_call
+ *   luagtk_call_byname
+ *   get_next_argument
  *   call_info_alloc_item
+ *   call_info_msg
  *   call_info_warn
  *   call_info_free_pool
  */
