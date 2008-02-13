@@ -6,7 +6,7 @@ LIBINSTALL := cp
 LIBFINAL := touch
 # -- end general configuration --
 
-.PHONY:	tags wc tar install mrproper clean tests config_h doc
+.PHONY:	tags wc tar install mrproper clean tests config_h doc size
 .PRECIOUS: ${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}%.keys ${ODIR}%.mph
 
 OFILES	:=types.$(O) gtk2.$(O) data.$(O) \
@@ -193,6 +193,9 @@ tar:
 
 wc:
 	wc src/*.{c,h,lua} script/*.lua
+
+size: $(addprefix ${ODIR}, ${OFILES})
+	size -t $^
 
 tags:
 	ctags src/*.[ch]
