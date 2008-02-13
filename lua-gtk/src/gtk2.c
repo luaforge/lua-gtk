@@ -144,9 +144,13 @@ static int l_gtk_lookup(lua_State *L)
  * Newer Gtk versions tend to use GSlice, but this hasn't always been so.
  * In order to make lua-gtk compatible with older versions, in certain
  * cases g_malloc has to be used to allocate certain classes.
+ *
+ * Note that the _runtime_ Gtk version is compared and not the compile time;
+ * this ensures that even when compiled with a new Gtk library, it will work
+ * with older versions.
  */
 #define _VERSION(x,y,z) ((x)*10000 + (y)*100 + (z))
-struct uses_g_malloc {
+static const struct uses_g_malloc {
     const char *struct_name;
     int version_from, version_to;	// range of Gtk versions using g_malloc
 } uses_g_malloc[] = {
@@ -158,7 +162,7 @@ struct uses_g_malloc {
 
 static int _need_g_malloc(const char *struct_name)
 {
-    struct uses_g_malloc *p;
+    const struct uses_g_malloc *p;
     int version = _VERSION(gtk_major_version, gtk_minor_version,
 	gtk_micro_version);
 
@@ -258,7 +262,8 @@ static const luaL_reg gtk_methods[] = {
 
 
 /**
- * Initialize the library, returns a table.  Note that the table is also stored
+ * Initialize the library, returns a table.  This function is called by Lua
+ * when this library is dynamically loaded.  Note that the table is also stored
  * as the global "gtk", because within this library the global table is
  * accessed sometimes.
  */
