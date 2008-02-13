@@ -6,6 +6,7 @@
  * Exported functions:
  *   luagtk_connect
  *   luagtk_disconnect
+ *   luagtk_make_closure
  */
 
 /**
@@ -35,6 +36,26 @@ struct callback_info {
 /* query: signal_id, signal_name, itype, signal_flags, return_type, n_params,
  * param_types */
 
+
+static void _callback_type_error(lua_State *L, struct callback_info *cbi,
+    int is_type, int expected_type)
+{
+    lua_Debug ar;
+    char funcinfo[80];
+
+    // this is the handler
+    lua_rawgeti(L, LUA_REGISTRYINDEX, cbi->handler_ref);
+    if (lua_getinfo(L, ">Sn", &ar))
+	snprintf(funcinfo, sizeof(funcinfo), " at %s %s(%d): %s",
+	    ar.namewhat, ar.short_src, ar.linedefined, ar.name);
+    else
+	funcinfo[0] = 0;
+
+    luaL_error(L, "%s can't convert return type %s to %s for signal handler "
+	"of %s%s", msgprefix, lua_typename(L, is_type),
+	lua_typename(L, expected_type), cbi->query.signal_name, funcinfo);
+}
+
 /**
  * Handle return values from the Lua handler to pass back to Gtk.  Not many
  * different types are supported - but I think no others are actually used.
@@ -47,20 +68,31 @@ struct callback_info {
 static int _callback_return_value(lua_State *L, int return_type,
     struct callback_info *cbi)
 {
-    int val = 0;
+    int val = 0, type = lua_type(L, -1);
+
+    // NIL is always OK and is zero.
+    if (type == LUA_TNIL)
+	return 0;
 
     switch (return_type) {
 	case G_TYPE_NONE:
 	    break;
+
 	case G_TYPE_BOOLEAN:
+	    if (type != LUA_TBOOLEAN)
+		_callback_type_error(L, cbi, type, LUA_TBOOLEAN);
 	    val = lua_toboolean(L, -1);
 	    break;
+	
 	case G_TYPE_INT:
+	    if (type != LUA_TNUMBER)
+		_callback_type_error(L, cbi, type, LUA_TNUMBER);
 	    val = lua_tointeger(L, -1);
 	    break;
+	
 	default:
-	    printf("%s unhandled callback return type %ld of callback %s\n",
-		msgprefix, (long int) return_type, cbi->query.signal_name);
+	    luaL_error(L, "%s unhandled callback return type %d of callback %s",
+		msgprefix, return_type, cbi->query.signal_name);
     }
 
     return val;
