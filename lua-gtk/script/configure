@@ -3,7 +3,7 @@
 
 # Setup script for lua-gtk
 # by Wolfgang Oertl 2008
-# tested with bash, dash.
+# tested with bash, dash, ksh, mksh, pdksh, posh.
 
 
 # - arg check -
