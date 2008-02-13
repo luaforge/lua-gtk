@@ -1,12 +1,25 @@
 #! /bin/sh
+# vim:sw=4:sts=4
 
 LINK=0
 GTK_LIBS=$($PC --libs gtk+-2.0)
 ARCHDEF=LINUX
-echo "LIBFFI      :=/usr/lib/libffi_pic.a" >> $CFG_M
+
+LIBFFI=
+for F in /usr/lib/libffi_pic.a /usr/local/lib/libffi_pic.a; do
+    if test -f $F; then
+	LIBFFI=$F
+	break
+    fi
+done
+
+if test ! "$LIBFFI"; then
+    echo "libffi not found."
+    ERR=1
+fi
+
 echo "INDIR1      :=/usr/local/lib/lua/5.1" >> $CFG_M
 echo "INDIR2      :=/usr/local/share/lua/5.1" >> $CFG_M
-#echo "MINGW       :=" >> $CFG_M
 echo "CFLAGS      +=-fPIC" >> $CFG_M
 echo "ODLL        :=gtk.so" >> $CFG_M
 

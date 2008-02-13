@@ -26,6 +26,8 @@ FFIDIR=mingw/libffi-mingw
 if test ! -d $FFIDIR -o ! -f $FFIDIR/libffi.a; then
     echo "LibFFI not found in $FFIDIR"
     ERR=1
+else
+    LIBFFI=$FFIDIR/libffi.a
 fi
 
 # mingw
@@ -49,7 +51,6 @@ if test "$HAVE_CMPH" = 1; then
 fi
 
 # output
-echo "LIBFFI      :=$FFIDIR/libffi.a" >> $CFG_M
 echo "INDIR1      :=/usr/local/lib/lua/5.1" >> $CFG_M
 echo "INDIR2      :=/usr/local/share/lua/5.1" >> $CFG_M
 #echo "MINGW       :=$MINGW" >> $CFG_M

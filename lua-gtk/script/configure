@@ -180,6 +180,7 @@ echo "CC          :=$CC" >> $CFG_M
 echo "HOSTCC      :=$HOSTCC" >> $CFG_M
 echo "LINK        :=$LINK" >> $CFG_M
 echo "GTK_LIBS    :=$GTK_LIBS" >> $CFG_M
+echo "LIBFFI      :=$LIBFFI" >> $CFG_M
 
 if test $LINK -eq 0; then
     echo "#define MANUAL_LINKING" >> $CFG_H
@@ -245,6 +246,7 @@ if test "$SUMMARY"; then
     fi
     echo "   Lua version:          $LUA_VERSION"
     echo "   Gtk version:          $GTK_VERSION"
+    echo "   libffi:               $LIBFFI"
     echo "   Cmph library:         $CMPH_VERSION"
     echo "   Debugging:            $DEBUG_ONOFF"
     echo ""
