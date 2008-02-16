@@ -1,7 +1,11 @@
 #! /usr/bin/env lua
 -- Test reference counting and memory management.
+-- NOTE: only works when debugging functions are available.
 
 require "gtk"
+
+f, msg = pcall(function() return gtk.get_refcount end)
+if not f then return end
 
 -- create a new region
 r = gtk.new("GdkRegion")
