@@ -2,6 +2,9 @@
 This library is released under the terms of the Lesser GNU Public License
 Version 2.1 [1].
 
+Another option would have been the Mozilla Public License, which is used by
+Lua; but as you need Gtk and it has the LGPL, I chose to use the LGPL as well.
+
 Some parts (hash-fch.c in particular) are derived from the cmph library [2],
 which was released under the Mozilla Public License 1.1 [3].
 
