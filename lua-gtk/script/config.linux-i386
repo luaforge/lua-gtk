@@ -20,7 +20,7 @@ fi
 
 echo "INDIR1      :=/usr/local/lib/lua/5.1" >> $CFG_M
 echo "INDIR2      :=/usr/local/share/lua/5.1" >> $CFG_M
-echo "CFLAGS      +=-fPIC" >> $CFG_M
+echo "CFLAGS      +=-fpic" >> $CFG_M
 echo "ODLL        :=gtk.so" >> $CFG_M
 
 # possibly extra for archlinux.  How to detect that?
