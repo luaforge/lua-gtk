@@ -13,9 +13,11 @@
  *  2007-02-02	(almost) no global Lua state; use luaL_ref
  *  2007-10-12	improved modularization of the code; ENUM typechecking
  *
- * Exported functions:
+ * Exported symbols:
  *  luagtk_init_gtk
  *  luaopen_gtk
+ *  msgprefix
+ *  is_initialized
  */
 
 #include "luagtk.h"
@@ -28,6 +30,7 @@ extern char override_data[];
 extern int override_size;
 
 int gtk_is_initialized = 0;
+const char msgprefix[] = "[gtk]";
 
 /**
  * Initialize Gtk if it hasn't happened yet.  This is mostly called through
@@ -79,11 +82,8 @@ static int l_gtk_lookup(lua_State *L)
     struct func_info fi;
     char func_name[50];
 
-    if (!s) {
-	luaL_error(L, "%s attempt to look up a NULL string\n", msgprefix);
-	/* not reached */
-	return 0;
-    }
+    if (!s)
+	return luaL_error(L, "%s attempt to look up a NULL string", msgprefix);
 
     GTK_INITIALIZE();
 
@@ -114,13 +114,16 @@ static int l_gtk_lookup(lua_State *L)
 	    return 1;
 	lua_pop(L, 1);
 
+	// If not found, throw an error.  Alternatively 0 could be returned,
+	// but mistyped gtk.something lookups would silently return nil,
+	// possibly leading to hard-to-find bugs.
 	if (!find_func(func_name, &fi))
-	    return luaL_error(L, "[gtk] not found: gtk.%s", s);
+	    return luaL_error(L, "%s not found: gtk.%s", msgprefix, s);
     }
 
     /* A function has been found, so return a closure that can call it. */
     // NOTE: need to duplicate the name, fi.name points to the local variable
-    // fund_name.  So, allocate a new func_info with some space after it large
+    // func_name.  So, allocate a new func_info with some space after it large
     // enough to hold the function name.
     int name_len = strlen(fi.name) + 1;
     struct func_info *fi2 = (struct func_info*) lua_newuserdata(L,
@@ -251,6 +254,30 @@ static int l_get_osname(lua_State *L)
     return 1;
 }
 
+static const char _module_info[] =
+    "_VERSION\0"
+    LUAGTK_VERSION "\0"
+    "_DESCRIPTION\0"
+    "LuaGtk is a binding to Gtk 2.x for easy development of GUI applications.\0"
+    "_COPYRIGHT\0"
+    "Copyright (C) 2006, 2008 Wolfgang Oertl\0"
+    "\0";
+
+/**
+ * Add some meta information to the new module.
+ */
+static void _init_module_info(lua_State *L)
+{
+    const char *s = _module_info;
+
+    while (*s) {
+	lua_pushstring(L, s);	    /* name */
+	s += strlen(s) + 1;
+	lua_pushstring(L, s);	    /* value */
+	lua_rawset(L, -3);
+	s += strlen(s) + 1;
+    }
+}
 
 /* methods directly callable from Lua; most go through __index */
 static const luaL_reg gtk_methods[] = {
@@ -278,6 +305,7 @@ int luaopen_gtk(lua_State *L)
 
     /* make the table to return, and make it global as "gtk" */
     luaL_register(L, "gtk", gtk_methods);
+    _init_module_info(L);
     luagtk_init_widget(L);
     luagtk_init_overrides(L);
     luagtk_init_channel(L);
