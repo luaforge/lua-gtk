@@ -9,6 +9,15 @@
 -- won't be overwritten.
 --
 
+for name, descr in pairs { curl="curl binding", lfs="Lua Filesystem" } do
+    rc, msg = pcall(function() require(name) end)
+    if not rc then
+	print(string.format("Module %s (%s) not found, please install it.\n\n%s",
+	    descr, name, msg))
+	os.exit(1)
+    end
+end
+
 require "curl"
 require "lfs"
 
@@ -146,6 +155,7 @@ end
 
 if #arg ~= 1 then
     print(string.format("Usage: %s [-d] output_dir", arg[0]))
+    print("\n  -d     Additionally download development packages\n")
     return
 end
 
