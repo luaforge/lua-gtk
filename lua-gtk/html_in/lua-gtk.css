@@ -10,6 +10,8 @@ body { color:#000; background:#fff; }
 
 #header p { margin-left:0; }
 
+#content { width:800px; margin:0 auto; }
+
 p { margin-left:3ex; }
 
 img.screenshot { margin-left:50px; }

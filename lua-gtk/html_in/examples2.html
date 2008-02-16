@@ -1,0 +1,63 @@
+<%= html_header("Examples 2") %>
+
+<h2>Examples 2</h2>
+
+<h3>Weather Update</h3>
+
+<p>
+Select a location from the dropdown to display the current weather forecast.
+The program is available in the CVS repository.
+</p>
+
+<img class="screenshot" width=591 height=379 src="img/weather1.png"
+ alt="Weather Update screenshot" />
+
+<p>
+The required libraries in this case are:
+</p>
+
+<div class="code"><code>
+require "gtk"
+require "gtk.http_co"
+require "lxp"
+require "gtk.strict"
+</code></div>
+
+<p>
+"lxp" is LuaExpat, the binding to the expat xml parser.  The following function
+is the handler for changes in the dropdown and starts an asynchronous
+HTTP request to fetch the weather info.  The "_co" suffix indicates that
+a coroutine is used.
+</p>
+
+<div class="code"><code>
+<%= copy_function("../weather/weather.lua", "on_location_changed") %>
+</code></div>
+
+<p>
+The total code size of this example is about 270 lines, most of it concerned
+with parsing the response and building the GUI elements to show it.
+</p>
+
+<h3>Pixmap</h3>
+
+<p>
+This demo creates a GdkPixmap and draws on it using functions like
+draw_rectangle, draw_layout (for Pango layouts).
+</p>
+
+<img class="screenshot" width=212 height=233 src="img/pixmap1.png"
+ alt="Pixmap screenshot" />
+
+<p>
+The code is interesting as it uses quite a few low level functions,
+accesses to structure elements and so forth.  The following function
+is called to create the pixmap at a given size after size change of the
+window:
+</p>
+
+<div class="code"><code>
+<%= copy_function("examples/pixmap.lua", "on_configure") %>
+</code></div>
+
+

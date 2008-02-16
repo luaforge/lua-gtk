@@ -7,7 +7,7 @@ Lua-Gtk provides a complete binding to Gtk 2.x for Lua.  With it, you can
 write small or large applications only in Lua, while using Gtk through an
 API that almost matches the C API.  All of the over 5500 functions and
 700 structures, unions and enums are available.  Still, the library is just
-about 200 kB when compiled (plus a few small Lua files).
+about 250 kB when compiled (plus a few small, optional Lua files).
 </p>
 
 <p>
@@ -25,16 +25,33 @@ Currently, HTTP and FTP protocols are implemented.  Some sample applications
 are provided.
 </p>
 
+
+<h3>Platforms</h3>
+
 <p>
-The primary <b>platform</b> is Linux, even it also cross-compiles for
-Windows (via MinGW).  Scripts can (with some care) run on these platforms
-without changes.
+The primary platform is Linux.  It can be cross-compiled for
+Windows using <a href="http://mingw.org/">MinGW</a>.
+Scripts can (with some care) run on these platforms without changes.
+A <b>Debian package</b> is available, currently in testing:
+<a href="http://packages.debian.org/lenny/liblua5.1-gtk-0">package page</a>.
 </p>
 
 <p>
 The library is available under the same terms and conditions as the Lua
-language, the MIT license. The idea is that if you can use Lua (and Gtk) in a
-project, you should also be able to use Lua-Gtk.
+language, the MIT license, and the LGPL (Lesser GNU Public License). The idea
+is that if you can use Lua (and Gtk) in a project, you should also be able to
+use Lua-Gtk.
+</p>
+
+<h3>Community</h3>
+
+<p>
+The project page is on <a href="http://luaforge.net/projects/lua-gtk/">
+luaforge.net</a>.
+Please use the <a href="http://luaforge.net/forum/?group_id=121">Forums</a>
+on luaforge.net for discussion and help requests, and the
+<a href="http://luaforge.net/tracker/?group_id=121">Tracker</a> to submit
+bugs.
 </p>
 
 <p>
@@ -52,6 +69,5 @@ online</a> or <a href="http://luaforge.net/snapshots.php?group_id=121">download
 as snapshot</a>.
 </p>
 
-</body>
-</html>
+<%= html_trailer() %>
 
