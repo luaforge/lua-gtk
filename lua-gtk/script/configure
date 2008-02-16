@@ -6,10 +6,13 @@
 # tested with bash, dash, ksh, mksh, pdksh, posh.
 
 
-# - arg check -
+# - default settings -
+VERSION="0.8"
 ARCH=
 DEBUG=
 SUMMARY=
+DEBUGFUNCS=1
+HASHF=hsieh
 
 known_architectures () {
     S="Known architectures:"
@@ -23,37 +26,44 @@ show_help () {
     echo "Usage: $0 [args] [architecture]"
     echo "Configure lua-gtk for compilation."
     echo ""
-    echo "  --debug   compile with debugging information"
-    echo "  --summary show results"
+    echo "  --debug          Compile with debugging information (-g)"
+    echo "  --summary        Show configure results"
+    echo "  --disable-debug  Omit debugging functions like dump_struct"
+    echo "  --host [ARCH]    Cross compile to another architecture, see below"
     echo ""
     known_architectures
     echo "If no architecture is given, a default is determined."
 }
 
+# - parse command line -
 while test "$1"; do
 
     case "$1" in
 	--debug) DEBUG=1 ;;
 	--summary) SUMMARY=1 ;;
+	--disable-debug) DEBUGFUNCS= ;;
+	--enable-debug) DEBUGFUNCS=1 ;;
+
+	--host)
+	    if test "$ARCH"; then
+		echo "$0: unexpected option $1"
+		echo "Try \`$0 --help' for more information."
+		exit 1
+	   fi
+	   ARCH=$2
+	   shift
+	   ;;
 
 	--help)
 	    show_help
 	    exit 1
 	    ;;
 
-	-*)
+	*)
 	    echo "$0: unrecognized option $1"
 	    echo "Try \`$0 --help' for more information."
 	    exit 1
 	    ;;
-
-	*)
-	    if test "$ARCH"; then
-		echo "$0: unexpected option $1"
-		echo "Try \`$0 --help' for more information."
-		exit 1
-	   fi
-	   ARCH=$1 ;;
     esac
 
     shift
@@ -85,11 +95,9 @@ fi
 
 # - general setup -
 
-VERSION="0.7"
 ODIR=build/$ARCH
 CFG_H_REAL=$ODIR/config.h
 CFG_M_REAL=$ODIR/config.make
-HASHF=hsieh
 
 ERR=0
 CFG_H=$CFG_H_REAL.tmp
@@ -113,6 +121,8 @@ echo "ARCH        :=$ARCH" >> $CFG_M
 echo "VERSION     :=$VERSION" >> $CFG_M
 echo "ODIR        :=$ODIR/" >> $CFG_M
 echo "CFLAGS      =" >> $CFG_M
+
+echo "#define LUAGTK_VERSION \"$VERSION\"" >> $CFG_H
 
 
 # - Gtk -
@@ -196,6 +206,10 @@ echo "HASH        :=hash-\$(HASHF)" >> $CFG_M
 if test "$DEBUG"; then
     echo "CFLAGS      +=-g" >> $CFG_M
     echo "LDFLAGS     +=-g" >> $CFG_M
+    DEBUG_INFO="on"
+else
+    echo "CFLAGS      +=-Os -fomit-frame-pointer" >> $CFG_M
+    DEBUG_INFO="off"
 fi
 
 
@@ -205,6 +219,12 @@ echo "#ifndef $ARCHDEF" >> $CFG_H
 echo " #define $ARCHDEF" >> $CFG_H
 echo "#endif" >> $CFG_H
 echo "#define HASHFUNC hash_$HASHF" >> $CFG_H
+if test "$DEBUGFUNCS"; then
+    echo "#define LUAGTK_DEBUG_FUNCS" >> $CFG_H
+    DEBUG_FUNCS_INFO="enabled"
+else
+    DEBUG_FUNCS_INFO="disabled"
+fi
 
 
 # - check for errors -
@@ -235,10 +255,10 @@ mv -f $CFG_M $CFG_M_REAL
 echo $ARCH > build/make.state
 
 if test "$SUMMARY"; then
-    if test "$DEBUG"; then DEBUG_ONOFF="on"; else DEBUG_ONOFF="off"; fi
     echo ""
     echo "lua-gtk configured successfully.  Settings:"
     echo ""
+    echo "   Version:              $VERSION"
     echo "   Build architecture:   $ARCH"
     echo "   C compiler:           $HOSTCC_VERSION"
     if test "$CC_VERSION"; then
@@ -248,7 +268,8 @@ if test "$SUMMARY"; then
     echo "   Gtk version:          $GTK_VERSION"
     echo "   libffi:               $LIBFFI"
     echo "   Cmph library:         $CMPH_VERSION"
-    echo "   Debugging:            $DEBUG_ONOFF"
+    echo "   Debugging symbols:    $DEBUG_INFO"
+    echo "   Debugging functions:  $DEBUG_FUNCS_INFO"
     echo ""
     echo "Type make to build."
     echo ""
