@@ -1,16 +1,21 @@
 
+Contents:
 
-Installation Instructions for Linux
-===================================
+  - Build Instructions for Linux
+  - Build Instructions for MingW32
+
+
+Build Instructions for Linux
+============================
 
 My system is Debian/testing, where most of the required libraries are available
 as packages.  Prerequisites:
 
-  - Gtk2 (tested with 2.6.8, 2.8.16, 2.10.13, 2.12.3) with devel files
+  - Gtk2 (tested with 2.6.8, 2.8.16, 2.10.13, 2.12.5) with devel files
   - libffi
   - lua5.1, liblua-bit, liblua5.1-expat
   - lua sockets - required for the http/ftp etc. library
-  - cmph (optional, at http://sf.net/projects/cmph)
+  - libcmph (optional, also at http://sf.net/projects/cmph)
   - gccxml
   - gcc, binutils, make, ...
 
@@ -27,8 +32,8 @@ Package names in Debian:
 	gcc
 	make
 
-Thanks to Enrico Tassi for building all the Lua related packages, and
-even the cmph library.
+Thanks to Enrico Tassi for building all the Lua related packages, including
+this one, and even the cmph library.
 
 
 About the optional cmph library
@@ -53,19 +58,18 @@ empty buckets.
 Procedure
 ---------
 
- - edit script/Makefile.linux to suit your installation.  This is NOT an
-   autoconf generated file.  Not many options are useful to change.
- - make
- - make install (as root); alternatively, create symlinks to the build
-   directory, which is nice during development, as the install step isn't
-   required:
-   /usr/local/lib/lua/5.1/gtk.so --> ..../lua-gtk/build/linux/gtk.so
+ - optionally, run script/configure (try --help)
+ - run "make"
+ - as root, run "make install".  Alternatively, create symlinks which is
+   nice during development:
+
+   /usr/local/lib/lua/5.1/gtk.so --> ..../lua-gtk/build/linux-i386/gtk.so
    /usr/local/share/lua/5.1/gtk --> ..../lua-gtk/lib
 
 Now you should be ready to run the example scripts:
 
-$ lua -w examples/button.lua
-$ lua -w examples/pixmap.lua
+$ lua examples/button.lua
+$ lua examples/pixmap.lua
 
 
 
@@ -83,8 +87,8 @@ Build Instructions for MingW32
 
 To build this package for Windows please use MingW32.  The resulting binaries
 run on native Windows.  In other words, you'll be cross-compiling from Linux
-to Windows; I don't have a development environment under Windows to try it
-out.  Therefore, install the mingw32 build environment, e.g. for Debian, try
+to Windows; I don't have a development environment under Windows to build it
+natively.  Therefore, install the mingw32 build environment, e.g. for Debian,
 "apt-get install mingw32".
 
 
@@ -93,14 +97,15 @@ Step 1
 ------
 
   Please refer to README.win32.txt on instructions on how and where to get the
-latest Gtk+2 libraries.  Unfortunately you have to download the (precompiled)
-libraries individually as ZIP files and extract them.  Additionally, you need
-the "dev" versions of the packages too, so you need to get 22 ZIP files in
-total.  Put their contents into mingw/gtk, so that you have
-mingw/gtk/bin/libgtk-win32-2.0-0.dll, and mingw/gtk/lib/libgtk-win32-2.0.dll.a
-and so on for all the other libraries.
+latest Gtk+2 libraries.  You need quite a few ZIP files for the individual
+components.  To make this easier, use the provided script:
 
-  Then install the GTk runtime (not the -dev packages, just the normal ones)
+	mkdir -p mingw/gtk/zip
+	script/download-gtk-win.lua -d mingw/gtk/zip
+	cd mingw/gtk
+	for i in zip/*.zip; do unzip $i; done
+
+  Then install the Gtk runtime (not the -dev packages, just the normal ones)
 onto a Windows box.  Again, see README.win32.txt on how to edit the registry
 to add the install path to the search path.  It is possible to try it out with
 wine, although the fonts are at a huge size, I haven't figured out why, YMMV.
