@@ -1,0 +1,24 @@
+# Makefile for cross compilation via MinGW for Windows
+
+#  NOTE: compilation for Win32 using MinGW requires precompiled Gtk/Gdk
+#  libraries, and the lua51 library.  see doc/INSTALL for more info.
+
+# Create a ZIP file for distribution of the win32 build.
+
+zip: all
+	(D=/tmp/lua-gtk-$(VERSION); rm -rf $$D /tmp/lua-gtk-$(VERSION).zip; \
+	mkdir -p $$D/bin; \
+	cp $(ODIR)$(ODLL) $(LUADIR)/lua5.1.{dll,exe} mingw/curl/*.dll mingw/lfs.dll mingw/unzip.exe $$D/bin/; \
+	cp -a mingw/socket $$D/bin/; \
+	strip $$D/bin/$(ODLL); \
+	cp mingw/install.bat $$D; \
+	mkdir -p $$D/examples; \
+	cp examples/*.* $$D/examples/; \
+	mkdir -p $$D/gtk; \
+	cp lib/*.* $$D/gtk/; \
+	cp doc/README.win32.txt $$D/README.txt; \
+	mkdir -p $$D/script; \
+	cp script/{download-gtk-win.lua,funclist.lua,update_registry.lua} $$D/script/; \
+	cd /tmp; \
+	zip -r lua-gtk-$(VERSION)-$(ARCH).zip lua-gtk-$(VERSION))
+

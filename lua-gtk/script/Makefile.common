@@ -189,14 +189,14 @@ install: all
 tar:
 	(cd ..; ln -s lua-gtk lua-gtk-${VERSION}; \
 	tar czvfh lua-gtk-${VERSION}.tar.gz \
-		--exclude build --exclude CVS --exclude mingw/gtk \
+		--exclude build --exclude CVS --exclude mingw \
 		--exclude tags --exclude ".*.swp" --exclude attic \
-		--exclude private --exclude win32 \
+		--exclude private --exclude win32 --exclude funclist \
 		lua-gtk-${VERSION}; \
 	rm lua-gtk-${VERSION})
 
 wc:
-	wc src/*.{c,h,lua} script/*.lua
+	wc src/*.{c,h,lua} script/*.lua lib/*.lua
 
 size: $(addprefix ${ODIR}, ${OFILES})
 	size -t $^

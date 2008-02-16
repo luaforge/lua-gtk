@@ -1,0 +1,17 @@
+# Makefile for lua-gtk2 (Linux)
+
+# Build a tarball with the stripped library, the Lua library code and all the
+# examples, plus an explanatory README file.
+
+tar-bin: all
+	(D="lua-gtk-$(VERSION)"; mkdir -p $$D/gtk $$D/examples; \
+	cp $(ODIR)$(ODLL) $$D/; strip $$D/$(ODLL); \
+	cp lib/*.lua $$D/gtk/; \
+	cp examples/*.lua $$D/examples/; \
+	cp doc/README.binary $$D/README; \
+	cp doc/COPYING doc/AUTHORS $$D/; \
+	cp script/install.lua $$D; \
+	tar czvf lua-gtk-$(VERSION)-$(ARCH).tar.gz $$D; \
+	rm -r $$D \
+	)
+

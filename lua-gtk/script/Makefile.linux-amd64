@@ -1,0 +1,3 @@
+
+include script/Makefile.linux-i386
+
