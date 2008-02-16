@@ -2,6 +2,11 @@
 BUGS
 ====
 
+- CRITICAL: stack overflow and endless loop when clicking close or
+  backward button in examples/toolbar.lua.
+
+- g_convert & friends on win32 don't work.  some library component missing?
+
 - GtkTextTag sometimes freed with refcount 1, and later tagbuffer frees
   it again.  some override is required!
 
@@ -109,6 +114,9 @@ IMPROVEMENTS
 	- improve hash-fch-generate.c to also support bdz
 	- write hash-bdz.c to support lookup with the bdz algorithm.
 
+
+- use a better module definition, see
+  http://lua-users.org/wiki/LuaDesignPatterns
 
 - Additional Library Support.  If available at compile time and enabled,
   compile it in.  If not available at runtime, disable this part of the API.
