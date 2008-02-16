@@ -36,10 +36,19 @@ html_header = [[
  <p>Binding to Gtk 2 for Lua</p>
  <p>
   <a href="index.html">Home</a> &middot;
-  <a href="screenshots.html">Screenshots</a> &middot;
+  <a href="examples1.html">Examples 1</a> &middot;
+  <a href="examples2.html">Examples 2</a> &middot;
   <a href="reference.html">Reference</a>
  </p>
 </div>
+
+<div id="content">
+]]
+
+html_trailer = [[
+</div>
+</body>
+</html>
 ]]
 
 output_dir = "../build/html/"
@@ -55,6 +64,10 @@ env = {
 	-- returned, too.
 	local s = string.gsub(html_header, "#TITLE#", title)
 	return s
+    end,
+
+    html_trailer = function()
+	return html_trailer
     end,
 
     -- extract a function from a Lua source file
