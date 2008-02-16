@@ -3,21 +3,29 @@ Binary package
 ==============
 
 You have downloaded the binary package of lua-gtk2.  This way you can
-easily try it out - supposing it actually works in your installation...
+easily try it out - supposing it actually works in your installation.
+If you're using a Debian (or derived) system, the package available
+for it might be a better option (liblua5.1-gtk-0).
 
-Prerequisites:
+
+
+Prerequisites
+-------------
 
  - Lua 5.1
- - Gtk/Gdk libraries
+ - Gtk/Gdk libraries version 2.x
+ - lua-socket (optional, for some examples)
 
-Change to this directory and run an example, like "./gladedemo.lua".  This
-requires that your Lua binary is installed in the current search path, and
-that "." is in the module search path.  To verify this, type
 
-	print(package.cpath)
 
-at the Lua prompt.  It should contain "./?.so" somewhere.  If not, copy
-gtk.so to one of the places in the search path.
+Installation
+------------
 
-Now you can already run the examples.
+You can try out some examples without installation.  Change the directory
+to the place this README file is, and run "examples/clock.lua", or any
+other of the examples.
+
+Otherwise do this 
+
+  sudo ./install.lua
 
