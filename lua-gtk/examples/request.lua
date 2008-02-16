@@ -37,8 +37,10 @@ function download_callback(arg, ev, data1, data2, data3)
 	set_status("Done, got " .. #arg.sink_data .. " bytes.")
 	local buf, read, written, err = gtk.g_convert(arg.sink_data,
 	    -1, "utf8", "latin1", nil, nil, nil)
+	if err then
+	    buf = err.message
+	end
 	result_buf:set_text(buf, #buf)
-	return
     elseif ev == 'error' then
 	download_running = 0
 	set_status("Error: " .. data2)
@@ -82,6 +84,7 @@ function build_gui()
 
     local w = gtk.window_new(gtk.GTK_WINDOW_TOPLEVEL)
     w:set_title "HTTP Demo"
+    w:set_default_size(500, 400)
     w:connect('destroy', function() gtk.main_quit() end)
 
     local vbox = gtk.vbox_new(false, 10)
@@ -131,7 +134,7 @@ end
 --
 -- Main
 --
-gtk.set_debug_flags("memory")
+-- gtk.set_debug_flags("memory")
 build_gui()
 gtk.main()
 
