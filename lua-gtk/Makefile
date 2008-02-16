@@ -9,6 +9,15 @@
 # run make with "H=" as an argument to show all build commands.
 H	:=@
 
+# Use "make H=" to activate display of build commands.
+# If not echoing build commands, show each target.
+ifeq ($(H), @)
+ I	=@echo $@
+else
+ I	:=
+endif
+
+
 # how to recursively call make (if required)
 submake = $(MAKE) -r --no-print-directory
 
@@ -27,7 +36,7 @@ ifeq ($(wildcard build/$(ARCH)/config.make), )
 
 tags .DEFAULT::
 	@echo Running the configure script...
-	$H script/configure --summary $(ARCH) && $(submake) $(MAKECMDGOALS)
+	$H script/configure --summary --host $(ARCH) && $(submake) $(MAKECMDGOALS)
 else
 
 $(warning Building for $(ARCH)...)
@@ -52,7 +61,7 @@ endif
 # New arch: a convenience function; instead you could call script/configure
 # $(arch) If the architecture isn't configured yet, make will (on recursive
 # call) call configure and then invoke itself again.
-linux-i386 win32-i386:
+linux-i386 win32-i386 linux-amd64:
 	$H test -d build || mkdir build
 	$H echo $@ > build/make.state
 	$H $(submake) $(wordlist 2, 99, $(MAKECMDGOALS))
