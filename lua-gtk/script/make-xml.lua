@@ -22,7 +22,7 @@ function generate_object(ofname, platform)
 	return 1
     end
 
-    if platform == "win32" then
+    if string.match(platform, "win32") then
 	defs = "#define G_OS_WIN32\n"
 	    .. "#define GDKVAR extern\n"
 	    .. "#define __GTK_DEBUG_H__\n"
