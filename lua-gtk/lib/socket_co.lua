@@ -156,16 +156,19 @@ function connect(host, port, buffered)
     sock, msg = base.socket.tcp()
     if not sock then return sock, msg end
 
-    sock:settimeout(0)
+    -- sock:settimeout(0)
     gio = create_io_channel(sock, buffered)
 
     -- DNS resolution may block, unfortunately it is not asynchronous.
     rc, msg = sock:connect(host, port)
-    if rc then return gio, sock end
+    if not rc then
+	if msg ~= "timeout" then return rc, msg end
+	-- failed to connect; if timeout, then wait, otherwise return error
+	coroutine.yield("iowait", gio, gtk.G_IO_OUT)
+	if not rc then return rc, msg end
+    end
 
-    -- failed to connect; if timeout, then wait, otherwise return error
-    if msg ~= "timeout" then return rc, msg end
-    coroutine.yield("iowait", gio, gtk.G_IO_OUT)
+    sock:settimeout(0)
     return gio, sock
 end
 
