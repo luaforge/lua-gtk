@@ -36,7 +36,7 @@ ifeq ($(wildcard build/$(ARCH)/config.make), )
 
 tags .DEFAULT::
 	@echo Running the configure script...
-	$H script/configure --summary --host $(ARCH) && $(submake) $(MAKECMDGOALS)
+	$H ./configure --summary --debug --host $(ARCH) && $(submake) $(MAKECMDGOALS)
 else
 
 $(warning Building for $(ARCH)...)
@@ -58,7 +58,7 @@ include script/Makefile.common
 
 endif
 
-# New arch: a convenience function; instead you could call script/configure
+# New arch: a convenience function; instead you could call .
 # $(arch) If the architecture isn't configured yet, make will (on recursive
 # call) call configure and then invoke itself again.
 linux-i386 win32-i386 linux-amd64:
