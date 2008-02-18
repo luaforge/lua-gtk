@@ -103,23 +103,33 @@ static int l_gtk_lookup(lua_State *L)
 	}
     }
 
-    strcpy(func_name, s);
-    if (!find_func(func_name, &fi)) {
-	sprintf(func_name, "gtk_%s", s);
+    // If it starts with "__", then remove that and don't look for overrides.
+    // this is something that overrides written in Lua can use.
+    if (s[0] != '_' || s[1] != '_') {
+	strcpy(func_name, s);
+	if (!find_func(func_name, &fi)) {
+	    sprintf(func_name, "gtk_%s", s);
 
-	// check for overrides
-	lua_pushstring(L, func_name);
-	lua_rawget(L, 1);
-	if (!lua_isnil(L, -1))
-	    return 1;
-	lua_pop(L, 1);
+	    // check for overrides
+	    lua_pushstring(L, func_name);
+	    lua_rawget(L, 1);
+	    if (!lua_isnil(L, -1))
+		return 1;
+	    lua_pop(L, 1);
 
-	// If not found, throw an error.  Alternatively 0 could be returned,
-	// but mistyped gtk.something lookups would silently return nil,
-	// possibly leading to hard-to-find bugs.
+	    // If not found, throw an error.  Alternatively 0 could be returned,
+	    // but mistyped gtk.something lookups would silently return nil,
+	    // possibly leading to hard-to-find bugs.
+	    if (!find_func(func_name, &fi))
+		return luaL_error(L, "%s not found: gtk.%s", msgprefix, s);
+	}
+    } else {
+	// prefixed by "__" - look it up directly.
+	strcpy(func_name, s + 2);
 	if (!find_func(func_name, &fi))
 	    return luaL_error(L, "%s not found: gtk.%s", msgprefix, s);
     }
+
 
     /* A function has been found, so return a closure that can call it. */
     // NOTE: need to duplicate the name, fi.name points to the local variable
