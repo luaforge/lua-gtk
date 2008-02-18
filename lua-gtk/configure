@@ -14,6 +14,10 @@ SUMMARY=
 DEBUGFUNCS=1
 HASHF=hsieh
 
+# only works if cwd is correct
+cd $(pwd)	# workaround for posh
+cd $(dirname $0)
+
 known_architectures () {
     S="Known architectures:"
     for file in script/config.*; do
