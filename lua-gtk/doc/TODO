@@ -2,9 +2,6 @@
 BUGS
 ====
 
-- CRITICAL: stack overflow and endless loop when clicking close or
-  backward button in examples/toolbar.lua.
-
 - g_convert & friends on win32 don't work.  some library component missing?
 
 - GtkTextTag sometimes freed with refcount 1, and later tagbuffer frees
