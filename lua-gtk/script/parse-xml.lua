@@ -46,6 +46,10 @@ fundamental_name2id = {}
 prototypes = {}
 char_ptr_second = 0
 free_methods = {}	-- [name] = 0/1
+parser = nil
+input_file_name = nil
+parse_errors = 0	-- count errors
+xml_curr_line = nil
 
 type_override = {
     ["GtkObject.flags"] = { "GtkWidgetFlags" },
@@ -66,6 +70,40 @@ fundamental_ifo = {}
 
 -- get the list of supported fundamental data types.
 require "src/fundamental"
+
+---
+-- Display an error message with the current XML parsing position.
+--
+function parse_error(...)
+    local line, col = parser:pos()
+    local s = string.format("%s(%d): %s", input_file_name, line,
+	string.format(...))
+    print(s)
+    print(xml_curr_line)
+    parse_errors = parse_errors + 1
+    if parse_errors > 20 then
+	print("Too many errors, exiting.")
+	os.exit(1)
+    end
+end
+
+---
+-- Verify that the table "el" has all given fields.
+--
+-- @return  false on success, true on error
+--
+function check_fields(el, ...)
+    local err = false
+    for i = 1, select('#', ...) do
+	local f = select(i, ...)
+	if not el[f] then
+	    parse_error("missing attribute %s", f)
+	    err = true
+	end
+    end
+    return err
+end
+
 
 ---
 -- Check whether a given fundamental type is already known.  If not,
@@ -139,16 +177,17 @@ xml_tags = {
 
     -- store functions
     Function = function(p, el)
+	if check_fields(el, "name", "returns") then return end
 	curr_func = { { el.returns, "retval" } }
 	funclist[el.name] = curr_func
     end,
 
     -- discard the argument names, just keep the type.
     Argument = function(p, el)
-	if curr_func then
-	    curr_func[#curr_func + 1] = { el.type, el.name or
-		string.format("arg_%d", #curr_func) }
-	end
+	if not curr_func then return end
+	local name = el.name or string.format("arg_%d", #curr_func)
+	if check_fields(el, "type") then return end
+	curr_func[#curr_func + 1] = { el.type, name }
     end,
 
     -- translated to vararg argument later
@@ -160,6 +199,7 @@ xml_tags = {
 
     -- declare a type being a function prototype
     FunctionType = function(p, el)
+	if check_fields(el, "id", "returns") then return end
 	curr_func = { { el.returns, "retval" } }
 	typedefs[el.id] = { type="func", prototype=curr_func }
     end,
@@ -167,9 +207,10 @@ xml_tags = {
     -- Not interested much in constructors.  Store anyway to avoid
     -- dangling references.
     Constructor = function(p, el)
+	if check_fields(el, "id", "context", "name") then return end
 	local t = typedefs[el.context]
 	if not t then
-	    print("Constructor for unknown structure " .. el.context)
+	    parse_error("Constructor for unknown structure %s", el.context)
 	    return
 	end
 	local st = t.struct
@@ -183,9 +224,12 @@ xml_tags = {
 
     -- member of a structure
     Field = function(p, el) 
+	-- el.bits is optional.
+	if check_fields(el, "id", "context", "name", "type", "offset")
+	    then return end
 	local t = typedefs[el.context]
 	if not t then
-	    print("Field for unknown structure " .. el.context)
+	    parse_error("Field for unknown structure %s", el.context)
 	    return
 	end
 	local st = t.struct
@@ -204,11 +248,13 @@ xml_tags = {
     end,
 
     Variable = function(p, el)
+	if check_fields(el, "name") then return end
 	globals[el.name] = el
     end,
 
     -- declare an alternative name for another type
     Typedef = function(p, el)
+	if check_fields(el, "id", "context", "name", "type") then return end
 	if el.context ~= "_1" then
 	    print("Warning: typedef context is " .. el.context)
 	end
@@ -216,12 +262,13 @@ xml_tags = {
     end,
 
     EnumValue = function(p, el)
+	if check_fields(el, "name", "init") then return end
 	enum_values[el.name] = { val=tonumber(el.init), context=curr_enum }
     end,
 
     -- declare a type being an enum
     Enumeration = function(p, el)
-	-- print("ENUM", el.name)
+	if check_fields(el, "id", "name", "size", "align") then return end
 	typedefs[el.id] = { type="enum", name=el.name, size=el.size,
 	    align=el.align }
 	curr_enum = el.id
@@ -229,26 +276,31 @@ xml_tags = {
 
     -- declare a type being a pointer to another type
     PointerType = function(p, el)
+	if check_fields(el, "id", "type", "size", "align") then return end
 	typedefs[el.id] = { type="pointer", what=el.type, size=el.size,
 	    align=el.align }
     end,
 
     FundamentalType = function(p, el)
+	-- size is optional (for void)
+	if check_fields(el, "id", "name", "align") then return end
 	local fid = register_fundamental(el.name, 0, el.size)
 	typedefs[el.id] = { type="fundamental", name=el.name, size=el.size,
 	    align=el.align, fid=fid }
 	if not el.size and el.name ~= "void" then
-	    print("Warning: fundamental type without size: " .. el.name)
+	    parse_error("fundamental type %s without size", el.name)
 	end
     end,
 
     -- wrapper for another type adding qualifiers: const, restrict, volatile
     CvQualifiedType = function(p, el)
+	if check_fields(el, "id", "type") then return end
 	typedefs[el.id] = { type="qualifier", what=el.type,
 	    restrict=el.restrict, const=el.const, volatile=el.volatile }
     end,
 
     ArrayType = function(p, el)
+	if check_fields(el, "id", "min", "max", "align", "type") then return end
 	typedefs[el.id] = { type="array", min=el.min, max=el.max,
 	    align=el.align, what=el.type }
     end,
@@ -266,19 +318,32 @@ xml_tags = {
 ---
 -- Handle Struct and Union declarations.
 --
--- @param el Element information
--- @param what "struct" or "union"
+-- @param el  Element information
+-- @param what  "struct" or "union"
 --
 function xml_struct_union(p, el, what)
     local members, my_name, struct
 
     members = {}
     my_name = el.name or el.demangled
+    if not my_name then
+	parse_error("%s without name or demangled attribute", what)
+	return
+    end
+    if check_fields(el, "id") then return end
 
     -- remove leading "_", which all structures and unions seem to have.
     my_name = my_name:gsub("^_", "")
 
     if not el.incomplete then
+	if not el.size then
+	    parse_error("%s %s without size", what, my_name)
+	    return
+	end
+	if not el.members then
+	    parse_error("%s %s without member list", what, my_name)
+	    return
+	end
 	for w in string.gmatch(el.members, "[_0-9]+") do
 	    members[#members + 1] = w
 	end
@@ -339,13 +404,15 @@ callbacks = {
 -- @param xml_file filename (with path) of the input file
 --
 function parse_xml(xml_file)
-    local p = lxp.new(callbacks, "::")
+    parser = lxp.new(callbacks, "::")
     for l in io.lines(xml_file) do
-	p:parse(l)
-	p:parse("\n")
+	xml_curr_line = l
+	parser:parse(l)
+	parser:parse("\n")
     end
-    p:parse()	    -- close document
-    p:close()	    -- close parser
+    parser:parse()	    -- close document
+    parser:close()	    -- close parser
+    parser = nil
 end
 
 ---
@@ -811,6 +878,11 @@ end
 function _function_analyze(fname)
     -- arg_info: [ arg_type, arg_name ]
     for arg_nr, arg_info in ipairs(funclist[fname]) do
+	if not (arg_info[1] and arg_info[2]) then
+	    print(string.format("Incomplete argument spec for %s arg %s",
+		fname, arg_nr))
+	    for k, v in pairs(arg_info) do print(">", k, v) end
+	end
 	mark_type_id_in_use(arg_info[1],
 	    string.format("%s.%s", fname, arg_info[2]))
     end
@@ -1299,7 +1371,8 @@ if #arg ~= 2 then
     return
 end
 
-parse_xml(arg[2])
+input_file_name = arg[2]
+parse_xml(input_file_name)
 get_extra_data()
 mark_ifaces_as_used()
 analyze_functions()
