@@ -24,12 +24,14 @@
 require "lxp"
 
 -- Bitlib. See http://luaforge.net/projects/bitlib/
+-- Debian: liblua5.1-bit0
 require "bit"
 
 -- add the directory where this Lua file is in to the package search path.
 package.path = package.path .. ";" .. string.gsub(arg[0], "%/[^/]+$", "/?.lua")
 require "common"
 
+architecture = nil  -- target architecture
 funclist = {}	    -- [name] = [ [rettype,"retval"], [arg1type, arg1name], ...]
 funclist2 = {}
 unhandled = {}	    -- [name] = true
@@ -68,7 +70,7 @@ used_override = {
 -- therefore are all in use.
 fundamental_ifo = {}
 
--- get the list of supported fundamental data types.
+-- get the list of supported fundamental data types (fundamental_map).
 require "src/fundamental"
 
 ---
@@ -952,7 +954,9 @@ function mark_typedef_in_use(typedef, name)
 		mark_type_id_in_use(field.type, string.format("%s.%s",
 		    name, field.name or member_id))
 	    elseif field.type ~= "constructor" then
-		print("ignore??", member_id, field.type)
+		-- substructure, subunion - not supported.
+		print(string.format("ignore sub%s %d in %s - id=%s",
+		    field.type, i, st.name, member_id))
 	    end
 	end
     end
@@ -1112,6 +1116,10 @@ function _handle_char_ptr_returns(arg_list, tp, fname)
     return tp.fid + method
 end
 
+-- don't show warnings about these types; they are not used by any interesting
+-- functions, just some builtin math functions.
+ignore_types = { ["complex float"]=true, ["complex double"]=true,
+    ["complex long double"]=true }
 
 ---
 -- Given a fundamental type, return the suggested FFI type.  Also creates
@@ -1132,8 +1140,10 @@ function fundamental_to_ffi(ft)
 	return { "pointer", 0, "ptr", nil, nil, nil }
     end
 
+    if not ignore_types[ft.name] then
+	print("Unknown type " .. ft.name)
+    end
 
-    print("Unknown type " .. ft.name)
     return nil
 end
 
@@ -1319,10 +1329,28 @@ end
 
 -- Read a list of specs how to handle char* return values of functions.
 function get_extra_data()
+    local active = true
+    local arch, arch2, func, method, inverse
+
     for line in io.lines("src/char_ptr_handling.txt") do
-	local func, method = string.match(line, '^([^#,]*),(%d)$')
-	if func and method then
-	    _set_char_ptr_handling(func, tonumber(method))
+
+	arch = string.match(line, "^arch (.*)$")
+	if arch then
+	    arch2 = string.match(arch, "^not (.*)$")
+	    inverse = false
+	    if arch2 then
+		inverse = true
+		arch = arch2
+	    end
+	    active = arch == "all" and true or string.match(architecture, arch)
+	    if inverse then active = not active end
+	end
+
+	if not arch and active then
+	    func, method = string.match(line, '^([^#,]*),(%d)$')
+	    if func and method then
+		_set_char_ptr_handling(func, tonumber(method))
+	    end
 	end
     end
 end
@@ -1336,8 +1364,7 @@ function _set_char_ptr_handling(funcname, method)
     -- an argument of a function, or a member of a structure.
     local parent, item = string.match(funcname, "^([^.]+)%.(.*)$")
     if parent and item then
-	-- print("ignore char handling", parent, item)
-	free_methods[funcname] = method
+	free_methods[parent == "funcptr" and item or funcname] = method
 	return
     end
 
@@ -1366,12 +1393,14 @@ end
     
 
 -- MAIN --
-if #arg ~= 2 then
-    print "Parameter: Output directory, and XML file to parse"
+if #arg ~= 3 then
+    print(string.format("Usage: %s {outputdir} {xmlfile} {arch}", arg[0]))
     return
 end
 
 input_file_name = arg[2]
+architecture = arg[3]
+
 parse_xml(input_file_name)
 get_extra_data()
 mark_ifaces_as_used()
