@@ -59,9 +59,10 @@ ${ODIR}_override.c: ${ODIR}override.luac ${ODIR}file2c
 	$H ${ODIR}file2c override < $< > $@
 	
 ${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}gtkdata.%.h: ${ODIR}types.xml \
-	script/parse-xml.lua script/get-defines.lua src/fundamental.lua
+	script/parse-xml.lua script/get-defines.lua src/fundamental.lua \
+	src/char_ptr_handling.txt
 	@echo "Generating Gtk Data..."
-	$H script/parse-xml.lua "${ODIR}" $<
+	$H script/parse-xml.lua "${ODIR}" "$<" "$(ARCH)"
 	$H script/get-defines.lua >> ${ODIR}gtkdata.enums.txt
 
 ${ODIR}types.xml: script/make-xml.lua
@@ -188,7 +189,7 @@ install: all
 # source tar file
 tar:
 	(cd ..; ln -s lua-gtk lua-gtk-${VERSION}; \
-	tar czvfh lua-gtk-${VERSION}.tar.gz \
+	tar czvfh release/lua-gtk-${VERSION}.tar.gz \
 		--exclude build --exclude CVS --exclude mingw \
 		--exclude tags --exclude ".*.swp" --exclude attic \
 		--exclude private --exclude win32 --exclude funclist \
