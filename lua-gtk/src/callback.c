@@ -505,7 +505,12 @@ void *luagtk_make_closure(lua_State *L, int index,
 
     ffi_prep_closure(closure, cif, closure_handler, (void*) cb);
 
-    // interestingly, closure should be called, not code.  strange.
+    // On AMD64, "code" must be called.  On i386, this would lead to a
+    // segfault; instead, call the closure directly.  Strange!
+#ifdef LUAGTK_linux_amd64
+    return (void*) code;
+#else
     return (void*) closure;
+#endif
 }
 
