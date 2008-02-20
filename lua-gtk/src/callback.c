@@ -209,7 +209,7 @@ static int _callback(void *data, ...)
     return val;
 }
 
-#ifdef AMD64
+#ifdef LUAGTK_linux_amd64
 
 // Avoid a warning about _callback being defined, but not used.  When
 // optimizing, avoids the function being omitted altogether.
