@@ -99,7 +99,7 @@ static int _callback_return_value(lua_State *L, int return_type,
 }
 
 
-#ifdef AMD64
+#ifdef LUAGTK_linux_amd64
 
 // must be static so the position independent code logic doesn't mess it up.
 static int _callback_amd64(void *data, ...);
