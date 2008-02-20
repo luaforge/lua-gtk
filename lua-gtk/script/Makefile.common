@@ -31,10 +31,24 @@ OFILES	+=hash-simple.$(O) ${HASH}.$(O) _funclist.$(O) _enumlist.$(O)
 endif
 
 
-gtk2dll: ${ODIR}${ODLL}
+gtk2dll: build-tests ${ODIR}${ODLL}
 
 config configure:
 	$H script/configure $(ARCH)
+
+
+# test that calling works properly.  For Win32, requires wine to be installed.
+build-tests: ${ODIR}test-vararg${EXESUFFIX} ${ODIR}test-ffi${EXESUFFIX}
+
+${ODIR}test-vararg${EXESUFFIX}: src/test-vararg.c
+	$I
+	$H $(CC) $(CFLAGS) -I $(ODIR) -Wall -o $@ $^
+	$H $@
+
+${ODIR}test-ffi${EXESUFFIX}: src/test-ffi.c
+	$I
+	$H $(CC) $(CFLAGS) -I $(ODIR) -Wall -o $@ $^ $(LIBFFI)
+	$H $@
 
 # rule to build the library.
 
