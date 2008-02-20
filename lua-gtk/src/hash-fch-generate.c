@@ -34,8 +34,8 @@
  * http://opensource.org/licenses/lgpl-license.php.
  */
 
-#include <cmph/private/cmph_structs.h>	// cmph_t definition
-#include <cmph/private/fch_structs.h>	// jenkins_state_t, __fch_data_t
+#include <cmph_structs.h>   // cmph_t definition
+#include <fch_structs.h>    // jenkins_state_t, __fch_data_t
 #include <string.h>	    // strlen, strchr, strdup, memset
 #include <errno.h>	    // errno
 
