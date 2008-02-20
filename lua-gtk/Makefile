@@ -48,11 +48,6 @@ all: gtk2dll
 # include the config file
 include build/$(ARCH)/config.make
 
-# extra rules (if available)
-ifneq ($(wildcard script/Makefile.$(ARCH)), )
-    include script/Makefile.$(ARCH)
-endif
-
 # generic targets
 include script/Makefile.common
 

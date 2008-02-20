@@ -3,7 +3,6 @@
 
 LINK=0
 GTK_LIBS=$($PC --libs gtk+-2.0)
-ARCHDEF=LINUX
 
 LIBFFI=
 for F in /usr/lib/libffi_pic.a /usr/local/lib/libffi_pic.a; do

@@ -7,8 +7,6 @@
 # use compile time linking.
 LINK=1
 
-ARCHDEF=WIN32
-
 GTKDIR=mingw/gtk/lib
 if test ! -d $GTKDIR; then
     echo "Gtk not found in $GTKDIR"

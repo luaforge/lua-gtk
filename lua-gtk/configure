@@ -10,7 +10,7 @@
 VERSION="0.8"
 ARCH=
 DEBUG=
-SUMMARY=
+SUMMARY=1
 DEBUGFUNCS=1
 HASHF=hsieh
 
@@ -31,7 +31,7 @@ show_help () {
     echo "Configure lua-gtk for compilation."
     echo ""
     echo "  --debug          Compile with debugging information (-g)"
-    echo "  --summary        Show configure results"
+    echo "  --no-summary     Don't show configure results"
     echo "  --disable-debug  Omit debugging functions like dump_struct"
     echo "  --host [ARCH]    Cross compile to another architecture, see below"
     echo ""
@@ -45,6 +45,7 @@ while test "$1"; do
     case "$1" in
 	--debug) DEBUG=1 ;;
 	--summary) SUMMARY=1 ;;
+	--no-summary) SUMMARY= ;;
 	--disable-debug) DEBUGFUNCS= ;;
 	--enable-debug) DEBUGFUNCS=1 ;;
 
@@ -91,10 +92,36 @@ if test ! "$ARCH"; then
     exit 1
 fi
 
-if test ! -f script/config.$ARCH; then
-    echo "Unknown architecture - script/config.$ARCH is missing."
-    known_architectures
+# Split into OS and CPU parts.  CPU part must be given.
+ARCH_OS=${ARCH%-*}
+ARCH_CPU=${ARCH#*-}
+if test "$ARCH_CPU" = "$ARCH"; then
+    echo "Please specify the CPU part of the architecture, e.g. $ARCH_OS-i386."
     exit 1
+fi
+
+# Check for valid CPU.  This is the list of Debian supported CPUs.
+case "$ARCH_CPU" in
+    alpha|amd64|arml|armel|hppa|i386|ia64|m68k) ;;
+    mips|mipsel|powerpc|s390|sparc) ;;
+    *) echo "Unknown CPU $ARCH_CPU.  Add to configure script if desired.";
+	exit 1;
+esac
+
+
+# Either a OS/CPU specific config file is available, or just OS specific.
+CONFIG_SCRIPT="script/config.$ARCH"
+if test ! -r "$CONFIG_SCRIPT"; then
+    if test ! "$ARCH_CPU"; then
+	echo "Unknown architecture $ARCH; script/config.$ARCH not available."
+	exit 1
+    fi
+    CONFIG_SCRIPT="script/config.$ARCH_OS"
+    if test ! -r "$CONFIG_SCRIPT"; then
+	echo "Unknown architecture $ARCH; neither script/config.$ARCH nor"
+	echo "script/config.$ARCH_OS are available."
+	exit 1
+    fi
 fi
 
 # - general setup -
@@ -126,8 +153,12 @@ echo "VERSION     :=$VERSION" >> $CFG_M
 echo "ODIR        :=$ODIR/" >> $CFG_M
 echo "CFLAGS      =" >> $CFG_M
 
-echo "#define LUAGTK_VERSION \"$VERSION\"" >> $CFG_H
+# extra Makefile?
+FNAME=script/Makefile.$ARCH_OS
+test -r $FNAME && echo "include $FNAME" >> $CFG_M
 
+FNAME=script/Makefile.$ARCH
+test -r $FNAME && echo "include $FNAME" >> $CFG_M
 
 # - Gtk -
 
@@ -178,7 +209,7 @@ fi
 
 # - architecture specific config -
 
-. script/config.$ARCH
+. $CONFIG_SCRIPT
 
 # get versions of c compiler
 if test "$HOSTCC"; then
@@ -219,9 +250,11 @@ fi
 
 # - output config.h -
 
-echo "#ifndef $ARCHDEF" >> $CFG_H
-echo " #define $ARCHDEF" >> $CFG_H
-echo "#endif" >> $CFG_H
+echo "#define LUAGTK_VERSION \"$VERSION\"" >> $CFG_H
+echo "#define LUAGTK_${ARCH_OS}_$ARCH_CPU" >> $CFG_H
+echo "#define LUAGTK_$ARCH_OS" >> $CFG_H
+echo "#define LUAGTK_ARCH_OS \"$ARCH_OS\"" >> $CFG_H
+echo "#define LUAGTK_ARCH_CPU \"$ARCH_CPU\"" >> $CFG_H
 echo "#define HASHFUNC hash_$HASHF" >> $CFG_H
 if test "$DEBUGFUNCS"; then
     echo "#define LUAGTK_DEBUG_FUNCS" >> $CFG_H
