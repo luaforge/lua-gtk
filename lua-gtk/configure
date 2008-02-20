@@ -183,6 +183,37 @@ else
     ERR=1
 fi
 
+LUA_BIN=$(which lua5.1)
+if test $? -ne 0; then
+    LUA_BIN=$(which lua)
+    if test $? -ne 0; then
+	echo "Lua 5.1 executable not found."
+	ERR=1
+    fi
+fi
+
+# check for required packages
+
+LUA_TEST="build/$ARCH/test.lua"
+for lib in lxp bit lfs; do
+    echo "require \"$lib\"" > $LUA_TEST
+    $LUA_BIN $LUA_TEST 2> /dev/null
+    if test $? -ne 0; then
+	echo "Required Lua package $lib not found."
+	ERR=1
+    fi
+done
+
+# check for recommended packages
+for lib in lfs luadoc.lp; do
+    echo "require \"$lib\"" > $LUA_TEST
+    $LUA_BIN $LUA_TEST 2> /dev/null
+    if test $? -ne 0; then
+	echo "Lua package $lib not found, can't build documentation."
+    fi
+done
+rm -f $LUA_TEST
+
 # - cmph -
 # architecture independet; it is required for build, not for runtime.
 
