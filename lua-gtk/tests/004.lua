@@ -7,7 +7,7 @@ require "lfs"
 
 ifname = "demo.jpg"
 ofname = "demo-out.jpg"
-osize_target = 26645
+osize_target = { [26645]=true, [26615]=true }	-- known valid output sizes
 rc = 0
 
 pixbuf = gtk.gdk_pixbuf_new_from_file_at_size(ifname, 800, 600, nil)
@@ -26,7 +26,7 @@ ofile:close()
 isize = lfs.attributes(ifname, "size")
 if isize == 5770 then
 	osize = lfs.attributes(ofname, "size")
-	if osize ~= osize_target then
+	if not osize_target[osize] then
 		print(string.format("Output file size is %s, not %s!",
 			osize, osize_target))
 		rc = 1
