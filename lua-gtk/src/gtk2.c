@@ -161,28 +161,31 @@ static int l_gtk_lookup(lua_State *L)
  * Note that the _runtime_ Gtk version is compared and not the compile time;
  * this ensures that even when compiled with a new Gtk library, it will work
  * with older versions.
+ *
+ * See http://svn.gnome.org/viewvc/gtk%2B/
  */
 #define _VERSION(x,y,z) ((x)*10000 + (y)*100 + (z))
-static const struct uses_g_malloc {
+static const struct special_alloc {
     const char *struct_name;
     int version_from, version_to;	// range of Gtk versions using g_malloc
-} uses_g_malloc[] = {
-    { "GtkTreeIter", 0, _VERSION(2,10,11) },	// SVN version 17761
-    { "GdkColor", 0, _VERSION(2,8,8) },		// SVN version 14359
-    { NULL, 0, 0 }
+    int what;				// 1=g_malloc, 2=GdkColor
+} special_alloc[] = {
+    { "GtkTreeIter", 0, _VERSION(2,10,11), 1 },	// SVN version 17761
+    { "GdkColor", 0, _VERSION(2,8,8), 2 },	// SVN version 14359
+    { NULL, 0, 0, 0 }
 };
 
 
-static int _need_g_malloc(const char *struct_name)
+static int _special_alloc(const char *struct_name)
 {
-    const struct uses_g_malloc *p;
+    const struct special_alloc *p;
     int version = _VERSION(gtk_major_version, gtk_minor_version,
 	gtk_micro_version);
 
-    for (p=uses_g_malloc; p->struct_name; p++)
+    for (p=special_alloc; p->struct_name; p++)
 	if (!strcmp(struct_name, p->struct_name)
 	    && p->version_from <= version && version <= p->version_to)
-	    return 1;
+	    return p->what;
 
     return 0;
 }
@@ -210,6 +213,7 @@ static int l_new(lua_State *L)
     void *p;
     struct func_info fi;
     char tmp_name[80];
+    int rc;
 
     GTK_INITIALIZE();
 
@@ -224,13 +228,31 @@ static int l_new(lua_State *L)
     if (find_func(tmp_name, &fi))
 	return luagtk_call(L, &fi, 2);
 
-    /* Some objects don't use the GSlice mechanism, depending on the
-     * Gtk version.  Allocation would be fine, but calling the free
-     * function or copy function would mess things up. */
-    if (_need_g_malloc(struct_name))
-	p = g_malloc(si->struct_size);
-    else
-	p = g_slice_alloc0(si->struct_size);
+    /* Some objects don't use the GSlice mechanism, depending on the Gtk
+     * version.  Allocation would be fine, but calling the free or copy
+     * function would mess things up. */
+    rc = _special_alloc(struct_name);
+    switch (rc) {
+	case 0:
+	    p = g_slice_alloc0(si->struct_size);
+	    break;
+	
+	case 1:
+	    p = g_malloc(si->struct_size);
+	    break;
+	
+	case 2:;
+	    // No gdk_color_new function exists.  Instead, call the copy
+	    // function with allocates it.  This would work for any Gtk
+	    // version, but is required before 2.8.8.
+	    GdkColor c = { 0, 0, 0, 0 };
+	    p = (void*) gdk_color_copy(&c);
+	    break;
+	
+	default:
+	    return luaL_error(L, "%s _special_alloc returned invalid value %d",
+		msgprefix, rc);
+    }
 
     /* Allocate and initialize the object.  I used to allocate just one
      * userdata big enough for both the wrapper and the widget, but many free
