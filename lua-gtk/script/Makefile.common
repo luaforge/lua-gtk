@@ -40,7 +40,7 @@ config configure:
 
 ${ODIR}${ODLL}: $(addprefix ${ODIR}, ${OFILES})
 	$I
-	$H ${LD} ${LDFLAGS} -shared -o $@ $^ ${LIBFFI} ${EXTRA_LIB} ${LIBS}
+	$H ${CC} ${LDFLAGS} -shared -o $@ $^ ${LIBFFI} ${EXTRA_LIB} ${LIBS}
 
 ${ODIR}debug.$(O): src/debug.c
 	$I
@@ -189,7 +189,7 @@ install: all
 # source tar file
 tar:
 	(cd ..; ln -s lua-gtk lua-gtk-${VERSION}; \
-	tar czvfh release/lua-gtk-${VERSION}.tar.gz \
+	tar czvfh tar/lua-gtk-${VERSION}.tar.gz \
 		--exclude build --exclude CVS --exclude mingw \
 		--exclude tags --exclude ".*.swp" --exclude attic \
 		--exclude private --exclude win32 --exclude funclist \
