@@ -252,16 +252,14 @@ static int l_new(lua_State *L)
  * in any other way, so far.
  *
  * @name get_osname
- * @luareturn The ID of the operating system: "win32" or "linux".
+ * @luareturn  The the operating system, e.g. "win32" or "linux".
+ * @luareturn  The CPU, e.g. "i386", "amd64"
  */
 static int l_get_osname(lua_State *L)
 {
-#ifdef WIN32
-    lua_pushliteral(L, "win32");
-#else
-    lua_pushliteral(L, "linux");
-#endif
-    return 1;
+    lua_pushliteral(L, LUAGTK_ARCH_OS);
+    lua_pushliteral(L, LUAGTK_ARCH_CPU);
+    return 2;
 }
 
 static const char _module_info[] =
