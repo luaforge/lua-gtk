@@ -19,7 +19,7 @@ zip: all
 	cp doc/README.win32.txt $$D/README.txt; \
 	mkdir -p $$D/script; \
 	cp script/{download-gtk-win.lua,funclist.lua,update_registry.lua} $$D/script/; \
-	DEST=`pwd`/../release/lua-gtk-$(VERSION)-$(ARCH).zip; \
+	DEST=`pwd`/../tar/lua-gtk-$(VERSION)-$(ARCH).zip; \
 	cd /tmp; \
 	zip -r $$DEST lua-gtk-$(VERSION))
 
