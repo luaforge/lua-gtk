@@ -11,7 +11,7 @@ tar-bin: all
 	cp doc/README.binary $$D/README; \
 	cp doc/COPYING doc/AUTHORS $$D/; \
 	cp script/install.lua $$D; \
-	tar czvf ../release/lua-gtk-$(VERSION)-$(ARCH).tar.gz $$D; \
+	tar czvf ../tar/lua-gtk-$(VERSION)-$(ARCH).tar.gz $$D; \
 	rm -r $$D \
 	)
 
