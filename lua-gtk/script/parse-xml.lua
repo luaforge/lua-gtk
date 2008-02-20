@@ -209,14 +209,14 @@ xml_tags = {
     -- Not interested much in constructors.  Store anyway to avoid
     -- dangling references.
     Constructor = function(p, el)
-	if check_fields(el, "id", "context", "name") then return end
+	if check_fields(el, "id", "context") then return end
 	local t = typedefs[el.context]
 	if not t then
 	    parse_error("Constructor for unknown structure %s", el.context)
 	    return
 	end
 	local st = t.struct
-	st.fields[el.id] = { type="constructor", name=el.name }
+	st.fields[el.id] = { type="constructor", name=el.name or el.demangled }
 	curr_func = nil
     end,
 
@@ -950,7 +950,10 @@ function mark_typedef_in_use(typedef, name)
 	local st = typedef.struct
 	for i, member_id in ipairs(st.members) do
 	    field = st.fields[member_id]
-	    if not ignore_types[field.type] then
+	    if not field then
+		print(string.format("ERROR: structure %s doesn't have the "
+		    .. "field %s", st.name, member_id))
+	    elseif not ignore_types[field.type] then
 		mark_type_id_in_use(field.type, string.format("%s.%s",
 		    name, field.name or member_id))
 	    elseif field.type ~= "constructor" then
