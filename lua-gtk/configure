@@ -81,6 +81,20 @@ if test ! "$ARCH"; then
     if which dpkg-architecture > /dev/null; then
 	eval $(dpkg-architecture)
 	ARCH=$DEB_BUILD_ARCH_OS-$DEB_BUILD_ARCH_CPU
+    else
+	CPU=$(uname -m)
+	case $CPU in
+	    # x86_64 might also refer to ia64??  maybe check /proc/cpuinfo?
+	    x86_64) CPU=amd64 ;;
+	    i686) CPU=i386 ;;
+	    # add more things here...
+	    *)
+		echo "Unsupported result $CPU from uname -m.  Please fix the "
+		echo "script $0 and send the patches to the author."
+		exit 1
+		;;
+	esac
+	ARCH="linux-$CPU"
     fi
 fi
 
@@ -221,6 +235,16 @@ if $PC --exists cmph; then
     HAVE_CMPH=1
     echo "HAVE_CMPH   :=1" >> $CFG_M
     CMPH_CFLAGS="$($PC --cflags cmph)"
+
+    # now what about the private include files?
+    for dir in /usr/local/include/cmph/private /usr/include/cmph/private; do
+	if test -d $dir; then
+	    CMPH_CFLAGS="$CMPH_CFLAGS -I $dir"
+	    CMPH_INCDIR=$dir
+	    break
+	fi
+    done
+
     CMPH_VERSION=$($PC --modversion cmph)
     echo "CMPH_CFLAGS :=$CMPH_CFLAGS" >> $CFG_M
     echo "CMPH_BIN    :=cmph" >> $CFG_M
@@ -336,6 +360,9 @@ if test "$SUMMARY"; then
     echo "   Gtk version:          $GTK_VERSION"
     echo "   libffi:               $LIBFFI"
     echo "   Cmph library:         $CMPH_VERSION"
+    if test "$CMPH_INCDIR"; then
+    echo "   Cmph extra includes:  $CMPH_INCDIR"
+    fi
     echo "   Debugging symbols:    $DEBUG_INFO"
     echo "   Debugging functions:  $DEBUG_FUNCS_INFO"
     echo ""
