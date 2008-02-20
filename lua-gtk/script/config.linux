@@ -5,7 +5,7 @@ LINK=0
 GTK_LIBS=$($PC --libs gtk+-2.0)
 
 LIBFFI=
-for F in /usr/lib/libffi_pic.a /usr/local/lib/libffi_pic.a; do
+for F in /usr/lib/libffi_pic.a /usr/local/lib/libffi_pic.a /usr/lib/libffi.a; do
     if test -f $F; then
 	LIBFFI=$F
 	break
