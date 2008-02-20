@@ -1,8 +1,9 @@
 #! /usr/bin/env lua
 require "gtk"
 
-ls = gtk.list_store_newv(3, {gtk.G_TYPE_INT, gtk.G_TYPE_STRING,
+ls, x = gtk.list_store_newv(3, {gtk.G_TYPE_INT, gtk.G_TYPE_STRING,
 	gtk.g_type_from_name("GtkWindowType")})
+assert(x == nil, "superfluous return value")
 
 -- varargs, no type checking possible.
 iter = gtk.new "GtkTreeIter"
