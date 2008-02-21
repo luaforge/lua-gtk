@@ -10,7 +10,8 @@ require "gtk.strict"
 -- Read and interpret Glade-2/3 XML files and create the widgets.
 --
 -- It constructs widgets automatically, and autoconnects the signals.
---
+-- NOTE.  Starting with Gtk 2.12, you can alternatively use the GtkBuilder
+-- class, which is built-in into Gtk.
 --
 -- Interface functions:
 --
@@ -25,7 +26,7 @@ require "gtk.strict"
 --
 --   require "gtk"
 --   require "gtk.glade"
---   gtk.init(nil, nil)
+
 --   tree = gtk.glade.read("foo.glade")
 --   widgets = gtk.glade.create(tree, "top_level_window_name")
 --   gtk.main()
