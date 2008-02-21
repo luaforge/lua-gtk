@@ -827,9 +827,19 @@ function_list = {}
 -- Mark all these data types as used.  Note that functions that only appear
 -- in structures (i.e., function pointers) are not considered here.
 --
+-- XXX maybe instead of the function prefix, I should look at the include
+-- file where it is defined.  not all functions follow the pattern with
+-- a common prefix, e.g. getSystemId from libxml2.
+--
 function analyze_functions()
-    local inc_prefixes = { pango=true, gtk=true, gdk=true, g=true, atk=true,
-	cairo=true }
+    local inc_prefixes = {
+	g=true, gdk=true,	-- for glib, gdk
+	gtk=true,		-- for gtk
+	atk=true,		-- for atk
+	pango=true,		-- for pango
+	cairo=true,		-- for cairo
+	html=true, css=true, dom=true,	-- for libgtkhtml-2.0
+    }
 
     -- Make a sorted list of functions to output.  Only use function with
     -- one of the prefixes in the inc_prefixes list.

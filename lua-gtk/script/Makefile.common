@@ -30,6 +30,10 @@ else
 OFILES	+=hash-simple.$(O) ${HASH}.$(O) _funclist.$(O) _enumlist.$(O)
 endif
 
+# -- is libgtkhtml available? --
+ifeq ($(HAVE_HTML), 1)
+MAKE_XML_FLAGS	+=--enable-gtkhtml
+endif
 
 gtk2dll: build-tests ${ODIR}${ODLL}
 
@@ -79,9 +83,10 @@ ${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}gtkdata.%.h: ${ODIR}types.xml \
 	$H script/parse-xml.lua "${ODIR}" "$<" "$(ARCH)"
 	$H script/get-defines.lua >> ${ODIR}gtkdata.enums.txt
 
-${ODIR}types.xml: script/make-xml.lua
+# if config.h changes, chances are that make-xml must be run again.
+${ODIR}types.xml: script/make-xml.lua $(ODIR)config.h
 	$I
-	$H script/make-xml.lua "$@" $(ARCH)
+	$H script/make-xml.lua $(MAKE_XML_FLAGS) "$@" $(ARCH)
 
 ${ODIR}%.$(O): ${ODIR}%.c
 	$I
@@ -227,10 +232,12 @@ diff:
 
 # Requires an improved version of luadoc that can read C files
 doc:
-	$H luadoc -d build/reference lib src/gtk2.c \
-		src/call.c src/callback.c \
-		src/channel.c src/override.c
+	$H luadoc -d build/reference lib src/*.c
 	( cd html_in; ../script/gen-html.lua )
+
+#	src/gtk2.c \
+#		src/call.c src/callback.c \
+#		src/channel.c src/override.c
 
 help:
 	@echo "Usage: make.sh [architecture] [target]"

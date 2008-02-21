@@ -13,6 +13,7 @@ DEBUG=
 SUMMARY=1
 DEBUGFUNCS=1
 HASHF=hsieh
+USE_GTKHTML=1
 
 # only works if cwd is correct
 cd $(pwd)	# workaround for posh
@@ -30,10 +31,11 @@ show_help () {
     echo "Usage: $0 [args] [architecture]"
     echo "Configure lua-gtk for compilation."
     echo ""
-    echo "  --debug          Compile with debugging information (-g)"
-    echo "  --no-summary     Don't show configure results"
-    echo "  --disable-debug  Omit debugging functions like dump_struct"
-    echo "  --host [ARCH]    Cross compile to another architecture, see below"
+    echo "  --debug            Compile with debugging information (-g)"
+    echo "  --no-summary       Don't show configure results"
+    echo "  --disable-debug    Omit debugging functions like dump_struct"
+    echo "  --disable-gtkhtml  No support for libgtkhtml"
+    echo "  --host [ARCH]      Cross compile to another architecture, see below"
     echo ""
     known_architectures
     echo "If no architecture is given, a default is determined."
@@ -48,6 +50,8 @@ while test "$1"; do
 	--no-summary) SUMMARY= ;;
 	--disable-debug) DEBUGFUNCS= ;;
 	--enable-debug) DEBUGFUNCS=1 ;;
+	--disable-gtkhtml) USE_GTKHTML= ;;
+	--enable-gtkhtml) USE_GTKHTML=1 ;;
 
 	--host)
 	    if test "$ARCH"; then
@@ -206,7 +210,7 @@ if test $? -ne 0; then
     fi
 fi
 
-# check for required packages
+# check for required Lua packages
 
 LUA_TEST="build/$ARCH/test.lua"
 for lib in lxp bit lfs; do
@@ -218,7 +222,7 @@ for lib in lxp bit lfs; do
     fi
 done
 
-# check for recommended packages
+# check for recommended Lua packages
 for lib in lfs luadoc.lp; do
     echo "require \"$lib\"" > $LUA_TEST
     $LUA_BIN $LUA_TEST 2> /dev/null
@@ -251,6 +255,19 @@ if $PC --exists cmph; then
     echo "CMPH_LIBS   :=$($PC --libs cmph)" >> $CFG_M
 else
     CMPH_VERSION="not available"
+fi
+
+# - libgtkhtml -
+if test "$USE_GTKHTML"; then
+    if $PC --exists libgtkhtml-2.0; then
+	HTML_VERSION=$($PC --modversion libgtkhtml-2.0)
+	echo "HAVE_HTML   :=1" >> $CFG_M
+	echo "#define HAVE_LIBGTKHTML" >> $CFG_H
+    else
+	HTML_VERSION="not available"
+    fi
+else
+    HTML_VERSION="disabled"
 fi
 
 # C compiler
@@ -363,6 +380,7 @@ if test "$SUMMARY"; then
     if test "$CMPH_INCDIR"; then
     echo "   Cmph extra includes:  $CMPH_INCDIR"
     fi
+    echo "   Libgtkhtml-2.0:       $HTML_VERSION"
     echo "   Debugging symbols:    $DEBUG_INFO"
     echo "   Debugging functions:  $DEBUG_FUNCS_INFO"
     echo ""

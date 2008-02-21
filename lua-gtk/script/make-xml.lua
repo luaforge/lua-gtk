@@ -7,14 +7,38 @@
 -- configuration --
 
 tmp_file = "tmpfile.c"
+enable_gtkhtml = false
 
 -- end --
+
+---
+-- Call pkg-config and retrieve the answer
+-- Returns nil on error
+--
+function pkg_config(package, option)
+    local s, fhandle, version 
+
+    s = string.format("pkg-config %s %s", option, package)
+    fhandle = io.popen(s)
+
+    if not fhandle then
+	-- pkg-config not available?
+	return nil
+    end
+
+    s = fhandle:read("*l")
+    fhandle:close()
+    return s
+end
+
 
 ---
 -- Try to generate the XML file.  Returns 0 if ok, non-zero otherwise.
 --
 function generate_object(ofname, platform)
     local defs, ofile, s, rc = ""
+    local flags
+    local defs2 = ""
 
     ofile = io.open(tmp_file, "w")
     if not ofile then
@@ -28,6 +52,21 @@ function generate_object(ofname, platform)
 	    .. "#define __GTK_DEBUG_H__\n"
     end
 
+    -- if libgtkhtml-2.0 is available, use that
+    if enable_gtkhtml then
+	s = pkg_config("libgtkhtml-2.0", "--cflags")
+	if s then
+	    print "Libgtkhtml is available."
+	    flags = s
+	    defs2 = "#include <libgtkhtml/gtkhtml.h>"
+	end
+    end
+
+    if not flags then
+	flags = pkg_config("gtk+-2.0", "--cflags")
+    end
+
+
     -- #undef __OPTIMIZE_: Avoid trouble with -O regarding __builtin_clzl.
     -- Seems to have no other side effects (XML file exactly the same).
     -- Suggested by Michael Kolodziejczyk on 2007-10-23
@@ -40,17 +79,17 @@ function generate_object(ofname, platform)
 ]] .. defs .. [[
 #include <gtk/gtk.h>
 #include <cairo/cairo.h>
-]]
+]] .. defs2
 
     ofile:write(s)
     ofile:close()
-    s = string.format("gccxml \$(pkg-config --cflags gtk+-2.0) -fxml=%s %s",
-	ofname, tmp_file)
+    s = string.format("gccxml %s -fxml=%s %s", flags, ofname, tmp_file)
     rc = os.execute(s)
     os.remove(tmp_file)
 
     return rc
 end
+
 
 ---
 -- Generation of the XML file failed.  Try to download it, but this requires
@@ -124,6 +163,16 @@ function download_types_xml(ofname, platform, version)
 end
 
 -- MAIN --
+
+repeat
+    stop = false
+    if arg[1] == "--enable-gtkhtml" then
+	enable_gtkhtml = true
+	table.remove(arg, 1)
+    else
+	stop = true
+    end
+until stop
 
 if not arg[1] or not arg[2] then
     print "Parameters: output file name and the platform."
