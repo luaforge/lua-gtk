@@ -24,11 +24,13 @@ while true do
     if rc == gtk.GTK_RESPONSE_ACCEPT:tonumber() then
 	print "open"
 	list = w:get_filenames()
+	list_head = list
 	while list do
 	    -- gtk.dump_struct(list) -- if you're interested.
 	    print(list.data:cast("string"))
 	    list = list.next
 	end
+	list_head:free()
 	break
     end
 
