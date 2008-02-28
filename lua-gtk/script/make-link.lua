@@ -4,16 +4,19 @@
 -- Read linklist.txt and the type XML file to generate the C and header files.
 -- Copyright (C) 2007 Wolfgang Oertl
 --
--- It is possible, although probably not useful, to avoid linking the resulting
--- shared object file with the Gtk libraries.  In this case, they are opened
--- using dlopen() or similar at startup, and all functions used from within
--- the lua-gtk library itself are looked up, and the pointers are stored in
--- the dl_link array.  The names are stored separately, because they are
--- only used once, which makes dl_link smaller (better for cache usage).
+-- It is possible to avoid linking the resulting shared object file with the
+-- Gtk libraries.  In this case, they are opened using dlopen() or similar at
+-- startup, and all functions used from within the lua-gtk library itself are
+-- looked up, and the pointers are stored in the dl_link array.  The function
+-- name list is stored at a different memory location, thereby making the
+-- lookup table smaller (better for CPU cache usage).
 --
 -- All the functions called by a Lua script using the lua-gtk binding are
 -- looked up in the same fashion anyway, so the additional code is little.
--- Consider it an extra exercise which might be useful in some situations.
+--
+-- This helps when some libraries are optional, currently gtkhtml.  If it
+-- isn't available at runtime, this doesn't matter until a function is
+-- called.
 --
 -- In order to guarantee full type checking (return values, parameters), the
 -- function signatures are extracted from types.xml just like parse-xml.lua
@@ -84,15 +87,20 @@ xml_tags = {
 }
 
 -- callback to parse the body of the XML file
-function regular_parser(p, name, el)
+function regular_start(p, name, el)
     local f = xml_tags[name]
     if f then return f(p, el) end
+end
+
+function regular_end(p, name)
+    if name == 'Function' then curr_func = nil end
 end
 
 -- callback looking for the opening XML tag.
 function look_for_gcc_xml(p, name, el)
     if name == "GCC_XML" then
-	callbacks.StartElement = regular_parser
+	callbacks.StartElement = regular_start
+	callbacks.EndElement = regular_end
     end
 end
 
