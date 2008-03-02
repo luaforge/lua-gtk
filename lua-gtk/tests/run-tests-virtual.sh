@@ -33,14 +33,16 @@ function run_test_scripted() {
     local NR LINES DELAY SCRIPT_PID KILLER_PID PLAY_RC SCRIPT_RC
     NR=$1
 
-    # Compute the estimated execution time of the script, plus startup time.
+    # Compute the estimated execution time of the script, plus startup time
+    # and a good margin.
     LINES=$(cat $NR.script | wc -l)
-    DELAY=$(( 3 + $DELAY_PER_LINE * $LINES / 1000 ))
+    DELAY=$(( 10 + $DELAY_PER_LINE * $LINES / 1000 ))
 
-    # Start the test script, and wait for it to open its window.
+    # Start the test script, and wait for it to open its window.  Give it
+    # lots of time to do this.
     DISPLAY=$VIRTDISP lua $NR.lua &
     SCRIPT_PID=$!
-    sleep 1
+    sleep 10
 
     # If the Lua script doesn't terminate, assume that something has gone
     # wrong, and kill it.  This will result in a non-zero exit status.
