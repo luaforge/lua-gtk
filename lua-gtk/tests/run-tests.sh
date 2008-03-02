@@ -19,10 +19,11 @@ echo "** Running tests. `date`" >> $LOGFILE
 # run all Lua files in this directory.
 for i in [0-9]*.lua; do
 	TESTS=$(( $TESTS + 1 ))
+	echo "- running $i" >> $LOGFILE
 	RESULT=$(lua $i 2>&1)
 	RC=$?
 	if test $RC -ne 0; then
-		echo "* FAILED $i" >> $LOGFILE
+		echo "* FAILED $i with rc=$RC" >> $LOGFILE
 		echo "$RESULT" >> $LOGFILE
 		echo "" >> $LOGFILE
 		ERRORS=$(( $ERRORS + 1 ))
