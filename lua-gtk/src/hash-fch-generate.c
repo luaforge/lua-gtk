@@ -8,13 +8,12 @@
  * Davi de Castro Reis and Fabiano Cupertino Botelho.  Only the FCH
  * algorithm is supported.
  *
- * Given the generated (and compiled) FCH function, read the list of keys
- * the associated value, and write the hash table.  Each bucket contains
- * exactly one entry:
+ * Read the generated hash data, read the list of keys the associated value,
+ * and write the hash table.  Each bucket contains exactly one entry:
  *
- *	bytes	    contents
- *	4	    hash value of the name
- *	2	    offset of the data in the data string
+ *	bytes		    contents
+ *	index_hash_size	    hash value of the name
+ *	1 to 4		    offset of the data in the data string
  *
  * The data string contains the actual data.  Note that the FCH hash is not
  * order preserving; this means that each key maps to a distinct bucket number,
@@ -26,7 +25,7 @@
  *  - write the buckets (data) in this order sequentially into a string
  *  - write an index table with one offset per bucket
  *
- * Copyright (C) 2007 Wolfgang Oertl
+ * Copyright (C) 2007, 2008 Wolfgang Oertl
  * This program is free software and can be used under the terms of the
  * GNU Lesser General Public License version 2.1.  You can find the
  * full text of this license here:
@@ -42,6 +41,9 @@
 
 // line buffer length.
 static int buf_len = 200;
+
+// how many bytes of the hash value to store in the index
+static int index_hash_size = 2;
 
 /**
  * Output the data structure.
@@ -99,7 +101,7 @@ static void fch_dump(cmph_t *mphf, const char *prefix)
     }
 
     printf(" },\n");
-    printf("};\n");
+    printf("};\n\n");
 }
 
 
@@ -133,8 +135,8 @@ int special_strlen(const char *s)
 
 
 /**
- * Output one hash entry.  This consists of the hash value followed by a two
- * or four bytes offset to the data.  The information is printed as individual
+ * Output one hash entry.  This consists of the hash value followed by a one
+ * to four bytes offset to the data.  The information is printed as individual
  * octal bytes.
  */
 void print_hash_entry(unsigned int hash_value, unsigned int data_offset,
@@ -143,8 +145,8 @@ void print_hash_entry(unsigned int hash_value, unsigned int data_offset,
     int j;
     static int cnt = 0;
 
-    cnt += 4;
-    for (j=4; j; j--) {
+    cnt += index_hash_size;
+    for (j=index_hash_size; j; j--) {
 	printf("\\%o", hash_value & 0xff);
 	hash_value >>= 8;
     }
@@ -270,10 +272,19 @@ int build_hash_table(cmph_t *mphf, const char *fname, const char *prefix)
 	printf("  \"%s\"\n", data_table[i]);
 	data_offset += special_strlen(data_table[i]);
     }
-    printf(";\n\n");
+    printf(";\n/* Data size is %d bytes */\n\n", data_offset);
+
+    // how many bytes are required for the offsets?
+    if (data_offset < 256)
+	offset_size = 1;
+    else if (data_offset < 65536)
+	offset_size = 2;
+    else if (data_offset < 16777216)
+	offset_size = 3;
+    else
+	offset_size = 4;
 
     /* output the index table (i.e. the buckets) */
-    offset_size = (data_offset < 65536) ? 2 : 4;
     printf("static const unsigned char _%s_index[] = \n \"", prefix);
 	
     data_offset = 0;
@@ -296,7 +307,8 @@ int build_hash_table(cmph_t *mphf, const char *fname, const char *prefix)
 	"  index: _%s_index,\n"
 	"  data: _%s_data,\n"
 	"  offset_size: %d,\n"
-	"};\n", prefix, prefix, prefix, prefix, offset_size);
+	"  hash_size: %d,\n"
+	"};\n", prefix, prefix, prefix, prefix, offset_size, index_hash_size);
 
     return 0;
 }
