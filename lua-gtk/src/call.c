@@ -172,25 +172,16 @@ void call_info_msg(struct call_info *ci, enum luagtk_msg_level level,
  * care not to read past the end of the data.
  *
  * @param p    Pointer to the pointer to the current position (will be updated)
- * @param type_nr  (output) type of the next parameter
- * @param struct_nr  (output) for structs, unions and enums the index into
- *   the structure list; 0 otherwise.
+ * @param type_idx  (output) type of the next parameter
  */
-inline void get_next_argument(const unsigned char **p, int *type_nr,
-    int *struct_nr)
+inline int get_next_argument(const unsigned char **p)
 {
     const unsigned char *s = *p;
-
-    *type_nr = *s++;
-    if (*type_nr & 0x80) {
-	*type_nr &= 0x7f;
-	*struct_nr = (s[0] << 8) + s[1];
-	s += 2;
-    } else {
-	*struct_nr = 0;
-    }
-
+    unsigned int v = *s++;
+    if (v & 0x80)
+	v = ((v << 8) | *s++) & 0x7fff;
     *p = s;
+    return (int) v;
 }
 
 
@@ -221,14 +212,15 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 
     // look at each required parameter for this function.
     for (arg_nr = 0; s < s_end; arg_nr++) {
-	get_next_argument(&s, &ar.ffi_type_nr, &ar.arg_struct_nr);
-	ar.arg_type = &ffi_type_map[ar.ffi_type_nr];
+	ar.type_idx = get_next_argument(&s);
+	ar.type = type_list + ar.type_idx;
+	ar.arg_type = ffi_type_map + ar.type->fundamental_id;
 
 	idx = ar.arg_type->ffi_type_idx;
 	if (idx == 0) {
 	    call_info_msg(ci, LUAGTK_ERROR,
 		"Argument %d (type %s) has no ffi type.\n",
-		arg_nr, LUAGTK_TYPE_NAME(ar.arg_type));
+		arg_nr, FTYPE_NAME(ar.arg_type));
 	    luaL_error(L, "call error\n");
 	}
 	ci->argtypes[arg_nr] = LUAGTK_FFI_TYPE(idx);
@@ -243,7 +235,7 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 	if (index+arg_nr > stack_top) {
 	    // If the current (probably last) argument is vararg, this is OK,
 	    // because a vararg doesn't need any extra arguments.
-	    if (strcmp(LUAGTK_TYPE_NAME(ar.arg_type), "vararg")) {
+	    if (strcmp(FTYPE_NAME(ar.arg_type), "vararg")) {
 		call_info_msg(ci, LUAGTK_WARNING,
 		    "More arguments expected -> nil used\n");
 	    }
@@ -274,7 +266,7 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 	} else {
 	    call_info_msg(ci, LUAGTK_WARNING,
 		"Argument %d (type %s) not handled\n", arg_nr,
-		LUAGTK_TYPE_NAME(ar.arg_type));
+		FTYPE_NAME(ar.arg_type));
 	    luaL_error(L, "call error\n");
 	    ci->ffi_args[arg_nr].l = 0;
 	}
@@ -296,6 +288,17 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
     }
 
     return 1;
+}
+
+
+
+const struct type_info *luagtk_type_modify(const struct type_info *ti,
+    int ind_delta)
+{
+    const char *name = TYPE_NAME(ti);
+    const struct ffi_type_map_t *ffi = ffi_type_map + ti->fundamental_id;
+    int ind = ffi->indirections + ind_delta;
+    return find_struct(name, ind);
 }
 
 
@@ -323,29 +326,52 @@ static int _call_return_values(lua_State *L, int index, struct call_info *ci)
     s_end = s + ci->fi->args_len;
 
     for (arg_nr = 0; s < s_end; arg_nr++) {
-	get_next_argument(&s, &ar.ffi_type_nr, &ar.arg_struct_nr);
+	ar.type_idx = get_next_argument(&s);
 
 	if (skip) {
 	    skip--;
 	    continue;
 	}
 
-	ar.arg_type = &ffi_type_map[ar.ffi_type_nr];
+	ar.type = type_list + ar.type_idx;
+	ar.arg_type = ffi_type_map + ar.type->fundamental_id;
 
 	// always return the actual return value; others only if they are
 	// pointers and thus can be an output value.
 	if (arg_nr != 0 && ar.arg_type->indirections == 0)
 	    continue;
-	
-	// return all arguments that look like output arguments.
+
 	int idx = ar.arg_type->ffi2lua_idx;
 	if (idx) {
+
+	    // Find the type of the returned value; it's the type of the
+	    // argument with one less level of indirections.
+	    // XXX this should be cached.
+	    if (arg_nr != 0) {
+		const char *ftype_name = FTYPE_NAME(ar.arg_type);
+		// struct* is not an output parameter.
+		if (!strcmp(ftype_name, "struct*"))
+		    continue;
+		// char* is not an output parameter.
+		if (!strcmp(ftype_name, "char*"))
+		    continue;
+		//printf("arg_type %s, idx %d\n", FTYPE_NAME(ar.arg_type), idx);
+		ar.type = luagtk_type_modify(ar.type, -1);
+		if (!ar.type)
+		    continue;
+		ar.type_idx = ar.type - type_list;
+	    }
+
+	    // return all arguments that look like output arguments.
 	    ar.index = index + arg_nr - 1;
 	    ar.arg = &ci->ffi_args[arg_nr];
 	    ar.func_arg_nr = arg_nr;
 	    ar.lua_type = arg_nr ? lua_type(L, ar.index) : LUA_TNIL;
-//	    printf("retval #%d, index %d, type %s\n", arg_nr, ar.index,
-//		lua_typename(L, ar.lua_type));
+#if 0
+	    if (arg_nr > 0)
+		printf("retval #%d, index %d, type %s -> %s\n", arg_nr,
+		    ar.index, lua_typename(L, ar.lua_type), TYPE_NAME(ar.type));
+#endif
 	    int cnt = ffi_type_ffi2lua[idx](&ar);
 	    if (cnt > 0)
 		skip = cnt - 1;
@@ -353,7 +379,7 @@ static int _call_return_values(lua_State *L, int index, struct call_info *ci)
 	    // all direct return values must be handled.
 	    call_info_warn(ci);
 	    luaL_error(L, "%s unhandled return type %s\n",
-		msgprefix, LUAGTK_TYPE_NAME(ar.arg_type));
+		msgprefix, FTYPE_NAME(ar.arg_type));
 	}
     }
 
