@@ -16,7 +16,7 @@ OFILES	:=types.$(O) gtk2.$(O) data.$(O) \
 LH	:=src/luagtk.h ${ODIR}config.h
 
 # -- runtime linking? --
-ifeq ($(LINK), 1)
+ifeq ($(DYNLINK), 0)
 LIBS	:=${GTK_LIBS}
 else
 OFILES	+=link.$(O)
@@ -42,23 +42,24 @@ config configure:
 
 
 # test that calling works properly.  For Win32, requires wine to be installed.
-build-tests: ${ODIR}test-vararg${EXESUFFIX} ${ODIR}test-ffi${EXESUFFIX}
+build-tests: ${ODIR}test-vararg-ok ${ODIR}test-ffi-ok
+
+${ODIR}test-%-ok: ${ODIR}test-%${EXESUFFIX}
+	$H $(CROSS_RUN) $^ && touch $@
 
 ${ODIR}test-vararg${EXESUFFIX}: src/test-vararg.c
 	$I
 	$H $(CC) $(CFLAGS) -I $(ODIR) -Wall -o $@ $^
-	$H $@
 
 ${ODIR}test-ffi${EXESUFFIX}: src/test-ffi.c
 	$I
 	$H $(CC) $(CFLAGS) -I $(ODIR) -Wall -o $@ $^ $(LIBFFI)
-	$H $@
 
 # rule to build the library.
 
 ${ODIR}${ODLL}: $(addprefix ${ODIR}, ${OFILES})
 	$I
-	$H ${CC} ${LDFLAGS} -shared -o $@ $^ ${LIBFFI} ${EXTRA_LIB} ${LIBS}
+	$H $(CC) ${LDFLAGS} -shared -o $@ $^ ${LIBFFI} ${EXTRA_LIB} ${LIBS}
 
 ${ODIR}debug.$(O): src/debug.c
 	$I
@@ -70,7 +71,7 @@ ${ODIR}_funclist.c: ${ODIR}gtkdata.funcs.txt ${ODIR}generate src/luagtk_hash.h
 
 ${ODIR}_enumlist.c: ${ODIR}gtkdata.enums.txt ${ODIR}generate src/luagtk_hash.h
 	$I
-	$H ${ODIR}generate -s 1201 -o $@ -n hash_info_enums -d -f $<
+	$H ${ODIR}generate -s 4096 -o $@ -n hash_info_enums -d -f $<
 
 ${ODIR}_override.c: ${ODIR}override.luac ${ODIR}file2c
 	$I
@@ -78,10 +79,10 @@ ${ODIR}_override.c: ${ODIR}override.luac ${ODIR}file2c
 	
 ${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}gtkdata.%.h: ${ODIR}types.xml \
 	script/parse-xml.lua script/get-defines.lua src/fundamental.lua \
-	src/char_ptr_handling.txt
+	src/char_ptr_handling.txt script/xml-types.lua script/xml-parser.lua \
+	script/xml-output.lua script/common.lua src/include_types.txt
 	@echo "Generating Gtk Data..."
 	$H script/parse-xml.lua "${ODIR}" "$<" "$(ARCH)"
-	$H script/get-defines.lua >> ${ODIR}gtkdata.enums.txt
 
 # if config.h changes, chances are that make-xml must be run again.
 ${ODIR}types.xml: script/make-xml.lua $(ODIR)config.h
@@ -155,6 +156,7 @@ ${ODIR}hash-fch-generate.$(O): src/hash-fch-generate.c
 	$H ${HOSTCC} -g -o $@ ${CMPH_CFLAGS} -c $< 
 
 # -- dynamic runtime linking --
+linkh: ${ODIR}link.h
 ${ODIR}link.c ${ODIR}link.h: src/linklist.txt script/make-link.lua \
 	${ODIR}types.xml
 	$I
@@ -196,7 +198,8 @@ mrproper: clean
 	$I
 	$H rm -f ${ODIR}gtkdata.* ${ODIR}hash-fch-* ${ODIR}config.* \
 		${ODIR}types.xml ${ODIR}ffi-ofs ${ODIR}link.[ch] \
-		${ODIR}luagtk_ffi.h
+		${ODIR}luagtk_ffi.h ${ODIR}cmph_types.h \
+		${ODIR}test-*-ok ${ODIR}test-*${EXESUFFIX}
 install: all
 	# you need to be root for this!
 	mkdir -p $(INDIR1)
