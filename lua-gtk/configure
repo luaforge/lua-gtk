@@ -14,6 +14,12 @@ SUMMARY=1
 DEBUGFUNCS=1
 HASHF=hsieh
 USE_GTKHTML=1
+USE_CMPH=1
+DYNLINK=1
+CFLAGS=
+# This is the list of Debian supported CPUs.
+ARCH_CPUS="alpha amd64 arml armel hppa i386 ia64 mk68k mips mipsel
+powerpc s390 sparc"
 
 # only works if cwd is correct
 cd $(pwd)	# workaround for posh
@@ -25,6 +31,7 @@ known_architectures () {
 	S="$S ${file#script/config.}"
     done
     echo "$S."
+    echo "Known CPUs: $ARCH_CPUS"
 }
 
 show_help () {
@@ -35,10 +42,13 @@ show_help () {
     echo "  --no-summary       Don't show configure results"
     echo "  --disable-debug    Omit debugging functions like dump_struct"
     echo "  --disable-gtkhtml  No support for libgtkhtml"
+    echo "  --disable-dynlink  Build time instead of runtime linking"
+    echo "  --disable-cmph     Don't use cmph even if it is available"
     echo "  --host [ARCH]      Cross compile to another architecture, see below"
     echo ""
     known_architectures
     echo "If no architecture is given, a default is determined."
+    echo "For more help, read the INSTALL file."
 }
 
 # - parse command line -
@@ -52,6 +62,10 @@ while test "$1"; do
 	--enable-debug) DEBUGFUNCS=1 ;;
 	--disable-gtkhtml) USE_GTKHTML= ;;
 	--enable-gtkhtml) USE_GTKHTML=1 ;;
+	--disable-dynlink) DYNLINK=0; DYNLINK_SET=1 ;;
+	--enable-dynlink) DYNLINK=1; DYNLINK_SET=1 ;;
+	--disable-cmph) USE_CMPH=0 ;;
+	--enable-cmph) USE_CMPH=1 ;;
 
 	--host)
 	    if test "$ARCH"; then
@@ -79,27 +93,34 @@ while test "$1"; do
 
 done
 
-# without architecture, determine default
-if test ! "$ARCH"; then
+# what is the host architecture?
+if which dpkg-architecture > /dev/null; then
+    eval $(dpkg-architecture)
+    HOST_ARCH=$DEB_BUILD_ARCH_OS-$DEB_BUILD_ARCH_CPU
+else
+    CPU=$(uname -m)
+    case $CPU in
+	# x86_64 might also refer to ia64??  maybe check /proc/cpuinfo?
+	x86_64) CPU=amd64 ;;
+	i686) CPU=i386 ;;
+	# add more things here...
+	*)
+	    echo "Unsupported result $CPU from uname -m.  Please fix the "
+	    echo "script $0 and send the patches to the author."
+	    exit 1
+	    ;;
+    esac
+    HOST_ARCH="linux-$CPU"
+fi
 
-    if which dpkg-architecture > /dev/null; then
-	eval $(dpkg-architecture)
-	ARCH=$DEB_BUILD_ARCH_OS-$DEB_BUILD_ARCH_CPU
-    else
-	CPU=$(uname -m)
-	case $CPU in
-	    # x86_64 might also refer to ia64??  maybe check /proc/cpuinfo?
-	    x86_64) CPU=amd64 ;;
-	    i686) CPU=i386 ;;
-	    # add more things here...
-	    *)
-		echo "Unsupported result $CPU from uname -m.  Please fix the "
-		echo "script $0 and send the patches to the author."
-		exit 1
-		;;
-	esac
-	ARCH="linux-$CPU"
-    fi
+if test ! "$HOST_ARCH"; then
+    echo "Can't determine host architecture."
+    exit 1
+fi
+
+# without target architecture, use the host architecture.
+if test ! "$ARCH"; then
+    ARCH=$HOST_ARCH
 fi
 
 
@@ -115,17 +136,20 @@ ARCH_OS=${ARCH%-*}
 ARCH_CPU=${ARCH#*-}
 if test "$ARCH_CPU" = "$ARCH"; then
     echo "Please specify the CPU part of the architecture, e.g. $ARCH_OS-i386."
+    echo "Known architectures: $ARCH_CPUS"
     exit 1
 fi
 
-# Check for valid CPU.  This is the list of Debian supported CPUs.
-case "$ARCH_CPU" in
-    alpha|amd64|arml|armel|hppa|i386|ia64|m68k) ;;
-    mips|mipsel|powerpc|s390|sparc) ;;
-    *) echo "Unknown CPU $ARCH_CPU.  Add to configure script if desired.";
-	exit 1;
-esac
+# Check for valid CPU according to the list defined above.
+ok=0
+for CPU in $ARCH_CPUS; do
+    if test $CPU = $ARCH_CPU; then ok=1; break; fi
+done
 
+if test $ok == 0; then
+    echo "Unknown CPU $ARCH_CPU.  Add to configure script if desired.";
+    exit 1
+fi
 
 # Either a OS/CPU specific config file is available, or just OS specific.
 CONFIG_SCRIPT="script/config.$ARCH"
@@ -169,7 +193,6 @@ echo -n > $CFG_M
 echo "ARCH        :=$ARCH" >> $CFG_M
 echo "VERSION     :=$VERSION" >> $CFG_M
 echo "ODIR        :=$ODIR/" >> $CFG_M
-echo "CFLAGS      =" >> $CFG_M
 
 # extra Makefile?
 FNAME=script/Makefile.$ARCH_OS
@@ -183,7 +206,7 @@ test -r $FNAME && echo "include $FNAME" >> $CFG_M
 if $PC --exists gtk+-2.0; then
     GTK_CFLAGS=$($PC --cflags gtk+-2.0)
     GTK_VERSION=$($PC --modversion gtk+-2.0)
-    echo "CFLAGS      +=$GTK_CFLAGS" >> $CFG_M
+    CFLAGS="$CFLAGS $GTK_CFLAGS"
 else
     echo "Gtk 2.0 with development headers not installed."
     ERR=1
@@ -195,7 +218,7 @@ fi
 if $PC --exists lua5.1; then
     LUA_CFLAGS=$($PC --cflags lua5.1)
     LUA_VERSION=$($PC --modversion lua5.1)
-    echo "CFLAGS      +=$LUA_CFLAGS" >> $CFG_M
+    CFLAGS="$CFLAGS $LUA_CFLAGS"
 else
     echo "Lua 5.1 not installed."
     ERR=1
@@ -233,12 +256,27 @@ done
 rm -f $LUA_TEST
 
 # - cmph -
-# architecture independet; it is required for build, not for runtime.
+# architecture independent; it is required for build, not for runtime.
 
-if $PC --exists cmph; then
+if test $USE_CMPH -eq 0; then
+    CMPH_VERSION="disabled"
+elif $PC --exists cmph; then
     HAVE_CMPH=1
     echo "HAVE_CMPH   :=1" >> $CFG_M
     CMPH_CFLAGS="$($PC --cflags cmph)"
+
+    # if CMPH_FLAGS is empty, then the includes are in the default include
+    # path, which is not necessarily used - e.g. MingW or when cross compiling.
+    # Therfore copy the required include file.
+    set -- $CMPH_FLAGS
+    if test -z "$1"; then
+	for dir in /usr/include /usr/local/include; do
+	    if test -r $dir/cmph_types.h; then
+		cp $dir/cmph_types.h $ODIR
+		break
+	    fi
+	done
+    fi
 
     # now what about the private include files?
     for dir in /usr/local/include/cmph/private /usr/include/cmph/private; do
@@ -271,6 +309,7 @@ else
 fi
 
 # C compiler
+
 if which gcc > /dev/null; then
     HOSTCC=gcc
     CC=gcc
@@ -279,11 +318,28 @@ else
     ERR=1
 fi
 
+# detect speedblue.org cross compilation
+F=/usr/$ARCH_CPU/bin/$ARCH_CPU-linux-gcc
+if test -x $F; then
+    CC=$F
+fi
+
+# how to run cross-compiled test scripts?
+case "$ARCH_CPU" in
+    powerpc) QEMU=qemu-ppc ;;
+    *) QEMU="qemu-$ARCH_CPU" ;;
+esac
+
+if which $QEMU > /dev/null; then
+    CROSS_RUN="$QEMU"
+fi
+
+
 # - architecture specific config -
 
 . $CONFIG_SCRIPT
 
-# get versions of c compiler
+# get versions of C compiler
 if test "$HOSTCC"; then
     HOSTCC_VERSION=`$HOSTCC --version | head -1`
 fi
@@ -295,36 +351,42 @@ fi
 # common makefile settings from above
 echo "CC          :=$CC" >> $CFG_M
 echo "HOSTCC      :=$HOSTCC" >> $CFG_M
-echo "LINK        :=$LINK" >> $CFG_M
+echo "DYNLINK     :=$DYNLINK" >> $CFG_M
 echo "GTK_LIBS    :=$GTK_LIBS" >> $CFG_M
 echo "LIBFFI      :=$LIBFFI" >> $CFG_M
+echo "CROSS_RUN   :=$CROSS_RUN" >> $CFG_M
 
-if test $LINK -eq 0; then
-    echo "#define MANUAL_LINKING" >> $CFG_H
+if test $DYNLINK -ne 0; then
+    echo "#define RUNTIME_LINKING" >> $CFG_H
+    DYNLINK_INFO="enabled"
+else
+    DYNLINK_INFO="disabled"
 fi
 
 
 # - general configuration -
 
-echo "CFLAGS      +=-Wall -I $ODIR -I src" >> $CFG_M
+CFLAGS="$CFLAGS -Wall -I $ODIR -I src"
 echo "HASHF       :=$HASHF" >> $CFG_M
 echo "HASH        :=hash-\$(HASHF)" >> $CFG_M
 
 if test "$DEBUG"; then
-    echo "CFLAGS      +=-g" >> $CFG_M
+    CFLAGS="$CFLAGS -g"
     echo "LDFLAGS     +=-g" >> $CFG_M
     DEBUG_INFO="on"
 else
-    echo "CFLAGS      +=-Os -fomit-frame-pointer" >> $CFG_M
+    CFLAGS="$CFLAGS -Os -fomit-frame-pointer"
     DEBUG_INFO="off"
 fi
 
+echo "CFLAGS      :=$CFLAGS" >> $CFG_M
 
 # - output config.h -
 
 echo "#define LUAGTK_VERSION \"$VERSION\"" >> $CFG_H
 echo "#define LUAGTK_${ARCH_OS}_$ARCH_CPU" >> $CFG_H
 echo "#define LUAGTK_$ARCH_OS" >> $CFG_H
+echo "#define LUAGTK_$ARCH_CPU" >> $CFG_H
 echo "#define LUAGTK_ARCH_OS \"$ARCH_OS\"" >> $CFG_H
 echo "#define LUAGTK_ARCH_CPU \"$ARCH_CPU\"" >> $CFG_H
 echo "#define HASHFUNC hash_$HASHF" >> $CFG_H
@@ -373,6 +435,10 @@ if test "$SUMMARY"; then
     if test "$CC_VERSION"; then
     echo "   Cross compiler:       $CC_VERSION"
     fi
+    if test "$CROSS_RUN"; then
+    echo "   Cross run:            $CROSS_RUN"
+    fi
+    echo "   Runtime linking:      $DYNLINK_INFO"
     echo "   Lua version:          $LUA_VERSION"
     echo "   Gtk version:          $GTK_VERSION"
     echo "   libffi:               $LIBFFI"
@@ -383,6 +449,7 @@ if test "$SUMMARY"; then
     echo "   Libgtkhtml-2.0:       $HTML_VERSION"
     echo "   Debugging symbols:    $DEBUG_INFO"
     echo "   Debugging functions:  $DEBUG_FUNCS_INFO"
+    echo "   CFLAGS:               $CFLAGS"
     echo ""
     echo "Type make to build."
     echo ""
