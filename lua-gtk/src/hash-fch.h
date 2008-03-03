@@ -22,30 +22,17 @@ struct my_fch {
     unsigned short g[];		// 16 or 32 bit entries
 };
 
-/*-
- * One bucket per entry.  Note that due to the MPH hash function, there
- * are no empty buckets and no overflows.  The hash value is required to
- * verify a hit or miss; the MPH function returns a valid bucket for
- * any key!
- */
-struct hash_bucket {
-    unsigned int hash_value;
-    unsigned int data_offset;	/* 16 or 32 bit entries */
-};
-#define BUCKET_SIZE(hi) (sizeof(unsigned int) + (hi)->offset_size)
-
 
 struct hash_info {
     const struct my_fch *hash_func;	// data to calculate the bucket nr
-    const void *index;			// array of hash_bucket
+    const unsigned char *index;		// array of hash_bucket
     const unsigned char *data;
     int offset_size;			// bytes per hash_bucket.data_offset
+    int hash_size;			// bytes per hash_bucket.hash_value
 };
 
 
 /* in hash-fch.c */
-unsigned int my_fch_hash(const struct my_fch *fch, const char *key,
-    int keylen, unsigned int *hash_value);
 const unsigned char *hash_search(const struct hash_info *hi,
     const char *key, int keylen, int *datalen);
 
