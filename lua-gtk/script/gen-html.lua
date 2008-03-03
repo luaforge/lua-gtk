@@ -75,6 +75,9 @@ env = {
 	local state = 0
 	local res = {}
 
+	local exists, _ = lfs.attributes("../" .. file)
+	if not exists then return "" end
+
 	for line in io.lines("../" .. file) do
 	    if state == 0 then
 		if string.match(line, "function " .. name) then
