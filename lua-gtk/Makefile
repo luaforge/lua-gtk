@@ -36,7 +36,7 @@ ifeq ($(wildcard build/$(ARCH)/config.make), )
 
 tags .DEFAULT::
 	@echo Running the configure script...
-	$H ./configure --summary --debug --host $(ARCH) && $(submake) $(MAKECMDGOALS)
+	$H ./configure --debug --host $(ARCH) && $(submake) $(MAKECMDGOALS)
 else
 
 $(warning Building for $(ARCH)...)
