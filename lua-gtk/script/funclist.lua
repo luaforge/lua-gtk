@@ -10,10 +10,17 @@ require "gtk"
 
 function main(ifname)
     local fname
+    local ar = {}
 
     for line in io.lines(ifname) do
 	fname = line:match("^([^,]+)")
-	print(gtk.function_sig(fname) or "not found: " .. fname)
+	ar[#ar + 1] = fname
+    end
+
+    table.sort(ar)
+
+    for _, fname in ipairs(ar) do
+	print(gtk.function_sig(fname, 20) or "not found: " .. fname)
     end
 end
 
