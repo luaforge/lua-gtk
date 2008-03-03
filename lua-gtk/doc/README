@@ -51,8 +51,8 @@ to the Windows platform as well.
 
 
 
-WARNING: this is ALPHA software, so expect the API to change, but also new
-functionality to appear.  Please send feedback to wolfgang.oertl@gmx.at.
+WARNING: this is BETA software, so expect some misbehavior.  Please send
+feedback to wolfgang.oertl@gmx.at.
 
 
 Data structures
@@ -80,4 +80,42 @@ this widget is in the toplevel_list of Gtk; therefore it has two regular
 references: one for the Lua proxy object, and one from Gtk.  If you just
 "forget" about the GtkWindow, it will not be garbage collected.  Instead, you
 have to call w:destroy() on it.
+
+
+Performance
+===========
+
+Some tests with valgrind show that this binding, as well as Lua itself, account
+for only a minimal part of the runtime.  Further optimization is therefore
+currently not a goal.
+
+# make sure that the script calls gtk.set_debug_flags("valgrind")
+valgrind --tool=callgrind lua [script]
+kcachegrind
+
+
+
+Enum encoding
+=============
+
+  A list of nearly 5000 constants are currently defined; most of them are
+ENUMs, but lots of integers (a few negative) and strings are also stored.  You
+can access them directly with gtk.CONSTANT_NAME, like gtk.GTK_WINDOW_TOPLEVEL
+or gtk.GTK_STOCK_OK.
+
+  Bits of the first byte: TSNh hhhh
+
+	T	if set, a type_idx is included
+	S	if set, this is a string.
+	N	if set, this is a negative number; unused for strings
+	h	if T==1, high order bits of type_idx; else for a number,
+		high order bits of the value.
+
+  If T is set, another byte follows with the lower 8 bits of the type_idx.
+  if S is set, the string follows (without terminating zero byte)
+
+  Otherwise, an integer follows, with the higher order bytes first.
+
+  Encoding happens in script/common.lua, decoding in src/data.c.
+
 
