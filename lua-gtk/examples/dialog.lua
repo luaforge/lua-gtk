@@ -18,6 +18,6 @@ dialog:show_all()
 
 -- Run the dialog, print the response.
 rc = dialog:run()
-print(rc)
+print(rc, rc == gtk.GTK_RESPONSE_ACCEPT:tonumber() and entry:get_text() or "")
 dialog:destroy()
 
