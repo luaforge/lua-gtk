@@ -89,10 +89,10 @@ static int l_gtk_lookup(lua_State *L)
 
     /* if it starts with an uppercase letter, it's probably an ENUM. */
     if (s[0] >= 'A' && s[0] <= 'Z') {
-	int val, struct_nr;
-	switch (find_enum(L, s, -1, &val, &struct_nr)) {
+	int val, type_idx;
+	switch (find_enum(L, s, -1, &val, &type_idx)) {
 	    case 1:		// ENUM/FLAG found
-	    return luagtk_enum_push(L, val, struct_nr);
+	    return luagtk_enum_push(L, val, type_idx);
 
 	    case 2:		// integer found
 	    lua_pushinteger(L, val);
@@ -176,6 +176,12 @@ static const struct special_alloc {
 };
 
 
+/**
+ * Determine how to allocate a given structure.
+ *
+ * @param  struct_name  Name of the structure to allocate
+ * @return 0=use g_slice_alloc, 1=use g_malloc, 2=special case for GdkColor
+ */
 static int _special_alloc(const char *struct_name)
 {
     const struct special_alloc *p;
@@ -209,7 +215,7 @@ static int _special_alloc(const char *struct_name)
 static int l_new(lua_State *L)
 {
     const char *struct_name = luaL_checkstring(L, 1);
-    struct struct_info *si;
+    const struct type_info *ti;
     void *p;
     struct func_info fi;
     char tmp_name[80];
@@ -217,7 +223,7 @@ static int l_new(lua_State *L)
 
     GTK_INITIALIZE();
 
-    if (!(si=find_struct(struct_name))) {
+    if (!(ti=find_struct(struct_name, 1))) {
 	printf("%s structure %s not found\n", msgprefix, struct_name);
 	return 0;
     }
@@ -234,17 +240,17 @@ static int l_new(lua_State *L)
     rc = _special_alloc(struct_name);
     switch (rc) {
 	case 0:
-	    p = g_slice_alloc0(si->struct_size);
+	    p = g_slice_alloc0(ti->st.struct_size);
 	    break;
 	
 	case 1:
-	    p = g_malloc(si->struct_size);
+	    p = g_malloc(ti->st.struct_size);
 	    break;
 	
 	case 2:;
 	    // No gdk_color_new function exists.  Instead, call the copy
-	    // function with allocates it.  This would work for any Gtk
-	    // version, but is required before 2.8.8.
+	    // function with allocates it.  This works for any Gtk version, but
+	    // is required before 2.8.8.
 	    GdkColor c = { 0, 0, 0, 0 };
 	    p = (void*) gdk_color_copy(&c);
 	    break;
@@ -263,7 +269,7 @@ static int l_new(lua_State *L)
     /* Make a Lua wrapper for it, push it on the stack.  FLAG_ALLOCATED causes
      * the _malloc_handler be used, and FLAG_NEW_OBJECT makes it not complain
      * about increasing the (non existant) refcounter. */
-    luagtk_get_widget(L, p, si - struct_list, FLAG_ALLOCATED | FLAG_NEW_OBJECT);
+    luagtk_get_widget(L, p, ti - type_list, FLAG_ALLOCATED | FLAG_NEW_OBJECT);
     return 1;
 }
 
