@@ -1,11 +1,11 @@
 #! /bin/sh
 # vim:sw=4:sts=4
 
-LINK=0
 GTK_LIBS=$($PC --libs gtk+-2.0)
 
 LIBFFI=
-for F in /usr/lib/libffi_pic.a /usr/local/lib/libffi_pic.a /usr/lib/libffi.a; do
+for F in /usr/$ARCH_CPU-linux-gnu/lib/libffi_pic.a /usr/lib/libffi_pic.a \
+    /usr/local/lib/libffi_pic.a /usr/lib/libffi.a; do
     if test -f $F; then
 	LIBFFI=$F
 	break
@@ -17,11 +17,19 @@ if test ! "$LIBFFI"; then
     ERR=1
 fi
 
+# extra include for libffi when cross compiling
+if test "$HOST_ARCH" != "$ARCH"; then
+
+    for D in /usr/$ARCH_CPU*/include; do
+	if test -f $D/ffi.h; then
+	    CFLAGS="$CFLAGS -I $D"
+	    break
+	fi
+    done
+fi
+
 echo "INDIR1      :=/usr/local/lib/lua/5.1" >> $CFG_M
 echo "INDIR2      :=/usr/local/share/lua/5.1" >> $CFG_M
-echo "CFLAGS      +=-fpic" >> $CFG_M
+CFLAGS="$CFLAGS -fpic"
 echo "ODLL        :=gtk.so" >> $CFG_M
-
-# possibly extra for archlinux.  How to detect that?
-#echo "CFLAGS      +=-I /usr/include/g-wrap"
 
