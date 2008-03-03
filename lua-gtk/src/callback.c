@@ -389,9 +389,11 @@ static void closure_handler(ffi_cif *cif, void *retval, void **args,
 
     // push the arguments to the Lua stack
     for (arg_nr=0; sig < sig_end; arg_nr ++) {
-	get_next_argument(&sig, &ar.ffi_type_nr, &ar.arg_struct_nr);
+	ar.type_idx = get_next_argument(&sig);
 	if (arg_nr == 0)    // skip retval
 	    continue;
+	ar.type = type_list + ar.type_idx;
+	ar.ffi_type_nr = ar.type->fundamental_id;
 	ar.arg_type = &ffi_type_map[ar.ffi_type_nr];
 	int idx = ar.arg_type->ffi2lua_idx;
 	if (idx) {
@@ -401,7 +403,7 @@ static void closure_handler(ffi_cif *cif, void *retval, void **args,
 	    ffi_type_ffi2lua[idx](&ar);
 	} else
 	    luaL_error(L, "%s unhandled argument type %s in closure",
-		msgprefix, LUAGTK_TYPE_NAME(ar.arg_type));
+		msgprefix, FTYPE_NAME(ar.arg_type));
     }
 
     int arg_cnt = lua_gettop(L) - top - 1;
@@ -419,8 +421,9 @@ static void closure_handler(ffi_cif *cif, void *retval, void **args,
 	ar.L = L;
 	ar.ci = NULL;
 	sig = cb->sig + 1;
-	get_next_argument(&sig, &ar.ffi_type_nr, &ar.arg_struct_nr);
-	ar.arg_type = &ffi_type_map[ar.ffi_type_nr];
+	ar.type_idx = get_next_argument(&sig);
+	ar.type = type_list + ar.type_idx;
+	ar.arg_type = ffi_type_map + ar.type->fundamental_id;
 	ar.index = top + 1;
 	ar.lua_type = lua_type(L, ar.index);
 
@@ -445,14 +448,15 @@ static void closure_handler(ffi_cif *cif, void *retval, void **args,
  */
 static int set_ffi_types(const unsigned char *sig, ffi_type **arg_types)
 {
-    int type_nr, struct_nr, arg_nr=0;
+    int type_idx, arg_nr=0;
     const unsigned char *sig_end = sig + 1 + *sig;
     sig ++;
 
     while (sig < sig_end) {
-	get_next_argument(&sig, &type_nr, &struct_nr);
+	type_idx = get_next_argument(&sig);
 	if (arg_types) {
-	    int idx = ffi_type_map[type_nr].ffi_type_idx;
+	    const struct type_info *ti = type_list + type_idx;
+	    int idx = ffi_type_map[ti->fundamental_id].ffi_type_idx;
 	    arg_types[arg_nr] = LUAGTK_FFI_TYPE(idx);
 	}
 	arg_nr ++;
@@ -505,12 +509,12 @@ void *luagtk_make_closure(lua_State *L, int index,
 
     ffi_prep_closure(closure, cif, closure_handler, (void*) cb);
 
-    // On AMD64, "code" must be called.  On i386, this would lead to a
-    // segfault; instead, call the closure directly.  Strange!
-#ifdef LUAGTK_linux_amd64
-    return (void*) code;
-#else
+    // On i386, "closure" must be called, very strange.  At least on amd64,
+    // and possibly other architectures, "code" must be called.
+#ifdef LUAGTK_i386
     return (void*) closure;
+#else
+    return (void*) code;
 #endif
 }
 
