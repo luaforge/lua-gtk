@@ -76,9 +76,9 @@ ${ODIR}_enumlist.c: ${ODIR}gtkdata.enums.txt ${ODIR}generate src/luagtk_hash.h
 ${ODIR}_override.c: ${ODIR}override.luac ${ODIR}file2c
 	$I
 	$H ${ODIR}file2c override < $< > $@
-	
+
 ${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}gtkdata.%.h: ${ODIR}types.xml \
-	script/parse-xml.lua script/get-defines.lua src/fundamental.lua \
+	script/parse-xml.lua src/fundamental.lua \
 	src/char_ptr_handling.txt script/xml-types.lua script/xml-parser.lua \
 	script/xml-output.lua script/common.lua src/include_types.txt
 	@echo "Generating Gtk Data..."
