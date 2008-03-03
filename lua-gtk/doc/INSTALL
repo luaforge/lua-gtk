@@ -52,13 +52,13 @@ instead.  There is probably little runtime difference, both size and speed
 wise, although I suppose the cmph generated hash will be faster; it requires
 two hash values to be computed, but doesn't have collisions, while the simple
 code needs just one hash computation, but has lots of collisions as well as
-empty buckets.
+empty buckets.  The resulting library is about 20 kB smaller with cmph.
 
 
 Procedure
 ---------
 
- - optionally, run script/configure (try --help)
+ - optionally, run ./configure (try --help, and see below)
  - run "make"
  - as root, run "make install".  Alternatively, create symlinks which is
    nice during development:
@@ -70,6 +70,91 @@ Now you should be ready to run the example scripts:
 
 $ lua examples/button.lua
 $ lua examples/pixmap.lua
+
+
+configure options
+-----------------
+
+  --debug
+
+	Compile with debugging information and without optimization.  Results
+	in a larger and slower binary, but this is useful for testing and
+	making sense out of core dumps.
+
+  --no-summary
+
+	Omit the summary and makes configure run silently unless an error
+	occurs.  Not recommended.  In case of bug reports in would be useful
+	to include this information.
+
+  --diable-debug
+
+	Omit a few debugging functions like gtk.dump_struct, dump_stack,
+	set_debug_flags and others.  This reduces the size of the library
+	a little.
+
+  --disable-gtkhtml
+
+	The GtkHtml library is optional, but if you have it installed (with
+	development headers) but don't want to have support for it, give
+	this option.  Note that even if it is enabled, and you have runtime
+	linking enabled (default on non windows architectures), no error
+	will happen at runtime if the library isn't available - until you try
+	to use it.
+
+  --disable-dynlink
+
+	Normally the library (gtk.so) is not linked against any other libaries,
+	but loads them dynamically at runtime.  This makes all libraries
+	optional, e.g. libgtkhtml; if it's not present, gtk.so will still load
+	and simply report an error when unavailable functions are about to
+	be called.
+
+  --host [ARCH]
+
+	Specify for what target architecture to compile.  A list of known
+	architectures is listed
+
+
+Cross compiling
+===============
+
+  Some attempts have been made to cross compile from i386 to other
+architectures, like sparc, mips, hppa and so forth.  On Debian, try the
+following steps to get started:
+
+1. Add the following lines to /etc/apt/sources.list:
+
+	deb http://debian.speedblue.org ./
+	deb-src http://debian.speedblue.org ./
+
+2. Run aptitude, or your favourite frontend to apt, and install the following
+   packages.  Replace "sparc" with whatever architecture(s) you are interested
+   in.  Keep in mind that qemu doesn't support all CPUs.
+
+	qemu
+	apt-cross
+	gcc-4.1-sparc
+
+3. optional - configure the kernel to automatically use qemu to run foreign
+   binaries using the binfmt_misc module; execute these as root:
+
+	modprobe binfmt_misc
+	script/qemu.sh
+
+4. install the ffi library for the architecture:
+
+	apt-cross -a sparc -i libffi4-dev
+
+5. build the library
+
+	./configure --host linux-sparc
+	make
+
+If the build succeeds, you will now have a build/linux-sparc/gtk.so.  This may
+or may not work, and in the end you can't test it with qemu, because the
+other binaries (lua, gtk etc.) are not there.  I installed them using
+apt-cross, but for some reason, maybe libc incompatibility, this fails to run.
 
 
 
@@ -116,11 +201,15 @@ Step 2
 
 Build the library by calling
 
+	./configure --help
+	./configure --host win32-i386
 	make win32
 
-This builds the file build/win32/gtk.dll.  The Makefile "remembers" which
-platform you built for, so you don't have to specify win32 in subsequent
-calls.  To obtain a ZIP file with all the required files, do this:
+If gccxml produces an error, please try configuring with "--disable-gtkhtml",
+this fixes it for me.
+
+This builds the file build/win32-i386/gtk.dll.  To obtain a ZIP file with all
+the required files, do this:
 
 	make zip
 
