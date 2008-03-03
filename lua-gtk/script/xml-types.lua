@@ -235,7 +235,7 @@ function resolve_type(type_id, path, may_be_incomplete)
 
     -- special case gboolean: is mapped to integer, but as Lua has a special
     -- boolean type, this must be handled differently.
-    if t_top.name == "gboolean" or t_top.name == "cairo_bool_t" then 
+    if t_top.name == "gboolean" or t_top.name == "cairo_bool" then 
 	t_top.fname = "boolean"
     end
 
