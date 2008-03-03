@@ -1,6 +1,54 @@
 
+
 BUGS
 ====
+
+- current build status
+
+	sparc: builds; all tests fail; gtk.window_new not found.
+	powerpc: builds; all tests fail; gtk.window_new not found
+	i386: builds; test #11 fails
+	hppa: builds; all tests fail; gtk.window_new not found
+	s390: builds; all testse fail; gtk.window_new not found;
+		gtk.GTK_CAN_DEFAULT not found
+	mipsel: liblua5.1-bit0 not found
+
+
+- GtkCurve's first element is GtkPixmap* -- but should be GtkPixmap, no?
+
+- regressions
+	dump_struct: show what a struct* is if it is not NULL
+
+- overrides don't do the trace output, which happens in luagtk_call.
+  How to do this??  This should happen automatically and not require some
+  boilerplate code for each override.  There are C and Lua overrides, about
+  30 in total.
+  Problem: the override is called without its name being accesible, right?
+  So the function would have to call ``show trace("my name")''
+
+  GdkColor...
+
+- Next problem.  Arrays?  This is currently ignored.  It should add another
+  level of indirection, and possibly set a max. number of elements.  Basically
+  arrays could be nested, does this happen?
+  
+- Next problem.  substructures and subunions are currently ignored.  Must
+  be supported e.g. for GdkEvent.  This has worked before?
+
+  The elements can be accessed, though, e.g.
+  dump_struct(gdkevent.grab_broken).  So, in reality, the data is all there.
+  Just drop the warning messages?
+
+- The size field for structure elements should not be set if the referenced
+  type has this info.  Must be present for bitfields, but max. value should
+  be 32 (or 64 on 64 bit archs).
+
+  Interestingly, sometimes the size is set for fundamental types (like struct,
+  union) when this type has no fixed size.  This size should be zero!
+
+
+- maybe check the "const" flag sometimes at runtime for something?  disallow
+  writing into such structures.
 
 - g_convert & friends on win32 don't work.  some library component missing?
 
@@ -40,22 +88,6 @@ MISSING FEATURES
 - in lua2ffi_vararg(struct argconv_t *ar), support TABLE input as
   array of pointers to strings.
 
-- gtk_stock_list_ids returns GSList; the individual strings in it must
-  be freed with g_free, but this doesn't happen automatically, and there's
-  no way to do it manually either.
-
-- GSList: can't access the "gpointer data" structure element.  The application
-  needs to know what it is supposed to point to.  A typecast function is
-  needed, e.g. like this.
-
-  	gtk.cast(list, "data", "GtkTextTag")
-		simple to implement
-
-	list.data:cast("GtkTextTag")
-		requires a void* in a structure to be returned as userdata
-		with a metatable with a "cast" function.
-
-
 - socket_co: connect attempts must be asynchronous, otherwise the GUI can be
   blocked (by a slow DNS server, for example).
 	getaddrinfo_a in libc.  available in mingw?
@@ -73,6 +105,9 @@ MISSING FEATURES
 	gdk/gdkselection.h
 
 - more documentation
+	- user documentation must be written by hand, the luadoc output
+	  is cute but not really helpful.
+	- set up a wiki to edit documentation?
 	- improve the homepage, add more content, better layout
 	- use luadoc tags for all user visible functions in the C modules
 	- developer documentation to give pointers for hacking
@@ -83,14 +118,87 @@ MISSING FEATURES
 - try LuaJIT - should speed everything up.  at least check that it works with
   it because in a larger project, somebody might want to use it.
 
-- GCC attributes.  Use when GCC is available.
-
-http://gcc.gnu.org/onlinedocs/gcc-4.1.1/gcc/Function-Attributes.html
-
 
 
 IMPROVEMENTS
 ============
+
+- Cache the result of the lookup in luagtk_type_modify.  Allocate (type_count)
+  number of short integers to store the offsets into the sorted string table.
+
+- Current data sizes:
+
+Structure		curr	-html	old
+---------------------------------------------
+type_list		13592	11616	5976
+elem_list		23784	19160	19064
+type_strings_types	21019	17372	32349 for all strings
+type_strings_elem	21876	18610	
+type_strings_proto	2035	1840
+_funcs_fch.g		2320	
+_funcs_data		21793	20412	32881
+_funcs_index		24191	22847	34269
+_enums_fch.g		1902	
+_enums_data		18567	14417	14417
+_enums_index		19359	14599	21897
+override_data		2689	2689	2987
+ffi_type_map		416	408	408
+----------------------------------------------
+		TOTALS	173543
+		SIZE		251845	265093
+
+
+_*_fch.g requires _*_fch.b * sizeof(short) bytes, I reckon.
+
+  - Add a debug function that shows these numbers
+
+  - Try to reduce
+  	1. hash data - bdz method needs less space.  not much to be gained
+
+	2. more efficient encoding of enum data?
+
+	3. in production, enum data could be used without hash values; saves
+	   about 10k, or just one byte of hash value, saves 5k
+
+	4. More efficient encoding of function prototypes?  try different
+	   variants. Current version:
+
+	   	0	invalid
+		1-127	this type
+		>128	unset high bit, shift right 8 + add next byte
+
+		one byte encoding enough 17500/23100 times = 76%
+		total = 17500 + 5600*2 = 28700
+
+		0	invalid (required for something? maybe not)
+		1-249	this type
+		250	next byte + 250
+		251	next byte + 250 + 256
+		252	next byte + 250 + 256*2
+		253	next byte + 250 + 256*3
+		254	next byte + 250 + 256*4
+		255	two bytes follow for full range
+
+		one byte enough 19580 times = 85%
+		total = 19580 + 3520 = 26620 bytes
+
+		The three byte version is required for > 1530 types, which
+		is currently not reached.
+
+		Not much to be gained.
+
+	5. try to combine strings.
+		long_some_thing
+		some_thing
+		thing
+		GtkMenu
+		GtkMenuBar
+		GtkMenuBarButton
+
+	6. remove the func_nnnn dummy type names and element names.  Use just
+	   "func" or so for all of them.
+
+	
 
 - support another hashing method of cmph: bdz.  Lookup seems a bit more
   code, though.
@@ -118,7 +226,7 @@ IMPROVEMENTS
 - Additional Library Support.  If available at compile time and enabled,
   compile it in.  If not available at runtime, disable this part of the API.
 
-  Done: Cairo, GLib, GObject, ATK, Pango, gdk-pixbuf, GDK, GTK+
+  Done: Cairo, GLib, GObject, ATK, Pango, gdk-pixbuf, GDK, GTK+, GtkHTML
 
   - cairo - http://cairographics.org/
   	partly working, not tested much
@@ -143,9 +251,6 @@ IMPROVEMENTS
   - GAIL
   	libgail-dev
 
-  - GtkHTML
-  	libgtkhtml2-dev
-
   - Gnome Libraries
   	libgnome2-dev
   	libgnomedb3-dev
@@ -159,6 +264,10 @@ IMPROVEMENTS
 	libxslt1-dev
 
   - libglade - maybe not, use GtkBuilder
+
+- GCC attributes.  Use when GCC is available.
+
+http://gcc.gnu.org/onlinedocs/gcc-4.1.1/gcc/Function-Attributes.html
 
 
 
