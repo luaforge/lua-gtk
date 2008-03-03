@@ -79,6 +79,7 @@ function generate_object(ofname, platform)
 ]] .. defs .. [[
 #include <gtk/gtk.h>
 #include <cairo/cairo.h>
+#include <atk/atk-enum-types.h>
 ]] .. defs2
 
     ofile:write(s)
@@ -138,7 +139,7 @@ function download_types_xml(ofname, platform, version)
     key = string.format("%s-%s", version, platform)
     url = urls[key]
     if not url then
-	print("Version " .. key .. " not supported.")
+	print("Version " .. key .. " not supported; can't download.")
 	return 1
     end
 
@@ -181,7 +182,7 @@ end
 
 arg[2] = string.lower(arg[2])
 rc = generate_object(arg[1], arg[2])
-if not rc then
+if rc ~= 0 then
     rc = download_interactive(arg[1], arg[2])
 end
 os.exit(rc)
