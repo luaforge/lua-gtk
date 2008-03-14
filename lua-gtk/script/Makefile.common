@@ -160,7 +160,7 @@ ${ODIR}hash-cmph-generate: ${ODIR}hash-cmph-generate.$(O)
 
 ${ODIR}hash-cmph-generate.$O: src/hash-cmph-generate.c
 	$I
-	$H ${HOSTCC} -g -o $@ ${CMPH_CFLAGS} -c $< 
+	$H ${HOSTCC} -g -o $@ ${CMPH_CFLAGS} -I ${ODIR} -c $< 
 
 # -- dynamic runtime linking --
 linkh: ${ODIR}link.h
