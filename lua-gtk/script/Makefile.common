@@ -25,7 +25,8 @@ endif
 
 # -- is cmph available? --
 ifeq ($(HAVE_CMPH), 1)
-OFILES	+=hash-fch.$(O) _funclist_fch.$(O) _enumlist_fch.$(O)
+OFILES	+=hash-functions.$O hash-cmph.$O hash-$(CMPH_ALGO).$O \
+	_funclist_$(CMPH_ALGO).$O _enumlist_$(CMPH_ALGO).$O
 else
 OFILES	+=hash-simple.$(O) ${HASH}.$(O) _funclist.$(O) _enumlist.$(O)
 endif
@@ -107,7 +108,7 @@ ${ODIR}ffi-types: ${ODIR}ffi-types.$(O)
 	$I
 	$H ${HOSTCC} -o $@ $< -lffi
 
-# -- fch hash --
+# -- cmph hash --
 
 ${ODIR}%.keys: ${ODIR}%.txt
 	$I
@@ -115,25 +116,31 @@ ${ODIR}%.keys: ${ODIR}%.txt
 
 # -c gives the effort expended to finding a minimal hash function. lower
 #  value = more effort. 2.0 is about the minimum.
-${ODIR}%.mph: ${ODIR}%.keys
+${ODIR}%.$(CMPH_ALGO).mph: ${ODIR}%.keys
 	$I
-	$H $(CMPH_BIN) -a fch -c 2.0 -m $@ -g $^
+	$H $(CMPH_BIN) -a $(CMPH_ALGO) -m $@ -g $^
 
-${ODIR}_funclist_fch.c: ${ODIR}hash-fch-generate ${ODIR}gtkdata.funcs.mph
+${ODIR}_funclist_$(CMPH_ALGO).c: ${ODIR}hash-cmph-generate \
+	${ODIR}gtkdata.funcs.$(CMPH_ALGO).mph
 	$I
-	$H ${ODIR}hash-fch-generate ${ODIR}gtkdata.funcs.mph \
+	$H ${ODIR}hash-cmph-generate ${ODIR}gtkdata.funcs.$(CMPH_ALGO).mph \
 		${ODIR}gtkdata.funcs.txt "funcs" > $@
 
-${ODIR}_enumlist_fch.c: ${ODIR}hash-fch-generate ${ODIR}gtkdata.enums.mph
+${ODIR}_enumlist_$(CMPH_ALGO).c: ${ODIR}hash-cmph-generate \
+	${ODIR}gtkdata.enums.$(CMPH_ALGO).mph
 	$I
-	$H ${ODIR}hash-fch-generate ${ODIR}gtkdata.enums.mph \
+	$H ${ODIR}hash-cmph-generate ${ODIR}gtkdata.enums.$(CMPH_ALGO).mph \
 		${ODIR}gtkdata.enums.txt "enums" > $@
 
 ${ODIR}hash-fch.$(O): src/hash-fch.c
 	$I
 	$H ${CC} ${CFLAGS} -c -o $@ ${CMPH_CFLAGS} $<
 
-# -- helper programs for fch hash, to be compiled with HOSTCC --
+${ODIR}hash-bdz.$(O): src/hash-bdz.c
+	$I
+	$H ${CC} ${CFLAGS} -c -o $@ ${CMPH_CFLAGS} $<
+
+# -- helper programs for simple and cmph hash, to be compiled with HOSTCC --
 
 ${ODIR}generate.$(O): src/generate.c
 	$I
@@ -147,11 +154,11 @@ ${ODIR}file2c: src/file2c.c
 	$I
 	$H ${HOSTCC} -o $@ $^
 
-${ODIR}hash-fch-generate: ${ODIR}hash-fch-generate.$(O)
+${ODIR}hash-cmph-generate: ${ODIR}hash-cmph-generate.$(O)
 	$I
 	$H ${HOSTCC} -g -o $@ $^ $(CMPH_LIBS)
 
-${ODIR}hash-fch-generate.$(O): src/hash-fch-generate.c
+${ODIR}hash-cmph-generate.$O: src/hash-cmph-generate.c
 	$I
 	$H ${HOSTCC} -g -o $@ ${CMPH_CFLAGS} -c $< 
 
@@ -191,7 +198,7 @@ ${ODIR}%.luac: src/%.lua
 clean:
 	$I
 	$H rm -f ${ODIR}${ODLL} ${ODIR}generate ${ODIR}_*.c ${ODIR}*.$(O)
-	$H rm -f ${ODIR}file2c ${ODIR}override.luac ${ODIR}hash-fch-generate
+	$H rm -f ${ODIR}file2c ${ODIR}override.luac ${ODIR}hash-cmph-generate
 	$H rm -f ${ODIR}ffi-types
 
 mrproper: clean
@@ -261,8 +268,11 @@ ${ODIR}debug.$O: ${LH}
 ${ODIR}gtk2.$O: ${LH}
 ${ODIR}gtkdata.structs.$O: $(LH) ${ODIR}gtkdata.structs.c
 ${ODIR}gvalue.$O: ${LH}
-${ODIR}hash-fch-generate.$O: $(LH) src/hash-fch.h
-${ODIR}hash-fch.$O: $(LH) src/hash-jenkins.c
+${ODIR}hash-cmph-generate.$O: $(LH) src/hash-cmph.h
+${ODIR}hash-functions.$O: $(LH) src/hash-cmph.h
+${ODIR}hash-cmph.$O: $(LH) src/hash-cmph.h
+${ODIR}hash-fch.$O: $(LH) src/hash-cmph.h
+${ODIR}hash-bdz.$O: $(LH) src/hash-cmph.h
 ${ODIR}interface.$O: ${LH}
 ${ODIR}override.$O: ${LH}
 ${ODIR}types.$O: $(LH) ${ODIR}gtkdata.types.c ${ODIR}luagtk_ffi.h
