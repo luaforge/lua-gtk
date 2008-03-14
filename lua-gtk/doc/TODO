@@ -1,8 +1,4 @@
 
-
-BUGS
-====
-
 - current build status
 
 	sparc: builds; all tests fail; gtk.window_new not found.
@@ -14,7 +10,8 @@ BUGS
 	mipsel: liblua5.1-bit0 not found
 
 
-- GtkCurve's first element is GtkPixmap* -- but should be GtkPixmap, no?
+BUGS
+====
 
 - regressions
 	dump_struct: show what a struct* is if it is not NULL
@@ -23,7 +20,7 @@ BUGS
   How to do this??  This should happen automatically and not require some
   boilerplate code for each override.  There are C and Lua overrides, about
   30 in total.
-  Problem: the override is called without its name being accesible, right?
+  Problem: the override is called without its name being accessible, right?
   So the function would have to call ``show trace("my name")''
 
   GdkColor...
@@ -98,6 +95,8 @@ MISSING FEATURES
 	http://www.network-research.org/udns.html
 	udns
 
+- handle data type float*, e.g. GtkCurve.ctlpoint
+- handle data type "signed char", e.g. GdkEventAny.send_event
 
 - wrapper for gtk_tree_model_get would be nice.
 
@@ -126,6 +125,40 @@ IMPROVEMENTS
 - Cache the result of the lookup in luagtk_type_modify.  Allocate (type_count)
   number of short integers to store the offsets into the sorted string table.
 
+- make it more modular?  I.e. support additional APIs through additional data
+  files or rather .so/.dll files.  E.g. GtkSpell, or move GtkHTML into a 
+  separate module.  Pure data file is not enough as overrides may be
+  required, i.e. code.  May need to load additional libraries.
+  
+  	- separate module to use the build infrastructure. create types.xml,
+	  filter out interesting symbols, enums, structures, build a hash
+	  table etc.  Can't just include all symbols, because that would
+	  overlap a lot with the base lib.
+
+	- what is the base lib?  for example, glib could be a separate
+	  module, gtk on top of that etc.  Build the base first, then
+	  the next level; same process, but omit all symbols already in the
+	  first library.
+
+	- results in multiple hash tables that have to be checked separately.
+	  couldn't they be combined?  probably not.  performance impact?
+	  probably small.
+	
+	- compile it in if so requested, this should be possible too.
+
+	-- specify additional modules; if built in, nothing happens.
+	require("gtk", "GtkSpell", "GtkHtml")
+	gtk.load("GtkSpell")
+	gtk.load("GtkHtml")
+
+  Advantages: Could be built and installed separately.  Might be required when
+  more and more libraries are added; either have everything as compile time
+  option, or build separately.
+
+  Disadvantages: code and build more complex, slower runtime (can't extend
+   the precomputed hash tables, must check multiple).
+
+
 - Current data sizes:
 
 Structure		curr	-html	old
@@ -153,8 +186,6 @@ _*_fch.g requires _*_fch.b * sizeof(short) bytes, I reckon.
   - Add a debug function that shows these numbers
 
   - Try to reduce
-  	1. hash data - bdz method needs less space.  not much to be gained
-
 	2. more efficient encoding of enum data?
 
 	3. in production, enum data could be used without hash values; saves
@@ -197,28 +228,6 @@ _*_fch.g requires _*_fch.b * sizeof(short) bytes, I reckon.
 
 	6. remove the func_nnnn dummy type names and element names.  Use just
 	   "func" or so for all of them.
-
-	
-
-- support another hashing method of cmph: bdz.  Lookup seems a bit more
-  code, though.
-  there are _ph variants, which are perfect hashes, but not minimal, i.e.
-  there are gaps in the resulting hash values, which causes unused buckets
-  and therefore space wastage.
-  
-  for bdz_ph and the function list, 5710 keys map to 7139 buckets, wasting
-  1429 buckets, which (at 2 bytes per bucket) means 2858 wasted bytes.
-  for this size, the hash data is (on disk) 1826 bytes.
-
-  the same with bdz, the data size is 2059, only slightly more, but now
-  no buckets are wasted.  some additional code is required though.
-
-  compare that to fch: much longer generation time, but data size is 4468
-  bytes.
-
-	- improve hash-fch-generate.c to also support bdz
-	- write hash-bdz.c to support lookup with the bdz algorithm.
-
 
 - use a better module definition, see
   http://lua-users.org/wiki/LuaDesignPatterns
@@ -270,5 +279,12 @@ _*_fch.g requires _*_fch.b * sizeof(short) bytes, I reckon.
 http://gcc.gnu.org/onlinedocs/gcc-4.1.1/gcc/Function-Attributes.html
 
 
+
+How does this compare to the "alien" library?
+http://alien.luaforge.net/
+
+ - alien is not designed to support a large number of functions efficiently;
+   they have to be declared individually.
+ - doesn't know about Gtk's type hierarchy
 
 

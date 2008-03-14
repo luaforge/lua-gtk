@@ -363,20 +363,80 @@ Don Dez 20 01:02:11 CET 2007
 * virtual functions in interfaces can now be assigned to, and thus overridden.
 
 
-Don Dez 20 23:42:03 CET 2007
+2007-12-20
 * some refactoring
 * more function comments
 
-
-Mit Jan  9 22:04:34 CET 2008
+2008-01-09
 * mingw build works again
 
-
-Mit Jan 16 14:26:01 CET 2008
+2008-01-16
 * GtkTreeIter free works for Gtk version < 2.10.12
 * memory management fixes
 * gtk.init renamed to gtk.set_debug_flags and improved
 * support void* return type from Gtk functions, treat as widget
 * support union* type (same as struct*)
+
+2008-02-10
+* keysyms from gtk/gdk/gdkkeysyms.h added
+
+2008-02-13
+* Build system improved with configure script (not autoconf)
+* Gtk < 2.12 supported without build time changes
+
+# v0.8 released
+
+2008-02-20
+* test program to verify ffi function in addition to the vararg test
+* support "unsigned char" data type
+* 64bit fix for int*, unsigned int*, long unsigned int*
+
+2008-02-22
+* support for libgtkhtml
+* new example for GtkFileChooserDialog, another for HtmlView
+* Example with toggle buttons in tree; pixbuf column for the prev. tree ex.
+
+2008-02-23
+* new example for GtkRadioButtons
+
+2008-02-28
+* sorted list of type names: consider number of indirections.
+* sorted type list only contains type_idx, i.e. 2 bytes per entry; previously
+  contained the name offset, too, but this is stored in the type entry anyway.
+* find_struct now needs the number of indirections, and returns the correct
+  type.
+* call return values now finds the correct type (with one level of indirections
+  less)
+
+2008-02-29
+* cross compilation for various architectures.  described in doc/INSTALL
+* fix missing types e.g. GdkVisualType*
+* include atk-enum-types.h
+* fixed regressions except tests/023-cairo.lua
+* fixed dump_struct to recurse properly
+
+2008-03-03
+* fixed regressions except tests/023-cairo.lua
+* flag to disable runtime linking, to disable cmph; configure improvements
+* improvement for cross compiling and general build improvements
+* update to win32 build instructions, other doc updates
+* improved encoding of enum values - simpler, more space efficient
+* funclist.lua: sort output and pad return type
+* get-defines.lua merged into parse-xml.lua
+* ATK enums available
+* parse-xml.lua split into various parts.  encoding for structures and
+  functions changed.  statistics displayed after generation of data.
+* stricter type checking for output parameters
+* dynamic (runtime) linking improved
+* GdkColor for Gtk <= 2.8.8 fixed
+* hash values can be stored with less bytes - space savings
+* hash-fch.c: hash_search improved
+* GSList automatic free
+* ffi2lua fix for enum**, lua2ffi fix for enum
+
+2008-03-14
+* support the bdz algorithm of cmph version wads07, which is still unreleased.
+Library sizes: simple hash: 275 kB, fch: 252 kB, bdz: 252 kB.  bdz builds
+faster, needs a little bit less data but a bit more core.
 
 
