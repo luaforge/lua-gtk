@@ -305,19 +305,22 @@ elif $PC --exists cmph; then
     done
 
     CMPH_VERSION=$($PC --modversion cmph)
-    CMPH_LIBS=$(PC --libs cmph)
+    CMPH_LIBS=$($PC --libs cmph)
 else
     CMPH_VERSION="not available"
 fi
 
 if test "$HAVE_CMPH"; then
     if test "$CMPH_VERSION" = "wads07"; then
-	echo "CMPH_ALGO   :=bdz" >> $CFG_M
+	CMPH_ALGO=bdz
 	CMPH_BIN="$CMPH_BIN -e 1"
     else
-	echo "CMPH_ALGO   :=fch" >> $CFG_M
+	CMPH_ALGO=fch
 	CMPH_BIN="$CMPH_BIN -c 2.0"
     fi
+    echo "CMPH_ALGO   :=$CMPH_ALGO" >> $CFG_M
+    echo "#define CMPH_ALGORITHM ${CMPH_ALGO}_search" >> $CFG_H
+    echo "#define CMPH_USE_$CMPH_ALGO" >> $CFG_H
     echo "HAVE_CMPH   :=1" >> $CFG_M
     echo "CMPH_CFLAGS :=$CMPH_CFLAGS" >> $CFG_M
     echo "CMPH_BIN    :=$CMPH_BIN" >> $CFG_M
