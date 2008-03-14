@@ -18,7 +18,7 @@ USE_CMPH=1
 DYNLINK=1
 CFLAGS=
 # This is the list of Debian supported CPUs.
-ARCH_CPUS="alpha amd64 arml armel hppa i386 ia64 mk68k mips mipsel
+ARCH_CPUS="alpha amd64 arm arml armel hppa i386 ia64 mk68k mips mipsel
 powerpc s390 sparc"
 
 # only works if cwd is correct
@@ -44,6 +44,7 @@ show_help () {
     echo "  --disable-gtkhtml  No support for libgtkhtml"
     echo "  --disable-dynlink  Build time instead of runtime linking"
     echo "  --disable-cmph     Don't use cmph even if it is available"
+    echo "  --with-cmph DIR    Use cmph source tree at the given location"
     echo "  --host [ARCH]      Cross compile to another architecture, see below"
     echo ""
     known_architectures
@@ -66,6 +67,7 @@ while test "$1"; do
 	--enable-dynlink) DYNLINK=1; DYNLINK_SET=1 ;;
 	--disable-cmph) USE_CMPH=0 ;;
 	--enable-cmph) USE_CMPH=1 ;;
+	--with-cmph) USE_CMPH=1; CMPH_DIR="$2"; shift ;;
 
 	--host)
 	    if test "$ARCH"; then
@@ -260,10 +262,25 @@ rm -f $LUA_TEST
 
 if test $USE_CMPH -eq 0; then
     CMPH_VERSION="disabled"
+elif test "$CMPH_DIR"; then
+    if test -d "$CMPH_DIR"; then
+	CMPH_BIN=$CMPH_DIR/src/cmph
+	if test -x $CMPH_BIN; then
+	    HAVE_CMPH=1
+	    CMPH_CFLAGS="-I $CMPH_DIR/src"
+	    CMPH_INCDIR=$CMPH_DIR/src
+	    CMPH_VERSION=$($CMPH_BIN -V)
+	    CMPH_LIBS="$CMPH_DIR/src/.libs/libcmph.a -lm"
+	else
+	    echo "Cmph directory found, but no executable?"
+	fi
+    else
+	echo "Cmph directory not found: $CMPH_DIR"
+    fi
 elif $PC --exists cmph; then
     HAVE_CMPH=1
-    echo "HAVE_CMPH   :=1" >> $CFG_M
     CMPH_CFLAGS="$($PC --cflags cmph)"
+    CMPH_BIN=cmph
 
     # if CMPH_FLAGS is empty, then the includes are in the default include
     # path, which is not necessarily used - e.g. MingW or when cross compiling.
@@ -288,11 +305,23 @@ elif $PC --exists cmph; then
     done
 
     CMPH_VERSION=$($PC --modversion cmph)
-    echo "CMPH_CFLAGS :=$CMPH_CFLAGS" >> $CFG_M
-    echo "CMPH_BIN    :=cmph" >> $CFG_M
-    echo "CMPH_LIBS   :=$($PC --libs cmph)" >> $CFG_M
+    CMPH_LIBS=$(PC --libs cmph)
 else
     CMPH_VERSION="not available"
+fi
+
+if test "$HAVE_CMPH"; then
+    if test "$CMPH_VERSION" = "wads07"; then
+	echo "CMPH_ALGO   :=bdz" >> $CFG_M
+	CMPH_BIN="$CMPH_BIN -e 1"
+    else
+	echo "CMPH_ALGO   :=fch" >> $CFG_M
+	CMPH_BIN="$CMPH_BIN -c 2.0"
+    fi
+    echo "HAVE_CMPH   :=1" >> $CFG_M
+    echo "CMPH_CFLAGS :=$CMPH_CFLAGS" >> $CFG_M
+    echo "CMPH_BIN    :=$CMPH_BIN" >> $CFG_M
+    echo "CMPH_LIBS   :=$CMPH_LIBS" >> $CFG_M
 fi
 
 # - libgtkhtml -
