@@ -167,19 +167,72 @@ function resolve_type(s)
     error("Failed to resolve type " .. s)
 end
 
-function read_list(fname)
-    for line in io.lines(fname) do
-	if #line > 0 and string.sub(line, 1, 1) ~= "#" then
-	    funclist[line] = true
+-- Environment to evaluate conditions in
+cond_env = {}
+
+-- List of libraries to query the version for.  The first column is the
+-- lib name, and the second the lib name for pkg-config.
+libs = {
+    { 'glib', 'glib-2.0' },
+    { 'gtk', 'gtk+-2.0' },
+    { 'pango', 'pango' },
+}
+
+---
+-- Use pkg-config to get the versions of the used libraries.
+--
+function get_lib_versions()
+    local fh, s
+    for _, item in ipairs(libs) do
+	fh = io.popen("pkg-config --modversion " .. item[2] .. " 2> /dev/null")
+	if fh then
+	    s = fh:read("*l")
+	    cond_env[item[1]] = s
+	    fh:close()
 	end
     end
 end
 
+
+---
+-- Read the list of functions to link to.  Comment lines are ignored.
+--
+function read_list(fname)
+    local name, cond, chunk, msg, rc
+
+    for line in io.lines(fname) do
+	if #line > 0 and string.sub(line, 1, 1) ~= "#" then
+	    name, cond = string.match(line, "^(%S+)(.*)$")
+	    rc = true
+	    if cond ~= '' then
+		chunk, msg = loadstring("return " .. cond)
+		if not chunk then
+		    print("Faulty condition", cond)
+		    rc = false
+		else
+		    setfenv(chunk, cond_env)
+		    rc = chunk()
+		end
+	    end
+	    
+	    -- add to list if no condition was given or the cond was met.
+	    if rc then
+		funclist[name] = cond
+	    end
+	end
+    end
+end
+
+
+---
+-- Complain about functions that haven't been found in the XML input file.
+-- @return  Number of errors found, 0 in case of success.
+--
 function check_completeness()
     local err = 0
 
     for k, v in pairs(funclist) do
-	if v == true then
+	if type(v) ~= 'table' then
 	    print("Function not defined: " .. k)
 	    err = err + 1
 	end
@@ -258,6 +311,7 @@ if (#arg ~= 4) then
     os.exit(1)
 end
 
+get_lib_versions()
 read_list(arg[2])
 parse_xml(arg[1])
 if check_completeness() ~= 0 then
