@@ -8,7 +8,7 @@ require "gtk"
 s, err = gtk.g_file_read_link("/some/invalid/path", nil)
 
 assert(err)
-assert(err.domain == 78)
-assert(err.code == 4)
+assert(err.domain == gtk.g_file_error_quark())
+assert(err.code == gtk.G_FILE_ERROR_NOENT:tonumber())
 assert(err.message == "Failed to read the symbolic link '/some/invalid/path': No such file or directory")
 
