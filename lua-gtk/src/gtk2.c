@@ -347,6 +347,11 @@ int luaopen_gtk(lua_State *L)
     luagtk_init_channel(L);
     luagtk_init_debug(L);
 
+    // an object that can be used as NIL
+    lua_pushliteral(L, "NIL");
+    lua_pushlightuserdata(L, NULL);
+    lua_rawset(L, -3);
+
     // a metatable to make another table have weak values
     lua_newtable(L);			// gtk mt
     lua_pushliteral(L, "v");		// gtk mt "v"
