@@ -385,8 +385,9 @@ echo "CC          :=$CC" >> $CFG_M
 echo "HOSTCC      :=$HOSTCC" >> $CFG_M
 echo "DYNLINK     :=$DYNLINK" >> $CFG_M
 echo "GTK_LIBS    :=$GTK_LIBS" >> $CFG_M
-echo "LIBFFI      :=$LIBFFI" >> $CFG_M
+echo "LIBFFI_LIB  :=$LIBFFI_LIB" >> $CFG_M
 echo "CROSS_RUN   :=$CROSS_RUN" >> $CFG_M
+CFLAGS="$CFLAGS $LIBFFI_INC"
 
 if test $DYNLINK -ne 0; then
     echo "#define RUNTIME_LINKING" >> $CFG_H
@@ -473,7 +474,7 @@ if test "$SUMMARY"; then
     echo "   Runtime linking:      $DYNLINK_INFO"
     echo "   Lua version:          $LUA_VERSION"
     echo "   Gtk version:          $GTK_VERSION"
-    echo "   libffi:               $LIBFFI"
+    echo "   libffi:               $LIBFFI_VERSION"
     echo "   Cmph library:         $CMPH_VERSION"
     if test "$CMPH_INCDIR"; then
     echo "   Cmph extra includes:  $CMPH_INCDIR"

@@ -20,11 +20,13 @@ if test ! -d $LUADIR -o ! -f $LUADIR/lua5.1.dll; then
 fi
 
 FFIDIR=mingw/libffi-mingw
-if test ! -d $FFIDIR -o ! -f $FFIDIR/libffi.a; then
+if test ! -d $FFIDIR -o ! -f $FFIDIR/libffi.a -o ! -f $FFIDIR/ffi.h; then
     echo "LibFFI not found in $FFIDIR"
     ERR=1
 else
-    LIBFFI=$FFIDIR/libffi.a
+    LIBFFI_LIB=$FFIDIR/libffi.a
+    LIBFFI_INC="-I $FFIDIR"
+    LIBFFI_VERSION=$FFIDIR
 fi
 
 # mingw
@@ -51,7 +53,7 @@ fi
 CROSS_RUN=
 
 # output
-CFLAGS="$CFLAGS -DXTHREADS -I $FFIDIR -mms-bitfields"
+CFLAGS="$CFLAGS -DXTHREADS -mms-bitfields"
 echo "INDIR1      :=/usr/local/lib/lua/5.1" >> $CFG_M
 echo "INDIR2      :=/usr/local/share/lua/5.1" >> $CFG_M
 echo "ODLL        :=gtk.dll" >> $CFG_M

@@ -54,13 +54,13 @@ ${ODIR}test-vararg${EXESUFFIX}: src/test-vararg.c
 
 ${ODIR}test-ffi${EXESUFFIX}: src/test-ffi.c
 	$I
-	$H $(CC) $(CFLAGS) -I $(ODIR) -Wall -o $@ $^ $(LIBFFI)
+	$H $(CC) $(CFLAGS) -I $(ODIR) -Wall -o $@ $^ $(LIBFFI_LIB)
 
 # rule to build the library.
 
 ${ODIR}${ODLL}: $(addprefix ${ODIR}, ${OFILES})
 	$I
-	$H $(CC) ${LDFLAGS} -shared -o $@ $^ ${LIBFFI} ${EXTRA_LIB} ${LIBS}
+	$H $(CC) ${LDFLAGS} -shared -o $@ $^ ${LIBFFI_LIB} ${EXTRA_LIB} ${LIBS}
 
 ${ODIR}debug.$(O): src/debug.c
 	$I
