@@ -357,21 +357,57 @@ if test -x $F; then
 fi
 
 # how to run cross-compiled test scripts?
-case "$ARCH_CPU" in
-    powerpc) QEMU=qemu-ppc ;;
-    *) QEMU="qemu-$ARCH_CPU" ;;
-esac
+if test $ARCH != $HOST_ARCH; then
+    case "$ARCH_CPU" in
+	powerpc) QEMU=qemu-ppc ;;
+	*) QEMU="qemu-$ARCH_CPU" ;;
+    esac
 
-if which $QEMU > /dev/null; then
-    CROSS_RUN="$QEMU"
+    if which $QEMU > /dev/null; then
+	CROSS_RUN="$QEMU"
+    fi
 fi
-
 
 # - architecture specific config -
 
 . $CONFIG_SCRIPT
 
-# get versions of C compiler
+# - Determine correct libffi usage -
+CMD="$CC -o $ODIR/test-ffi -I $ODIR $LIBFFI_INC src/test-ffi.c $LIBFFI_LIB"
+while true; do
+    $CMD -D LUAGTK_FFI_CODE
+    if test $? -ne 0; then
+	echo "Failed to compile test-ffi (code)"
+	break
+    fi
+
+    $CROSS_RUN $ODIR/test-ffi
+    if test $? -eq 0; then
+	LIBFFI_CALL="code"
+	echo "#define LUAGTK_FFI_CODE" >> $CFG_H
+	break
+    fi
+
+    $CMD -D LUAGTK_FFI_CLOSURE
+    if test $? -ne 0; then
+	echo "Failed to compile test-ffi (closure)"
+	break
+    fi
+
+    $CROSS_RUN $ODIR/test-ffi
+    if test $? -eq 0; then
+	LIBFFI_CALL="closure"
+	echo "#define LUAGTK_FFI_CLOSURE" >> $CFG_H
+	break
+    fi
+
+    echo "Libffi closure calling failed."
+    ERR=1
+    break
+done
+
+
+# get versions of C compiler (just for information)
 if test "$HOSTCC"; then
     HOSTCC_VERSION=`$HOSTCC --version | head -1`
 fi
@@ -475,6 +511,7 @@ if test "$SUMMARY"; then
     echo "   Lua version:          $LUA_VERSION"
     echo "   Gtk version:          $GTK_VERSION"
     echo "   libffi:               $LIBFFI_VERSION"
+    echo "   libffi calling:       $LIBFFI_CALL"
     echo "   Cmph library:         $CMPH_VERSION"
     if test "$CMPH_INCDIR"; then
     echo "   Cmph extra includes:  $CMPH_INCDIR"

@@ -43,7 +43,7 @@ config configure:
 
 
 # test that calling works properly.  For Win32, requires wine to be installed.
-build-tests: ${ODIR}test-vararg-ok ${ODIR}test-ffi-ok
+build-tests: ${ODIR}test-vararg-ok
 
 ${ODIR}test-%-ok: ${ODIR}test-%${EXESUFFIX}
 	$H $(CROSS_RUN) $^ && touch $@
@@ -51,10 +51,6 @@ ${ODIR}test-%-ok: ${ODIR}test-%${EXESUFFIX}
 ${ODIR}test-vararg${EXESUFFIX}: src/test-vararg.c
 	$I
 	$H $(CC) $(CFLAGS) -I $(ODIR) -Wall -o $@ $^
-
-${ODIR}test-ffi${EXESUFFIX}: src/test-ffi.c
-	$I
-	$H $(CC) $(CFLAGS) -I $(ODIR) -Wall -o $@ $^ $(LIBFFI_LIB)
 
 # rule to build the library.
 
