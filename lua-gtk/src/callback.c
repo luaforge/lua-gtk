@@ -363,6 +363,16 @@ struct callback {
     unsigned const char *sig;
 };
 
+/**
+ * The conversion of the return value of a Lua callback to C failed.
+ */
+static int bad_retval(lua_State *L)
+{
+    printf("Bad return value from callback!  top=%d\n", lua_gettop(L));
+    int t = lua_type(L, 1);
+    printf("type = %s\n", lua_typename(L, t));
+    return 0;
+}
 
 /**
  * Call the Lua function from C, passing the required parameters.
@@ -408,8 +418,7 @@ static void closure_handler(ffi_cif *cif, void *retval, void **args,
 
     int arg_cnt = lua_gettop(L) - top - 1;
 
-    // call the lua function, allow one return value
-    // printf("call from closure cb %p\n", cb);
+    // call the lua function, expect one return value
     lua_call(L, arg_cnt, 1);
 
     // stack: [top+1]=return value
@@ -418,19 +427,23 @@ static void closure_handler(ffi_cif *cif, void *retval, void **args,
 	struct argconv_t ar;
 	int idx;
 
-	ar.L = L;
 	ar.ci = NULL;
 	sig = cb->sig + 1;
 	ar.type_idx = get_next_argument(&sig);
 	ar.type = type_list + ar.type_idx;
 	ar.arg_type = ffi_type_map + ar.type->fundamental_id;
-	ar.index = top + 1;
-	ar.lua_type = lua_type(L, ar.index);
 
 	// if index is 0, no lua2ffi function is defined for this type.
 	idx = ar.arg_type->lua2ffi_idx;
 	if (idx) {
+	    lua_State *state;
+	    state = lua_newthread(L);
+	    ar.L = state;
 	    ar.arg = (union gtk_arg_types*) retval;
+	    lua_xmove(L, state, lua_gettop(L) - top);
+	    ar.index = 1;
+	    ar.lua_type = lua_type(state, 1);
+	    lua_atpanic(state, bad_retval);
 	    ffi_type_lua2ffi[idx](&ar);
 	}
     }
@@ -507,14 +520,18 @@ void *luagtk_make_closure(lua_State *L, int index,
 
     ffi_prep_cif(cif, FFI_DEFAULT_ABI, arg_count-1, arg_types[0], arg_types+1);
 
-    ffi_prep_closure(closure, cif, closure_handler, (void*) cb);
+    ffi_prep_closure_loc(closure, cif, closure_handler, (void*) cb, code);
 
-    // On i386, "closure" must be called, very strange.  At least on amd64,
-    // and possibly other architectures, "code" must be called.
-#ifdef LUAGTK_i386
-    return (void*) closure;
-#else
+    // It would be logical to always call "code", but sometimes "closure" must
+    // be called instead.  The configure script determines which one works.
+#ifdef LUAGTK_FFI_CODE
     return (void*) code;
+#else
+ #ifdef LUAGTK_FFI_CLOSURE
+    return (void*) closure;
+ #else
+    #error Please define one of LUAGTK_FFI_{CODE,CLOSURE}.
+ #endif
 #endif
 }
 
