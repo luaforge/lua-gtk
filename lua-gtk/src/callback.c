@@ -363,16 +363,22 @@ struct callback {
     unsigned const char *sig;
 };
 
+
 /**
- * The conversion of the return value of a Lua callback to C failed.
+ * Call the appropriate function to convert the return value of the Lua
+ * function to a FFI value.
+ *
+ * @param value  A Lua value of arbitrary type.
+ * @param ar  A struct argconv_t
  */
-static int bad_retval(lua_State *L)
+static int _convert_retval(lua_State *L)
 {
-    printf("Bad return value from callback!  top=%d\n", lua_gettop(L));
-    int t = lua_type(L, 1);
-    printf("type = %s\n", lua_typename(L, t));
+    struct argconv_t *ar = (struct argconv_t*) lua_topointer(L, 2);
+    int idx = ar->arg_type->lua2ffi_idx;
+    ffi_type_lua2ffi[idx](ar);
     return 0;
 }
+
 
 /**
  * Call the Lua function from C, passing the required parameters.
@@ -427,7 +433,6 @@ static void closure_handler(ffi_cif *cif, void *retval, void **args,
 	struct argconv_t ar;
 	int idx;
 
-	ar.ci = NULL;
 	sig = cb->sig + 1;
 	ar.type_idx = get_next_argument(&sig);
 	ar.type = type_list + ar.type_idx;
@@ -436,15 +441,19 @@ static void closure_handler(ffi_cif *cif, void *retval, void **args,
 	// if index is 0, no lua2ffi function is defined for this type.
 	idx = ar.arg_type->lua2ffi_idx;
 	if (idx) {
-	    lua_State *state;
-	    state = lua_newthread(L);
-	    ar.L = state;
+	    ar.ci = NULL;
+	    ar.L = L;
 	    ar.arg = (union gtk_arg_types*) retval;
-	    lua_xmove(L, state, lua_gettop(L) - top);
+	    ar.lua_type = lua_type(L, top + 1);
 	    ar.index = 1;
-	    ar.lua_type = lua_type(state, 1);
-	    lua_atpanic(state, bad_retval);
-	    ffi_type_lua2ffi[idx](&ar);
+	    lua_pushcfunction(L, _convert_retval);
+	    lua_pushvalue(L, top + 1);
+	    lua_pushlightuserdata(L, &ar);
+	    int rc = lua_pcall(L, 2, 0, 0);
+	    if (rc) {
+		luaL_error(L, "failed to convert the callback's return value: "
+		    "%s", lua_tostring(L, -1));
+	    }
 	}
     }
 
