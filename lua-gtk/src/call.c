@@ -355,6 +355,9 @@ static int _call_return_values(lua_State *L, int index, struct call_info *ci)
 		// char* is not an output parameter.
 		if (!strcmp(ftype_name, "char*"))
 		    continue;
+		// void* is not an output parameter.
+		if (!strcmp(ftype_name, "void*"))
+		    continue;
 		//printf("arg_type %s, idx %d\n", FTYPE_NAME(ar.arg_type), idx);
 		ar.type = luagtk_type_modify(ar.type, -1);
 		if (!ar.type)
