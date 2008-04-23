@@ -290,6 +290,12 @@ static int l_get_osname(lua_State *L)
     return 2;
 }
 
+static int l_void_ptr(lua_State *L)
+{
+    struct value_wrapper *wrp = luagtk_make_value_wrapper(L, 1);
+    return luagtk_push_value_wrapper(L, wrp);
+}
+
 static const char _module_info[] =
     "_VERSION\0"
     LUAGTK_VERSION "\0"
@@ -320,6 +326,7 @@ static const luaL_reg gtk_methods[] = {
     {"__index",		l_gtk_lookup },
     {"new",		l_new },
     {"get_osname",	l_get_osname },
+    {"void_ptr",	l_void_ptr },
     { NULL, NULL }
 };
 
