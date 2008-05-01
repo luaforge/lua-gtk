@@ -1,14 +1,18 @@
 #! /usr/bin/env lua
 -- vim:sw=4:sts=4
--- Exercise the closure mechanism, i.e. Gtk calling a Lua function via a
--- FFI closure.
 --
--- Note: it works, but the numerous warnings about memory leaks etc. indicate
--- that it's not working well.
+-- Exercise the closure mechanism, i.e. Gtk calling a Lua function via a
+-- FFI closure.  At the same time, demonstrate how void* arguments are
+-- handled.
+--
 
 require "gtk"
 
+compare_count = 0
+
+-- Comparison function for insertion into the g_tree.
 function compare_func(a, b)
+    compare_count = compare_count + 1
     a = a.value
     b = b.value
     if a == b then return 0 end
@@ -39,32 +43,47 @@ end
 -- has to create a closure
 t = gtk.g_tree_new_full(compare_func, nil, key_destroy, value_destroy)
 
--- add a node to the tree.  parameter as "gpointer", i.e. a wrapper is created
-t:insert("a", "value a")
+-- Add some nodes to the tree.  Arguments are "gpointer", i.e. void* wrappers
+-- are created for key and value.  Note that gtk.void_ptr is NOT used, so no
+-- Lua object is created for the void* wrapper, and the void* wrappers will not
+-- be freed automatically.
 
--- add a second node; has to call the compare_func.  This fails...
-t:insert("b", "value b")
+for i = 1, 100 do
+    t:insert(tostring(i), "value " .. tostring(i))
+end
+
+-- demonstrate that the wrappers created so far are not freed prematurely.
+collectgarbage("collect")
+collectgarbage("collect")
 
 -- when using an iterator that doesn't return boolean, an error must happen.
-rc, msg = pcall(t.foreach, t, traverse_func, nil)
+rc, msg = pcall(t.foreach, t, traverse_func, gtk.void_ptr(nil))
 assert(rc == false)
 
--- a "good" iterator function must work.
-v = gtk.void_ptr(false)
-t:foreach(traverse_func, v)
-v:destroy() -- should happen automatically??
+-- a "good" iterator function returns a boolean.  In the first case, it
+-- returns false and thus only touches the first item.
+t:foreach(traverse_func, gtk.void_ptr(false))
 
-v = gtk.void_ptr(true)
-t:foreach(traverse_func, v)
-v:destroy()
+-- Now traverse all items.
+t:foreach(traverse_func, gtk.void_ptr(true))
 
-assert(seen.a == 3)
-assert(seen.b == 1)
+assert(seen["1"] == 3)
+assert(seen["2"] == 1)
+assert(seen["100"] == 1)
 
+-- destroy all keys and values.
 t:destroy()
 
-collectgarbage("collect")
+-- check that no wrappers remain allocated.
 collectgarbage("collect")
 
--- show garbage...
+-- statistics:
+--  number of times the compare_function was called
+--  number of void* wrappers still allocated
+--  number of void* wrapper allocations in total: number of keys and values
+--    + 3 void_ptr calls
+--  number of Lua objects created for void* wrappers: lots...
+--
+print(compare_count, gtk.get_vwrapper_count())
+assert(gtk.get_vwrapper_count() == 0)
 

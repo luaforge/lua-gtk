@@ -6,7 +6,7 @@ require "gtk"
 -- tricky, but works :)
 function list2string(ls)
    local t = {}
-   ls:foreach(function(x) t[#t + 1] = x end, nil)
+   ls:foreach(function(x) t[#t + 1] = tostring(x.value) end, nil)
    return table.concat(t, ' ')
 end
 
@@ -40,7 +40,7 @@ ls:append(3)
 ls:append(94)
 
 -- sort using a callback (in a closure)
-ls = ls:sort(function(a, b) return a - b end)
+ls = ls:sort(function(a, b) return a.value - b.value end)
 assert(list2string(ls) == "3 10 15 30 94")
 
 
