@@ -9,7 +9,7 @@ LIBFINAL := touch
 .PHONY:	tags wc tar install mrproper clean tests config_h doc size
 .PRECIOUS: ${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}%.keys ${ODIR}%.mph
 
-OFILES	:=types.$(O) gtk2.$(O) data.$(O) \
+OFILES	:=types.$(O) gtk2.$(O) data.$(O) enum.$O voidptr.$O \
 	call.$(O) callback.$(O) channel.$(O) gvalue.$(O) override.$(O) \
 	debug.$(O) widget.$(O) widget_types.$(O) widget_meta.$(O) \
 	gtkdata.structs.$(O) _override.$(O)
@@ -272,6 +272,8 @@ ${ODIR}hash-bdz.$O: $(LH) src/hash-cmph.h
 ${ODIR}interface.$O: ${LH}
 ${ODIR}override.$O: ${LH}
 ${ODIR}types.$O: $(LH) ${ODIR}gtkdata.types.c ${ODIR}luagtk_ffi.h
+${ODIR}enum.$O: $(LH)
+${ODIR}voidptr.$O: $(LH)
 ${ODIR}widget.$O: ${LH}
 ${ODIR}widget_meta.$O: ${LH}
 ${ODIR}widget_types.$O: ${LH}
