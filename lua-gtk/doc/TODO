@@ -82,9 +82,6 @@ BUGS
 MISSING FEATURES
 ================
 
-- in lua2ffi_vararg(struct argconv_t *ar), support TABLE input as
-  array of pointers to strings.
-
 - socket_co: connect attempts must be asynchronous, otherwise the GUI can be
   blocked (by a slow DNS server, for example).
 	getaddrinfo_a in libc.  available in mingw?
@@ -226,6 +223,15 @@ _*_fch.g requires _*_fch.b * sizeof(short) bytes, I reckon.
 		GtkMenuBar
 		GtkMenuBarButton
 
+		Store 16 bit offset plus 8 bit length
+		Strings stored without NUL byte
+		Generation:
+			- build a list of all strings
+			- find common substrings.  maybe descending sort
+			  by string length, and search substring before adding
+			  for each string.
+			- an object might encapsulate this functionality
+
 	6. remove the func_nnnn dummy type names and element names.  Use just
 	   "func" or so for all of them.
 
@@ -236,6 +242,23 @@ _*_fch.g requires _*_fch.b * sizeof(short) bytes, I reckon.
   compile it in.  If not available at runtime, disable this part of the API.
 
   Done: Cairo, GLib, GObject, ATK, Pango, gdk-pixbuf, GDK, GTK+, GtkHTML
+
+  GNOME Developer Platform Libraries (only non-deprecated):
+  glib, gio, gobject, atk, at-spi, gail, pango, gdk-pixbuf, gdk, gtk+,
+  libxml2, libxslt, libglade, gconf.
+
+  Still missing:
+  gio, at-spi, gail, libxml2, libxslt, libglade, gconf.
+
+
+	gio
+		pkg-config gio-2.0 gio-unix-2.0
+
+		#include <gio/gio.h>
+		#include <gio/gunixmounts.h>
+		#include <gio/gdesktopappinf.h>
+		#include <gio/gunixinputstream.h>
+		#include <gio/gunixoutputstream.h>
 
   - cairo - http://cairographics.org/
   	partly working, not tested much
@@ -268,11 +291,17 @@ _*_fch.g requires _*_fch.b * sizeof(short) bytes, I reckon.
 
   - xml2
   	libxml2-dev
+	already included in types.xml, but functions are not extracted.
 
   - libxslt
 	libxslt1-dev
 
   - libglade - maybe not, use GtkBuilder
+
+  - GtkImageView
+    libgtkimageview0
+    libgtkimageview-dev
+  http://trac.bjourne.webfactional.com/
 
 - GCC attributes.  Use when GCC is available.
 
