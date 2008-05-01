@@ -209,7 +209,8 @@ static int _special_alloc(const char *struct_name)
  * containing a pointer to the actual widget.
  *
  * @name new
- * @luaparam name Name of the structure to allocate
+ * @luaparam name  Name of the structure to allocate
+ * @luaparam ...  optional additional arguments to the allocator function.
  * @luareturn The new structure
  */
 static int l_new(lua_State *L)
@@ -233,6 +234,9 @@ static int l_new(lua_State *L)
     luagtk_make_func_name(tmp_name, sizeof(tmp_name), struct_name, "new");
     if (find_func(tmp_name, &fi))
 	return luagtk_call(L, &fi, 2);
+
+    /* no additional arguments must be given - they won't be used. */
+    luaL_checktype(L, 2, LUA_TNONE);
 
     /* Some objects don't use the GSlice mechanism, depending on the Gtk
      * version.  Allocation would be fine, but calling the free or copy
@@ -285,6 +289,7 @@ static int l_new(lua_State *L)
  */
 static int l_get_osname(lua_State *L)
 {
+    luaL_checktype(L, 1, LUA_TNONE);
     lua_pushliteral(L, LUAGTK_ARCH_OS);
     lua_pushliteral(L, LUAGTK_ARCH_CPU);
     return 2;
@@ -292,8 +297,10 @@ static int l_get_osname(lua_State *L)
 
 static int l_void_ptr(lua_State *L)
 {
-    struct value_wrapper *wrp = luagtk_make_value_wrapper(L, 1);
-    return luagtk_push_value_wrapper(L, wrp);
+    luaL_checkany(L, 1);
+    luaL_checktype(L, 2, LUA_TNONE);
+    struct value_wrapper *p = luagtk_make_value_wrapper(L, 1);
+    return luagtk_push_value_wrapper(L, p);
 }
 
 static const char _module_info[] =
@@ -321,12 +328,23 @@ static void _init_module_info(lua_State *L)
     }
 }
 
+static int l_get_vwrapper_count(lua_State *L)
+{
+    // in voidptr.c
+    extern int vwrapper_count, vwrapper_alloc_count, vwrapper_objects;
+    lua_pushinteger(L, vwrapper_count);
+    lua_pushinteger(L, vwrapper_alloc_count);
+    lua_pushinteger(L, vwrapper_objects);
+    return 3;
+}
+
 /* methods directly callable from Lua; most go through __index */
 static const luaL_reg gtk_methods[] = {
     {"__index",		l_gtk_lookup },
     {"new",		l_new },
     {"get_osname",	l_get_osname },
     {"void_ptr",	l_void_ptr },
+    {"get_vwrapper_count", l_get_vwrapper_count },
     { NULL, NULL }
 };
 
