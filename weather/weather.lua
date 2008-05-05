@@ -1,4 +1,4 @@
-#! /usr/bin/lua
+#! /usr/bin/env lua
 -- vim:sw=4:sts=4:encoding=utf8
 --
 -- Demonstration program to download and display weather information from
@@ -22,10 +22,12 @@ require "gtk.http_co"
 require "lxp"
 require "gtk.strict"
 
+providers = {}
+
 gtk.strict.init()
 
 forecast_days = 5
-gladefile = string.gsub(arg[0], ".lua", ".ui")
+gladefile = string.gsub(arg[0], ".lua", "") .. ".ui"
 
 widgets = {}
 
@@ -42,24 +44,17 @@ function on_location_changed(box)
     local store = box:get_model()
     local iter = gtk.new "GtkTreeIter"
     box:get_active_iter(iter)
-    local code = store:get_value(iter, 1, nil)
+    local prov = store:get_value(iter, 1, nil)
+    local location = store:get_value(iter, 2, nil)
 
-    gtk.http_co.request_co{
-	host = "xoap.weather.com",
-	uri = "/weather/local/" .. tostring(code)
-	    .. "?cc=*&unit=m&dayf="..forecast_days,
-	callback = weather_info_callback,
-    }
-end
-
---
--- Some progress on receiving.  When done, process the data.
---
-function weather_info_callback(arg, ev, data1, data2, data3)
-    if ev == 'done' then
-	parse_weather_info(arg.sink_data)
+    -- load the appropriate provider module on first use
+    if not providers[prov] then
+	providers[prov] = require(prov)
     end
+
+    providers[prov]:get_data(location)
 end
+
 
 -- global used while parsing the XML data
 stack = nil
@@ -102,7 +97,7 @@ callbacks = {
 	    ar[key] = data
 	    return
 	else
-	    print("IGNORE", key)
+	    print("IGNORE in", key, ":", data)
 	end
     end,
 
@@ -110,22 +105,22 @@ callbacks = {
 
 
 --
--- The data retrieved from weather.com is a XML text.  Parse it using
--- an internal function of gtk.glade -- not really the way to go, but
--- works for now.
+-- The data retrieved from weather.com is a XML text.  Parse it and create
+-- a tree like structure representing the data.  This allows direct access
+-- to various items.
 --
 function parse_weather_info(data)
     local tree = {}
     stack = { { tree, "top" } }
 
-    local p = lxp.new(callbacks, "::")
+    local p = lxp.new(callbacks, nil)
     p:parse(data)
     p:parse()
     p:close()
     p = nil
     stack = nil
 
-    present_weather(tree.top)
+    return tree.top
 end
 
 function dump_it(stack, prefix)
@@ -139,84 +134,6 @@ function dump_it(stack, prefix)
     end
 end
 
-local function _new_lbl(tbl, top, left, right, s)
-    local lbl = gtk.label_new(s)
-    lbl:set_use_markup(true)
-    tbl:attach_defaults(lbl, left, right, top, top + 1)
-    return lbl
-end
-
-
---
--- The weather response has been parsed into a nice tree.  Extract the
--- interesting fields and fill the GUI.
---
-function present_weather(xml)
-    local s, cnt, tbl
-    local cw = widgets.currweather
-    local buf = cw:get_buffer()
-    local dt = parse_date(xml.weather.cc.lsup)
-    local mydt = os.date("%Y-%m-%d")
-
-    -- build the current weather information as a string    
-    s = xml.weather.loc.dnam .. " at " .. dt.h .. ":" .. dt.mn .. " "
-    if dt.dt ~= mydt then s = s .. dt.dt .. " " end
-    s = s .. dt.rest .. "\n"
-    s = s .. "Temp: " .. xml.weather.cc.tmp .. " " .. xml.weather.head.ut.."\n"
-    s = s .. "Description: " .. xml.weather.cc.t .. "\n"
-    s = s .. "Humidity: " .. xml.weather.cc.hmid .. "%\n"
-
-    buf:set_text(s, string.len(s))
-
-    -- remove previous forecast table, if it exists.
-    local tmp = widgets.forecast:get_child()
-    if tmp then tmp:destroy() end
-
-    -- if a forecast has been retrieved, show it.
-    if xml.weather.dayf then
-	cnt = #xml.weather.dayf.day
-	tbl = gtk.table_new(3, cnt * 3, false)
-	for i, day in ipairs(xml.weather.dayf.day) do
-	    local col = i * 3
-
-	    -- day label
-	    _new_lbl(tbl, 0, col, col + 2, "<span weight=\"bold\">" .. day.t
-		.. "</span>")
-
-	    -- precipitation
-	    _new_lbl(tbl, 1, col, col + 1, day.part[1].ppcp .. "%")
-	    _new_lbl(tbl, 1, col+ 1, col + 2, day.part[2].ppcp .. "%")
-
-	    -- temperature
-	    _new_lbl(tbl, 2, col, col + 1, "<span foreground=\"#ff0000\">"
-		.. day.hi .. "</span> " .. xml.weather.head.ut)
-	    _new_lbl(tbl, 2, col + 1, col + 2, "<span foreground=\"#0000ff\">"
-		.. day.low .. "</span> " .. xml.weather.head.ut)
-
-	    -- separator
-	    if i < cnt then
-		tbl:attach_defaults(gtk.vseparator_new(), col + 2, col + 3,
-		    0, 3)
-	    end
-	end
-	widgets.forecast:add(tbl)
-	tbl:show_all()
-    end
-
-end
-
---
--- weather.com returns date/time in this format: mm/dd/yy hh:mm [AM|PM]
--- parse that and return it in a better format.
---
-function parse_date(s)
-    local m, d, y, h, mn, ampm, rest = s:match(
-	"^(%d+)/(%d+)/(%d+) (%d+):(%d+) ([AP]M) (.*)")
-    if ampm == "PM" then h = h + 12 end
-    if y+0 < 2000 then y = y + 2000 end
-    return { dt=string.format("%04d-%02d-%02d", y, m, d), h=h, mn=mn,
-	rest=rest }
-end
 
 function build_gui()
     local b = gtk.builder_new()
@@ -225,13 +142,16 @@ function build_gui()
     b:connect_signals_full(_G)
 
     -- access relevant widgets
-    for _, v in ipairs { "currweather", "forecast", "mainwin", "location" } do
+    for _, v in ipairs { "currweather", "forecast", "mainwin", "location",  
+	"logo" } do
 	widgets[v] = b:get_object(v)
     end
+    widgets.logo:clear()
 
-    -- setup location selector
+    -- setup location selector.  Name, Provider, Location Code
     local location = widgets.location
-    local store = gtk.list_store_new(2, gtk.G_TYPE_STRING, gtk.G_TYPE_STRING)
+    local store = gtk.list_store_new(3, gtk.G_TYPE_STRING, gtk.G_TYPE_STRING,
+	gtk.G_TYPE_STRING)
     location:set_model(store)
 
     local r = gtk.cell_renderer_text_new()
@@ -252,16 +172,17 @@ function build_gui()
     local iter = gtk.new "GtkTreeIter"
     for i, info in pairs(config.locations) do
 	store:append(iter)
-	store:set(iter, 0, info[1], 1, info[2], -1)
+	store:set(iter, 0, info[1], 1, info[2], 2, info[3], -1)
     end
 
     widgets.mainwin:show()
+    return true
 end
 
 -- MAIN --
 
 gtk.strict.lock()
-build_gui()
+if not build_gui() then os.exit(1) end
 gtk.main()
 widgets = nil
 collectgarbage()
