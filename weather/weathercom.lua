@@ -1,7 +1,8 @@
 -- vim:sw=4:sts=4:encoding=utf8
+--
 -- Interface module for weather.com data.  This was the first data source
 -- but since May 2008 their terms are quite strict so this probably doesn't
--- work anymore.
+-- work anymore.  It is deprecated and should not be used anymore.
 --
 
 local M = {}

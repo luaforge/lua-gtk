@@ -12,6 +12,14 @@ local M = {}
 
 require "gtk"
 
+-- NOTE: this is the address to access accuweather's data, but for this
+-- application only.  Should you need the data, please contact them and ask for
+-- an own address.  This one was free of charge, as it is for an open source
+-- application.  There are a few conditions, like showing the logo etc.  Your
+-- requirements may be different, though...
+--
+-- contact address: Michael Sylvie <sylvie@accuweather.com>
+--
 local host = "oertl.accu-weather.com"
 local url_base = "/widget/oertl/"
 
