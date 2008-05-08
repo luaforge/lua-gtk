@@ -354,15 +354,23 @@ static const luaL_reg gtk_methods[] = {
  * when this library is dynamically loaded.  Note that the table is also stored
  * as the global "gtk", because within this library the global table is
  * accessed sometimes.
+ *
+ * @luaparam name  This library's name, i.e. "gtk".
  */
 int luaopen_gtk(lua_State *L)
 {
     if (!luagtk_dl_init())
 	return 0;
 
-    // new, empty environment
+    // const char *lib_name = lua_tostring(L, 1);
+    // discard the parameter.
+    lua_settop(L, 0);
+
+    // new, empty environment.  Not actually used
+    /*
     lua_newtable(L);
     lua_replace(L, LUA_ENVIRONINDEX);
+    */
 
     /* make the table to return, and make it global as "gtk" */
     luaL_register(L, "gtk", gtk_methods);
@@ -387,30 +395,26 @@ int luaopen_gtk(lua_State *L)
     // are used; this doesn't make much sense, as a program will most likely
     // use a certain widget type again if it is used once.
     lua_newtable(L);			// gtk mt t
-    /* make it have weak values
-    lua_pushvalue(L, -2);		// gtk mt t mt
-    lua_setmetatable(L, -2);		// gtk mt t
-    */
-    lua_setfield(L, LUA_ENVIRONINDEX, LUAGTK_METATABLES);   // gtk mt
+    lua_setfield(L, 1, LUAGTK_METATABLES);	// gtk mt
     
     // widgets: not a weak table.  It only contains references to entries
     // in the aliases table; they are removed manually when the last alias
     // is garbage collected.
-    lua_newtable(L);			// gtk mt t
-    lua_setfield(L, LUA_ENVIRONINDEX, LUAGTK_WIDGETS);	    // gtk mt
+    lua_newtable(L);			    // gtk mt t
+    lua_setfield(L, 1, LUAGTK_WIDGETS);    // gtk mt
 
     // gtk.widgets_aliases.  It has automatic garbage collection (weak values)
     lua_newtable(L);
     lua_pushvalue(L, -2);
     lua_setmetatable(L, -2);
-    lua_setfield(L, LUA_ENVIRONINDEX, LUAGTK_ALIASES);
+    lua_setfield(L, 1, LUAGTK_ALIASES);    // gtk mt
 
-    lua_pop(L, 1);			// gtk
+    lua_pop(L, 1);			    // gtk
 
 
     /* default attribute table of a widget */
-    lua_newtable(L);			// gtk "emptyattr" t
-    lua_setfield(L, LUA_ENVIRONINDEX, LUAGTK_EMPTYATTR);
+    lua_newtable(L);			    // gtk t
+    lua_setfield(L, 1, LUAGTK_EMPTYATTR);
 
     /* execute the glue library (compiled in) */
     luaL_loadbuffer(L, override_data, override_size, "override.lua");
