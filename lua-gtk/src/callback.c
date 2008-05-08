@@ -148,9 +148,17 @@ static int _callback(void *data, ...)
 
     /* get the handler function */
     lua_rawgeti(L, LUA_REGISTRYINDEX, cbi->handler_ref);
+    if (lua_isnil(L, -1)) {
+	lua_pop(L, 1);
+	return luaL_error(L, "%s callback handler not found.", msgprefix);
+    }
 
     /* first parameter: the widget */
     lua_rawgeti(L, LUA_REGISTRYINDEX, cbi->widget_ref);
+    if (lua_isnil(L, -1)) {
+	lua_pop(L, 2);
+	return luaL_error(L, "%s callback widget not found.", msgprefix);
+    }
     struct widget *w = (struct widget*) lua_topointer(L, -1);
 
     /* push all the signal arguments to the Lua stack */
@@ -167,7 +175,8 @@ static int _callback(void *data, ...)
 	g_value_init(&gv, type);
 	G_VALUE_COLLECT(&gv, ap, G_VALUE_NOCOPY_CONTENTS, &err_msg);
 	if (err_msg)
-	    return luaL_error(L, "[gtk] vararg %d failed: %s", i+1, err_msg);
+	    return luaL_error(L, "%s vararg %d failed: %s", msgprefix, i+1,
+		err_msg);
 	luagtk_push_gvalue(L, &gv);
     }
 
@@ -490,6 +499,7 @@ static int set_ffi_types(const unsigned char *sig, ffi_type **arg_types)
 
 /**
  * Create a C closure for a Lua function.
+ * XXX Some memory is allocated; I don't think it is ever freed...
  *
  * @param L  Lua state
  * @param index  Stack position of a Lua function
