@@ -19,13 +19,15 @@ local parser = nil
 local xml_curr_line = nil
 local input_file_name = nil
 
-funclist = {}    -- [name] = [ [rettype,"retval"], [arg1type, arg1name], ...]
+funclist = {}	-- [name] = [ [rettype,"retval","fileid"],
+		--   [arg1type, arg1name], ...]
 typedefs = {
     ["vararg"] = { type="fundamental", name="vararg", fname="vararg", size=0 },
 } -- [id] = { type=..., name=..., struct=... }
   -- struct = { name, size, align, members, _type, fields } (same for enum)
 enum_values = {}    -- [name] = { val, context }
 globals = {}	    -- [name] = {...}
+filelist = {}	-- [id] = "full path"
 
 -- M.funclist = funclist
 -- M.typedefs = typedefs
@@ -162,8 +164,8 @@ local xml_tags = {
 
     -- store functions
     Function = function(p, el)
-	if check_fields(el, "name", "returns") then return end
-	curr_func = { { el.returns, "retval" } }
+	if check_fields(el, "name", "returns", "file") then return end
+	curr_func = { { el.returns, "retval", el.file } }
 	funclist[el.name] = curr_func
     end,
 
@@ -312,6 +314,7 @@ local xml_tags = {
 
     -- associate names to the file IDs which are not used anyway.
     File = function(p, el)
+	filelist[el.id] = el.name
     end,
 }
 

@@ -232,7 +232,8 @@ function output_types(ofname)
 	t = typedefs[name2id[full_name]]
 	assert(t.name_ofs, "no name_ofs defined for type " .. full_name)
 	assert(t.type_idx, "no type_id defined for type " .. full_name)
-	assert(t.type_idx == i)
+--	assert(t.type_idx == i, "type ID mismatch: " .. t.type_idx .. " vs "
+--	    .. i .. " for type " .. full_name)
 
 	local detail = t.detail
 
@@ -249,14 +250,14 @@ function output_types(ofname)
 	    local struct_size = (st.size or 0)/8
 	    s = s .. string.format(", { st: { %d, %d, %d } } }, /* %d: %s %s */\n",
 		struct_size, st.elem_start, st.elem_count,
-		i, t.fname or "", full_name)
+		t.type_idx, t.fname or "", full_name)
 	    max_struct_size = math.max(max_struct_size, struct_size)
 	    max_struct_elems = math.max(max_struct_elems, st.elem_count)
 	elseif t.fname == "func" then
 	    s = s .. string.format(", { fu: { %d } } }, /* %d: func %s */\n",
-		detail.proto_ofs, i, full_name)
+		detail.proto_ofs, t.type_idx, full_name)
 	else
-	    s = s .. string.format(" }, /* %d: %s */\n", i, full_name)
+	    s = s .. string.format(" }, /* %d: %s */\n", t.type_idx, full_name)
 	end
 
 	ofile:write(s)

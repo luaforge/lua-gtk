@@ -591,8 +591,8 @@ function assign_type_idx()
     -- smaller IDs, thereby reducing output data size (number >= 64 need
     -- an additional byte)
     table.sort(keys, function(a, b)
-	a = typedefs[name2id[a] ]
-	b = typedefs[name2id[b] ]
+	a = typedefs[name2id[a]]
+	b = typedefs[name2id[b]]
 
 	local c = a.counter - b.counter
 	if c ~= 0 then return c > 0 end
@@ -601,19 +601,24 @@ function assign_type_idx()
 	return a.full_name < b.full_name
     end)
 
-    -- assign IDs in order, and rebuild the typemap index
-    local sum = 0
+    -- assign IDs in order, and rebuild the typemap index; no duplicates!
+    local sum, nr = 0, 1
+    local keys_nodup = {}
     for idx, full_name in ipairs(keys) do
 	t = typedefs[name2id[full_name]]
 	assert(t, "typedef not known: " .. full_name, name2id[full_name])
-	-- there may be duplicates.
+	-- There may be duplicates: assign just the first one.
 	if not t.type_idx then
-	    t.type_idx = idx
+	    t.type_idx = nr
+	    nr = nr + 1
+	    keys_nodup[#keys_nodup + 1] = full_name
 	    sum = sum + t.counter
+--	else
+--	    print("Duplicate, skipping: " .. full_name .. ", " .. t.type_idx)
 	end
 	-- print(idx, t.counter, sum, full_name)
     end
-
+    return keys_nodup
 end
 
 function show_statistics()
