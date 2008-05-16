@@ -311,9 +311,9 @@ else
 fi
 
 if test "$HAVE_CMPH"; then
-    if test "$CMPH_VERSION" = "wads07"; then
+    if test "$CMPH_VERSION" \> "0.7"; then
 	CMPH_ALGO=bdz
-	CMPH_BIN="$CMPH_BIN -e 1"
+	CMPH_BIN="$CMPH_BIN"
     else
 	CMPH_ALGO=fch
 	CMPH_BIN="$CMPH_BIN -c 2.0"
@@ -513,6 +513,7 @@ if test "$SUMMARY"; then
     echo "   libffi:               $LIBFFI_VERSION"
     echo "   libffi calling:       $LIBFFI_CALL"
     echo "   Cmph library:         $CMPH_VERSION"
+    echo "   Cmph algorithm:       $CMPH_ALGO"
     if test "$CMPH_INCDIR"; then
     echo "   Cmph extra includes:  $CMPH_INCDIR"
     fi

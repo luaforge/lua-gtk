@@ -130,11 +130,15 @@ ${ODIR}_enumlist_$(CMPH_ALGO).c: ${ODIR}hash-cmph-generate \
 
 ${ODIR}hash-fch.$(O): src/hash-fch.c
 	$I
-	$H ${CC} ${CFLAGS} -c -o $@ ${CMPH_CFLAGS} $<
+	$H ${CC} ${CMPH_CFLAGS} ${CFLAGS} -c -o $@ $<
 
 ${ODIR}hash-bdz.$(O): src/hash-bdz.c
 	$I
-	$H ${CC} ${CFLAGS} -c -o $@ ${CMPH_CFLAGS} $<
+	$H ${CC} ${CMPH_CFLAGS} ${CFLAGS} -c -o $@ $<
+
+${ODIR}hash-functions.$(O): src/hash-functions.c
+	$I
+	$H ${CC} ${CMPH_CFLAGS} ${CFLAGS} -c -o $@ $<
 
 # -- helper programs for simple and cmph hash, to be compiled with HOSTCC --
 
