@@ -52,13 +52,17 @@ function generate_object(ofname, platform)
 	    .. "#define __GTK_DEBUG_H__\n"
     end
 
+    if string.match(platform, "linux") then
+	defs2 = defs2 .. "#include <gdk/gdkx.h>\n"
+    end
+
     -- if libgtkhtml-2.0 is available, use that
     if enable_gtkhtml then
 	s = pkg_config("libgtkhtml-2.0", "--cflags")
 	if s then
 	    print "Libgtkhtml is available."
 	    flags = s
-	    defs2 = "#include <libgtkhtml/gtkhtml.h>"
+	    defs2 = defs2 .. "#include <libgtkhtml/gtkhtml.h>\n"
 	end
     end
 
