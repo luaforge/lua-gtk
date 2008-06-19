@@ -387,7 +387,7 @@ function output_globals(ofname)
     table.sort(keys)
 
     ofile = io.open(ofname, "w")
-    ofile:write "const char globals[] =\n"
+    ofile:write "const char luagtk_globals[] =\n"
     for i, name in pairs(keys) do
 	gl = xml.globals[name]
 	tp = types.resolve_type(gl.type)

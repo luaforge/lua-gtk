@@ -66,6 +66,54 @@ static int _call_wrapper(lua_State *L)
 
 
 /**
+ * Look for a global variable, and return its current value if found.
+ * NOTE: This doesn't support assignment.
+ *
+ * @luaparam gtk  The table "gtk"
+ */
+static int find_global(lua_State *L, const char *name)
+{
+    int len = strlen(name), len2;
+    const char *p = luagtk_globals;
+
+    while (*p) {
+	len2 = strlen(p);
+	if (len == len2 && !memcmp(p, name, len))
+	    break;
+	p += len2 + 3;
+    }
+
+    if (!*p)
+	return 0;
+
+    /* Found a global.  Now get the global's address, and access the value
+     * using the provided type information (the two bytes after the name). */
+    p += len + 1;
+    void *ptr = find_symbol(name);
+    if (!ptr)
+	return 0;
+
+    int type_idx = (p[0] << 8) + p[1];
+    const struct type_info *ti = type_list + type_idx;
+    const struct ffi_type_map_t *tm = ffi_type_map + ti->fundamental_id;
+    int struct2lua_idx = tm->struct2lua_idx;
+
+    if (struct2lua_idx) {
+	struct struct_elem se;
+	se.name_ofs = 0;
+	se.bit_offset = 0;
+	se.bit_length = tm->bit_len;
+	se.type_idx = type_idx;
+	return ffi_type_struct2lua[struct2lua_idx](L, &se, ptr);
+    }
+
+    return luaL_error(L, "%s unsupported type %s of global %s.",
+	msgprefix, TYPE_NAME(ti));
+}
+
+
+
+/**
  * Look up a name in gtk.  This works for any Gtk function, like
  * gtk.window_new(), and ENUMs, like gtk.GTK_WINDOW_TOPLEVEL.
  * Lua Stack: [1]=gtk [2]=name
@@ -85,7 +133,7 @@ static int l_gtk_lookup(lua_State *L)
     if (!s)
 	return luaL_error(L, "%s attempt to look up a NULL string", msgprefix);
 
-    GTK_INITIALIZE();
+    // GTK_INITIALIZE();    not required - is it?
 
     /* if it starts with an uppercase letter, it's probably an ENUM. */
     if (s[0] >= 'A' && s[0] <= 'Z') {
@@ -120,8 +168,12 @@ static int l_gtk_lookup(lua_State *L)
 	    // If not found, throw an error.  Alternatively 0 could be returned,
 	    // but mistyped gtk.something lookups would silently return nil,
 	    // possibly leading to hard-to-find bugs.
-	    if (!find_func(func_name, &fi))
+	    if (!find_func(func_name, &fi)) {
+		// maybe a global?
+		if (find_global(L, s))
+		    return 1;
 		return luaL_error(L, "%s not found: gtk.%s", msgprefix, s);
+	    }
 	}
     } else {
 	// prefixed by "__" - look it up directly.

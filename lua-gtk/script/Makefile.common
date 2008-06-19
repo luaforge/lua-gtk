@@ -12,7 +12,7 @@ LIBFINAL := touch
 OFILES	:=types.$(O) gtk2.$(O) data.$(O) enum.$O voidptr.$O \
 	call.$(O) callback.$(O) channel.$(O) gvalue.$(O) override.$(O) \
 	debug.$(O) widget.$(O) widget_types.$(O) widget_meta.$(O) \
-	gtkdata.structs.$(O) _override.$(O)
+	gtkdata.structs.$(O) _override.$(O) gtkdata.globals.$O
 LH	:=src/luagtk.h ${ODIR}config.h
 
 # -- runtime linking? --
