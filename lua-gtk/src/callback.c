@@ -418,8 +418,7 @@ static void closure_handler(ffi_cif *cif, void *retval, void **args,
 	if (arg_nr == 0)    // skip retval
 	    continue;
 	ar.type = type_list + ar.type_idx;
-	ar.ffi_type_nr = ar.type->fundamental_id;
-	ar.arg_type = &ffi_type_map[ar.ffi_type_nr];
+	ar.arg_type = &ffi_type_map[ar.type->fundamental_id];
 	int idx = ar.arg_type->ffi2lua_idx;
 	if (idx) {
 	    ar.index = arg_nr;
