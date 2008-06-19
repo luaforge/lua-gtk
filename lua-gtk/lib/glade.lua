@@ -39,6 +39,10 @@ base.gtk.strict.init()
 
 gtk = base.gtk
 
+if gtk.check_version(2, 12, 0) == nil then
+    print "Warning: consider using GtkBuilder for Gtk 2.12 and later."
+end
+
 -- if this were used, the garbage collector could remove the widgets.
 -- base.setmetatable(widgets, {__mode="v"})
 
