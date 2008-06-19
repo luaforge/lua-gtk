@@ -418,7 +418,14 @@ int luagtk_call(lua_State *L, struct func_info *fi, int index)
     ffi_cif cif;
     int rc = 0;
 
-    GTK_INITIALIZE();
+    // If the user calls gtk_init, don't do it automatically.
+    if (G_UNLIKELY(!gtk_is_initialized)) {
+	if (strcmp(fi->name, "gtk_init"))
+	    luagtk_init_gtk();
+	else {
+	    gtk_is_initialized = 1;
+	}
+    }
 
     // allocate (or re-use from the pool) a call_info structure.
     ci = call_info_alloc();
