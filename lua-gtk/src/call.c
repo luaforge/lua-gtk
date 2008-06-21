@@ -41,7 +41,7 @@ static struct call_info *ci_pool = NULL;
  * Provide an unused call_info structure.  It may be taken from the pool, or
  * newly allocated.  In both cases, it is initialized to 0.
  */
-static struct call_info *call_info_alloc()
+struct call_info *call_info_alloc()
 {
     struct call_info *ci;
 
@@ -89,7 +89,7 @@ void *call_info_alloc_item(struct call_info *ci, int size)
  *
  * @param ci   The structure to be freed
  */
-static void call_info_free(struct call_info *ci)
+void call_info_free(struct call_info *ci)
 {
     struct call_info_list *p, *next;
 
