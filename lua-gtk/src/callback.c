@@ -374,7 +374,7 @@ struct callback {
 
 
 /**
- * Call the appropriate function to convert the return value of the Lua
+ * Call the appropriate function to convert the return value(s) of the Lua
  * function to a FFI value.
  *
  * @param value  A Lua value of arbitrary type.
@@ -390,22 +390,13 @@ static int _convert_retval(lua_State *L)
 
 
 /**
- * Call the Lua function from C, passing the required parameters.
+ * Push all arguments for the Lua callback on the stack by using the
+ * ffi2lua conversion functions.
  */
-static void closure_handler(ffi_cif *cif, void *retval, void **args,
-    void *userdata)
+static void _closure_push_arguments(lua_State *L, struct callback *cb,
+    struct argconv_t *ar, void **args)
 {
-    struct callback *cb = (struct callback*) userdata;
-    lua_State *L = cb->L;
-    int top = lua_gettop(L);
-
-    // get the callback
-    lua_rawgeti(L, LUA_REGISTRYINDEX, cb->func_ref);
-
-    struct argconv_t ar;
-    ar.L = L;
-    ar.ci = NULL;
-    ar.func_arg_nr = 0;	    // make ffi2lua_xxx() think it's always a retval
+    // ar->func_arg_nr = 0;    // make ffi2lua_xxx() think it's always a retval
 
     const unsigned char *sig = cb->sig;
     const unsigned char *sig_end = sig + 1 + *sig;
@@ -414,59 +405,137 @@ static void closure_handler(ffi_cif *cif, void *retval, void **args,
 
     // push the arguments to the Lua stack
     for (arg_nr=0; sig < sig_end; arg_nr ++) {
-	ar.type_idx = get_next_argument(&sig);
+	ar->type_idx = get_next_argument(&sig);
 	if (arg_nr == 0)    // skip retval
 	    continue;
-	ar.type = type_list + ar.type_idx;
-	ar.arg_type = &ffi_type_map[ar.type->fundamental_id];
-	int idx = ar.arg_type->ffi2lua_idx;
+	ar->func_arg_nr = arg_nr;
+	ar->type = type_list + ar->type_idx;
+	ar->arg_type = &ffi_type_map[ar->type->fundamental_id];
+	int idx = ar->arg_type->ffi2lua_idx;
 	if (idx) {
-	    ar.index = arg_nr;
-	    ar.arg = (union gtk_arg_types*) args[arg_nr - 1];
-	    ar.lua_type = lua_type(L, ar.index);
-	    ffi_type_ffi2lua[idx](&ar);
+	    ar->index = arg_nr;
+	    ar->arg = (union gtk_arg_types*) args[arg_nr - 1];
+	    ar->lua_type = lua_type(L, ar->index);
+	    ffi_type_ffi2lua[idx](ar);
 	} else
 	    luaL_error(L, "%s unhandled argument type %s in closure",
-		msgprefix, FTYPE_NAME(ar.arg_type));
+		msgprefix, FTYPE_NAME(ar->arg_type));
     }
+}
 
-    int arg_cnt = lua_gettop(L) - top - 1;
 
-    // call the lua function, expect one return value
-    lua_call(L, arg_cnt, 1);
+/**
+ * Convert all return values to FFI, i.e. return them to the C caller.
+ * Multiple return values may be given - for the output arguments.  The
+ * first result is stored in *retval (if not void), the others are used
+ * one by one for the output arguments in order.
+ *
+ * Lua Stack: [index] = first return value
+ */
+static void _closure_return_values(lua_State *L, struct callback *cb,
+    struct argconv_t *ar, int index, void **args, void *retval)
+{
+    int idx, arg_nr, top = lua_gettop(L);
+    const unsigned char *sig = cb->sig;
+    const unsigned char *sig_end = sig + 1 + *sig;
+    sig ++;
 
-    // stack: [top+1]=return value
-    // Convert the result to ffi, set *retval
-    {
-	struct argconv_t ar;
-	int idx;
+    for (arg_nr=0; sig<sig_end; arg_nr++) {
 
-	sig = cb->sig + 1;
-	ar.type_idx = get_next_argument(&sig);
-	ar.type = type_list + ar.type_idx;
-	ar.arg_type = ffi_type_map + ar.type->fundamental_id;
+	ar->type_idx = get_next_argument(&sig);
 
-	// if index is 0, no lua2ffi function is defined for this type.
-	idx = ar.arg_type->lua2ffi_idx;
-	if (idx) {
-	    ar.ci = NULL;
-	    ar.L = L;
-	    ar.arg = (union gtk_arg_types*) retval;
-	    ar.lua_type = lua_type(L, top + 1);
-	    ar.index = 1;
-	    lua_pushcfunction(L, _convert_retval);
-	    lua_pushvalue(L, top + 1);
-	    lua_pushlightuserdata(L, &ar);
-	    int rc = lua_pcall(L, 2, 0, 0);
-	    if (rc) {
-		luaL_error(L, "failed to convert the callback's return value: "
-		    "%s", lua_tostring(L, -1));
-	    }
+	// only consider output arguments.
+	if (arg_nr > 0 && !ar->ci->arg_flags[arg_nr])
+	    continue;
+
+	ar->type = type_list + ar->type_idx;
+	ar->arg_type = ffi_type_map + ar->type->fundamental_id;
+
+	// If index is 0, no lua2ffi function is defined for this type.
+	idx = ar->arg_type->lua2ffi_idx;
+	if (!idx)
+	    continue;
+
+	// Otherwise, this type can be converted.  There should be at least
+	// one more value on the Lua stack.
+	if (index >= top) {
+	    lua_Debug debug;
+	    lua_rawgeti(L, LUA_REGISTRYINDEX, cb->func_ref);
+	    if (lua_getinfo(L, ">S", &debug))
+		luaL_error(L, "insufficient return values from callback at %s line %d",
+		    debug.source, debug.linedefined);
+	    luaL_error(L, "insufficient return values from callback");
 	}
+
+	// The output position is either the return value, or the corresponding
+	// argument (which is an output argument, i.e. a pointer to somewhere).
+	if (arg_nr == 0)
+	    ar->arg = (union gtk_arg_types*) retval;
+	else
+	    ar->arg = (union gtk_arg_types*) args[arg_nr-1];
+	ar->lua_type = lua_type(L, index);
+
+	// In order to show a meaningful error message in case of type
+	// conversion failure, do a protected call.  Copy the next Lua
+	// return value to the stack for that call.  It is therefore not
+	// possible for a type conversion to use more or less than 1 arg.
+	ar->index = 1;
+	lua_pushcfunction(L, _convert_retval);
+	lua_pushvalue(L, index);
+	lua_pushlightuserdata(L, ar);
+	int rc = lua_pcall(L, 2, 0, 0);
+	if (rc) {
+	    luaL_error(L, "failed to convert the callback's return value: "
+		"%s", lua_tostring(L, -1));
+	}
+
+	// Move to the next return value (of the Lua callback).
+	index ++;
     }
 
-    // clean the stack
+    int n = top - index;
+    if (n) {
+	lua_Debug debug;
+	lua_rawgeti(L, LUA_REGISTRYINDEX, cb->func_ref);
+	lua_getinfo(L, ">S", &debug);
+	printf("%s Warning: %d unused return value%s from callback at %s line %d\n",
+	    msgprefix, n, n == 1 ? "" : "s", debug.source, debug.linedefined);
+    }
+}
+
+
+/**
+ * Call the Lua function from C, passing the required parameters.
+ */
+static void closure_handler(ffi_cif *cif, void *retval, void **args,
+    void *userdata)
+{
+    struct callback *cb = (struct callback*) userdata;
+    lua_State *L = cb->L;
+    int top = lua_gettop(L);
+    struct argconv_t ar;
+    struct call_info *ci;
+
+    // Initialize the argconv_t structure.
+    ci = call_info_alloc();
+    ar.L = L;
+    ar.ci = ci;
+    ar.mode = 1;
+
+    // get the callback
+    lua_rawgeti(L, LUA_REGISTRYINDEX, cb->func_ref);
+
+    _closure_push_arguments(L, cb, &ar, args);
+
+    // call the lua function, expect any number of return values
+    int arg_cnt = lua_gettop(L) - top - 1;
+    lua_call(L, arg_cnt, LUA_MULTRET);
+
+    _closure_return_values(L, cb, &ar, top+1, args, retval);
+
+    // clean up
     lua_settop(L, top);
+    call_info_free(ci);
 }
 
 
