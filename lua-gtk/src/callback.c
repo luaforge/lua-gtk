@@ -412,6 +412,7 @@ static void _closure_push_arguments(lua_State *L, struct callback *cb,
 	ar->type = type_list + ar->type_idx;
 	ar->arg_type = &ffi_type_map[ar->type->fundamental_id];
 	int idx = ar->arg_type->ffi2lua_idx;
+
 	if (idx) {
 	    ar->index = arg_nr;
 	    ar->arg = (union gtk_arg_types*) args[arg_nr - 1];
@@ -431,6 +432,13 @@ static void _closure_push_arguments(lua_State *L, struct callback *cb,
  * one by one for the output arguments in order.
  *
  * Lua Stack: [index] = first return value
+ *
+ * @param L  Lua State
+ * @param cb  Information about the callback function that was just called
+ * @param ar  argconv_t structure, partly initialized (esp. with ar->ci)
+ * @param index  Stack position of the first return value from the callback
+ * @param args  Array of the arguments passed by the caller
+ * @param retval  Location where to store the callback's return value
  */
 static void _closure_return_values(lua_State *L, struct callback *cb,
     struct argconv_t *ar, int index, void **args, void *retval)
@@ -458,7 +466,7 @@ static void _closure_return_values(lua_State *L, struct callback *cb,
 
 	// Otherwise, this type can be converted.  There should be at least
 	// one more value on the Lua stack.
-	if (index >= top) {
+	if (index > top) {
 	    lua_Debug debug;
 	    lua_rawgeti(L, LUA_REGISTRYINDEX, cb->func_ref);
 	    if (lua_getinfo(L, ">S", &debug))
@@ -493,7 +501,7 @@ static void _closure_return_values(lua_State *L, struct callback *cb,
 	index ++;
     }
 
-    int n = top - index;
+    int n = top + 1 - index;
     if (n) {
 	lua_Debug debug;
 	lua_rawgeti(L, LUA_REGISTRYINDEX, cb->func_ref);
@@ -522,15 +530,24 @@ static void closure_handler(ffi_cif *cif, void *retval, void **args,
     ar.ci = ci;
     ar.mode = 1;
 
-    // get the callback
+    // get the callback at [top+1]
     lua_rawgeti(L, LUA_REGISTRYINDEX, cb->func_ref);
 
     _closure_push_arguments(L, cb, &ar, args);
 
+    // tracing
+    if (G_UNLIKELY(runtime_flags & RUNTIME_TRACE_ALL_CALLS)) {
+	struct func_info fi;
+	fi.func = NULL;
+	fi.name = "callback";
+	fi.args_info = cb->sig + 1;
+	fi.args_len = *cb->sig;
+	luagtk_call_trace(L, &fi, top+1);
+    }
+
     // call the lua function, expect any number of return values
     int arg_cnt = lua_gettop(L) - top - 1;
     lua_call(L, arg_cnt, LUA_MULTRET);
-
     _closure_return_values(L, cb, &ar, top+1, args, retval);
 
     // clean up
