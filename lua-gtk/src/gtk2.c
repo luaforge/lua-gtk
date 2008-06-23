@@ -126,14 +126,15 @@ static int find_global(lua_State *L, const char *name)
  */
 static int l_gtk_lookup(lua_State *L)
 {
-    const char *s = luaL_checkstring(L, 2);
-    struct func_info fi;
-    char func_name[50];
+    size_t name_len;
+    const char *s = luaL_checklstring(L, 2, &name_len);
+    struct func_info fi, *fi2;
+    char func_name[70];
 
     if (!s)
 	return luaL_error(L, "%s attempt to look up a NULL string", msgprefix);
-
-    // GTK_INITIALIZE();    not required - is it?
+    if (name_len > sizeof(func_name) - 10)
+	return luaL_error(L, "%s key to lookup is too long", msgprefix);
 
     /* if it starts with an uppercase letter, it's probably an ENUM. */
     if (s[0] >= 'A' && s[0] <= 'Z') {
@@ -151,51 +152,66 @@ static int l_gtk_lookup(lua_State *L)
 	}
     }
 
-    // If it starts with "__", then remove that and don't look for overrides.
-    // this is something that overrides written in Lua can use.
-    if (s[0] != '_' || s[1] != '_') {
-	strcpy(func_name, s);
-	if (!find_func(func_name, &fi)) {
-	    sprintf(func_name, "gtk_%s", s);
-
-	    // check for overrides
-	    lua_pushstring(L, func_name);
-	    lua_rawget(L, 1);
-	    if (!lua_isnil(L, -1))
-		return 1;
-	    lua_pop(L, 1);
-
-	    // If not found, throw an error.  Alternatively 0 could be returned,
-	    // but mistyped gtk.something lookups would silently return nil,
-	    // possibly leading to hard-to-find bugs.
-	    if (!find_func(func_name, &fi)) {
-		// maybe a global?
-		if (find_global(L, s))
-		    return 1;
-		return luaL_error(L, "%s not found: gtk.%s", msgprefix, s);
-	    }
-	}
-    } else {
-	// prefixed by "__" - look it up directly.
+    // If it starts with "__", then remove that and don't look for
+    // overrides.  This is something that overrides written in Lua can use,
+    // to avoid recursively calling itself instead of the Gtk function.
+    if (s[0] == '_' && s[1] == '_') {
 	strcpy(func_name, s + 2);
 	if (!find_func(func_name, &fi))
 	    return luaL_error(L, "%s not found: gtk.%s", msgprefix, s);
+	goto found;
     }
 
+    // Otherwise, simply look it up
+    strcpy(func_name, s);
+    if (find_func(func_name, &fi))
+	goto found;
+    
+    // Try again with gtk_ prefix, but look for overrides.  An override
+    // with exactly the same name would have been found by Lua, without
+    // even calling this __index lookup function.
+    sprintf(func_name, "gtk_%s", s);
+    lua_pushstring(L, func_name);
+    lua_rawget(L, 1);
+    if (!lua_isnil(L, -1))
+	return 1;
+    lua_pop(L, 1);
+    
+    // Look for a Gtk function of this name with the gtk_ prefix added.
+    if (find_func(func_name, &fi))
+	goto found;
+    
+    // Might be a global variable.  This is not so common, therefore
+    // it is not checked for earlier.
+    if (find_global(L, s))
+	return 1;
+    
+    // Maybe it's Windows and a function with _utf8 suffix?  While there
+    // are a few with the gtk_ prefix and _utf8 suffix, most have the
+    // g_ or gdk_ prefix, so don't automatically add this prefix.
+#ifdef LUAGTK_win32
+    sprintf(func_name, "%s_utf8", s);
+    if (find_func(func_name, &fi))
+	goto found;
+#endif
 
+    // Not found.
+    return luaL_error(L, "%s not found: gtk.%s", msgprefix, s);
+
+found:;
     /* A function has been found, so return a closure that can call it. */
     // NOTE: need to duplicate the name, fi.name points to the local variable
     // func_name.  So, allocate a new func_info with some space after it large
     // enough to hold the function name.
-    int name_len = strlen(fi.name) + 1;
-    struct func_info *fi2 = (struct func_info*) lua_newuserdata(L,
-	sizeof(*fi2) + name_len);
+    name_len = strlen(fi.name) + 1;
+    fi2 = (struct func_info*) lua_newuserdata(L, sizeof(*fi2) + name_len);
     memcpy(fi2, &fi, sizeof(*fi2));
     memcpy(fi2+1, fi.name, name_len);
     fi2->name = (char*) (fi2+1);
     lua_pushcclosure(L, _call_wrapper, 1);
 
-    // cache the result of this lookup
+    // cache the result of this lookup, using the key given by the user,
+    // and not necessarily the name of the function that was found.
     lua_pushvalue(L, 2);	// key
     lua_pushvalue(L, -2);	// the new closure
     lua_rawset(L, 1);		// [1]=table
@@ -218,8 +234,8 @@ static int l_gtk_lookup(lua_State *L)
  */
 #define _VERSION(x,y,z) ((x)*10000 + (y)*100 + (z))
 static const struct special_alloc {
-    const char *struct_name;
-    int version_from, version_to;	// range of Gtk versions using g_malloc
+    const char *struct_name;		// name of class concerned
+    int version_from, version_to;	// range of Gtk versions selected
     int what;				// 1=g_malloc, 2=GdkColor
 } special_alloc[] = {
     { "GtkTreeIter", 0, _VERSION(2,10,11), 1 },	// SVN version 17761
