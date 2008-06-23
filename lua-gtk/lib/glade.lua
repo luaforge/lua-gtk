@@ -1,7 +1,8 @@
 -- vim:sw=4:sts=4
 --
 
-local base, print, table, string, pairs = _G, print, table, string, pairs
+local base, print, table, string, pairs, tonumber = _G, print, table, string,
+    pairs, tonumber
 
 require "gtk"
 require "gtk.strict"
@@ -70,15 +71,30 @@ function print_r(obj, prefix)
     end
 end
 
+-- type conversion functions for some properties are required.
+child_property_type_conversion = {
+    position = tonumber,
+    padding = tonumber,
+    x_padding = tonumber,
+    y_padding = tonumber,
+    top_attach = tonumber,
+    bottom_attach = tonumber,
+    right_attach = tonumber,
+    left_attach = tonumber,
+}
 
 --
 -- Attach/add etc. functions that handle the packing information from the XML
 -- file, or other special situations.
 --
 function gtk.gtk_container_add_glade(container, child, el)
+    local conv
+
     container:add(child)
     if el.packing then
 	for k, v in pairs(el.packing) do
+	    conv = child_property_type_conversion[k]
+	    if conv then v = conv(v) end
 	    container:child_set_property(child, k, v)
 	end
     end
@@ -441,12 +457,21 @@ function GtkButton(el)
     return w, { response_id=1 }
 end
 
-function set_adjustment_property(w, k, s)
---    local a = w:get_property(k)
-    local a = gtk.adjustment_new(string.match(s, "(%d+) (%d+) (%d+) (%d+) (%d+) (%d+)"))
-    -- print("Adjustment", s, a)
-    w:set_property(k, a)
-end
+property_setter = {
+    adjustment = function(w, k, s)
+	local a = gtk.adjustment_new(string.match(s,
+	    "(%d+) (%d+) (%d+) (%d+) (%d+) (%d+)"))
+	w:set_property(k, a)
+    end,
+
+    position = function(w, k, s)
+	w:set_property(s, tonumber(s))
+    end,
+
+    default = function(w, k, s)
+	w:set_property(k, s)
+    end,
+}
 
 -- globals (sort of) used in make_widget to reduce stack size need to be
 -- declared to make gtk.strict happy.
@@ -494,11 +519,7 @@ function make_widget(widgets, el, parent)
     -- set all properties except for some.
     for k, v in pairs(el.p) do
 	if k ~= "visible" and not ignore_prop[k] then
-	    if k == 'adjustment' then
-		set_adjustment_property(w, k, v)
-	    else
-		w:set_property(k, v)
-	    end
+	    (property_setter[k] or property_setter.default)(w, k, v)
 	end
     end
 
