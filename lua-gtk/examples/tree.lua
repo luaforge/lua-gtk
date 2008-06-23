@@ -12,6 +12,43 @@ function handle_inserted(model, path, iter, data1, data2)
     print("handle_inserted", model, path, iter, data1, data2)
 end
 
+---
+-- Iterate through all selected items
+--
+function show_selection(btn, mainwin)
+    local tv = mainwin.tree_view
+    local sel = tv:get_selection()
+    local model = tv:get_model()
+    local list = sel:get_selected_rows(nil)
+    local iter = gtk.new "GtkTreeIter"
+    local root = list
+
+    while list do
+	local path = list.data:cast("GtkTreePath")
+	model:get_iter(iter, path)
+	local s = model:get_value(iter, 2)
+	print(s)
+	path:free()
+	list = list.next
+    end
+
+    if root then
+	root:free()
+    end
+end
+
+---
+-- A simpler version of the above using gtk_tree_selection_selected_foreach.
+--
+function show_selection_2(btn, mainwin)
+    local tv = mainwin.tree_view
+    local sel = tv:get_selection()
+    sel:selected_foreach(function(model, path, iter, data)
+	local s = model:get_value(iter, 2)
+	print(s)
+    end, nil)
+end
+
 function MainWin.new()
 
     local self = {}
@@ -22,11 +59,22 @@ function MainWin.new()
     self.w:connect('destroy', function() gtk.main_quit() end)
     self.w:set_default_size(200, 250)
     self.w:set_title("Tree View Demo")
+
+    local vbox = gtk.vbox_new(false, 10)
+    self.w:add(vbox)
+
+    -- list within a scrolled window
     local sw = gtk.scrolled_window_new(nil, nil)
     sw:set_policy(gtk.GTK_POLICY_NEVER, gtk.GTK_POLICY_AUTOMATIC)
-    self.w:add(sw)
+    vbox:pack_start_defaults(sw)
     self.tree_view = gtk.tree_view_new()
     sw:add(self.tree_view)
+    local sel = self.tree_view:get_selection()
+    sel:set_mode(gtk.GTK_SELECTION_MULTIPLE)
+
+    local btn = gtk.button_new_with_label("Show Selection")
+    btn:connect('clicked', show_selection_2, self)
+    vbox:pack_start(btn, false, true, 10)
 
     -- create store
     self.store = gtk.tree_store_new(5, gtk.G_TYPE_INT,
