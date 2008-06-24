@@ -54,6 +54,7 @@ function generate_object(ofname, platform)
 
     if string.match(platform, "linux") then
 	defs2 = defs2 .. "#include <gdk/gdkx.h>\n"
+	defs = defs .. "#define G_STDIO_NO_WRAP_ON_UNIX\n"
     end
 
     -- if libgtkhtml-2.0 is available, use that
@@ -82,6 +83,7 @@ function generate_object(ofname, platform)
 #include <gdk/gdktypes.h>
 ]] .. defs .. [[
 #include <gtk/gtk.h>
+#include <glib/gstdio.h>
 #include <cairo/cairo.h>
 #include <atk/atk-enum-types.h>
 ]] .. defs2
