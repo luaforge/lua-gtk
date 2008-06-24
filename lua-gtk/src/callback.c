@@ -452,10 +452,10 @@ static void _closure_return_values(lua_State *L, struct callback *cb,
 
 	ar->type_idx = get_next_argument(&sig);
 
-	// only consider output arguments.
+	// only consider the return value and output arguments.
 	if (arg_nr > 0 && !ar->ci->arg_flags[arg_nr])
 	    continue;
-
+	
 	ar->type = type_list + ar->type_idx;
 	ar->arg_type = ffi_type_map + ar->type->fundamental_id;
 
@@ -470,8 +470,10 @@ static void _closure_return_values(lua_State *L, struct callback *cb,
 	    lua_Debug debug;
 	    lua_rawgeti(L, LUA_REGISTRYINDEX, cb->func_ref);
 	    if (lua_getinfo(L, ">S", &debug))
-		luaL_error(L, "insufficient return values from callback at %s line %d",
-		    debug.source, debug.linedefined);
+		luaL_error(L, "%s insufficient return values from callback "
+		    "at %s line %d", msgprefix, debug.source,
+		    debug.linedefined);
+	    // without extra info when lua_getinfo failed.
 	    luaL_error(L, "insufficient return values from callback");
 	}
 
