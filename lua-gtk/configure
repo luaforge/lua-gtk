@@ -264,15 +264,38 @@ if test $USE_CMPH -eq 0; then
     CMPH_VERSION="disabled"
 elif test "$CMPH_DIR"; then
     if test -d "$CMPH_DIR"; then
-	CMPH_BIN=$CMPH_DIR/src/cmph
-	if test -x $CMPH_BIN; then
+
+	# look for the executable
+	for dir in $CMPH_DIR $CMPH_DIR/src $CMPH_DIR/bin; do
+	    if test -x $dir/cmph; then
+		CMPH_BIN=$dir/cmph
+		break
+	    fi
+	done
+
+	# look for the include
+	for dir in $CMPH_DIR $CMPH_DIR/include $CMPH_DIR/src; do
+	    if test -f $dir/cmph_types.h; then
+		CMPH_INCDIR="$dir"
+		break
+	    fi
+	done
+
+	# look for the static library
+	for dir in $CMPH_DIR $CMPH_DIR/lib $CMPH_DIR/src/.libs; do
+	    if test -f $dir/libcmph.a; then
+		CMPH_LIBS="$dir/libcmph.a -lm"
+		break
+	    fi
+	done
+
+	# everything found?
+	if test "$CMPH_BIN" -a "$CMPH_INCDIR" -a "$CMPH_LIBS"; then
 	    HAVE_CMPH=1
-	    CMPH_CFLAGS="-I $CMPH_DIR/src"
-	    CMPH_INCDIR=$CMPH_DIR/src
+	    CMPH_CFLAGS="-I $CMPH_INCDIR"
 	    CMPH_VERSION=$($CMPH_BIN -V)
-	    CMPH_LIBS="$CMPH_DIR/src/.libs/libcmph.a -lm"
 	else
-	    echo "Cmph directory found, but no executable?"
+	    echo "Cmph directory found, but not complete."
 	fi
     else
 	echo "Cmph directory not found: $CMPH_DIR"
@@ -512,10 +535,14 @@ if test "$SUMMARY"; then
     echo "   Gtk version:          $GTK_VERSION"
     echo "   libffi:               $LIBFFI_VERSION"
     echo "   libffi calling:       $LIBFFI_CALL"
+    if test "$HAVE_CMPH"; then
     echo "   Cmph library:         $CMPH_VERSION"
     echo "   Cmph algorithm:       $CMPH_ALGO"
     if test "$CMPH_INCDIR"; then
     echo "   Cmph extra includes:  $CMPH_INCDIR"
+    fi
+    else
+    echo "   Using simple hash"
     fi
     echo "   Libgtkhtml-2.0:       $HTML_VERSION"
     echo "   Debugging symbols:    $DEBUG_INFO"
