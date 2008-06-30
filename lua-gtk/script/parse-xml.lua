@@ -525,6 +525,9 @@ path_glib = "/usr/include/glib-2.0"
 parse_header_file(path_gtk .. "/gtk/gtkstock.h", false)
 parse_header_file(path_glib .. "/gobject/gtype.h", false)
 parse_header_file(path_gtk .. "/gdk/gdkkeysyms.h", true)
+parse_header_file(path_glib .. "/gio/gfileinfo.h", false)
+parse_header_file(path_glib .. "/gio/gvolumemonitor.h", false)
+parse_header_file(path_glib .. "/glib/gmain.h", true)
 
 output.output_types(arg[1] .. "/gtkdata.structs.c")
 output.output_enums(arg[1] .. "/gtkdata.enums.txt")

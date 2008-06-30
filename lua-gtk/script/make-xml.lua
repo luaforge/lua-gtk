@@ -84,6 +84,7 @@ function generate_object(ofname, platform)
 ]] .. defs .. [[
 #include <gtk/gtk.h>
 #include <glib/gstdio.h>
+#include <gio/gio.h>
 #include <cairo/cairo.h>
 #include <atk/atk-enum-types.h>
 ]] .. defs2
