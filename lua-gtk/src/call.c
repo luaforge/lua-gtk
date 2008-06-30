@@ -315,10 +315,9 @@ static int _call_return_values(lua_State *L, int index, struct call_info *ci)
     const unsigned char *s, *s_end;
     struct argconv_t ar;
 
-//    printf("return values for %s\n", ci->fi->name);
-
     ar.L = L;
     ar.ci = ci;
+    ar.mode = ARGCONV_CALL;
 
     /* Return the return value and output arguments.  This requires another
      * pass at parsing the argument spec. */
