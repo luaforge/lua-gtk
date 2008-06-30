@@ -425,7 +425,7 @@ Don Dez 20 01:02:11 CET 2007
 * get-defines.lua merged into parse-xml.lua
 * ATK enums available
 * parse-xml.lua split into various parts.  encoding for structures and
-  functions changed.  statistics displayed after generation of data.
+functions changed.  statistics displayed after generation of data.
 * stricter type checking for output parameters
 * dynamic (runtime) linking improved
 * GdkColor for Gtk <= 2.8.8 fixed
@@ -433,10 +433,100 @@ Don Dez 20 01:02:11 CET 2007
 * hash-fch.c: hash_search improved
 * GSList automatic free
 * ffi2lua fix for enum**, lua2ffi fix for enum
+* update INSTALL documentation, and label this package as BETA now.
+* src/include_types.txt: to force inclusion of certain types (structures)
+
 
 2008-03-14
 * support the bdz algorithm of cmph version wads07, which is still unreleased.
-Library sizes: simple hash: 275 kB, fch: 252 kB, bdz: 252 kB.  bdz builds
+Library sizes: simple hash: 275 kB, fch: 268 kB, bdz: 268 kB.  bdz builds
 faster, needs a little bit less data but a bit more core.
 
+2008-03-26
+* make-link.lua: evaluate optional conditions in the function list (to support
+more Gtk versions)
+
+2008-04-03
+* tables can be a vararg argument; currently they can only contain strings.
+* new gtk.NIL which can be used instead of nil to pass NULL to a C function;
+useful in tables that are used as vararg argument.
+* reduced code size by replacement of bdz_lookup_table by some code.
+* hash-cmph.c: should now be endian neutral
+
+2008-04-14
+* try how to use ffi callbacks and use the method that works
+* better error message on failure to convert a closure's return value
+
+2008-04-23
+* call.c: don't try to tread "void*" as an output parameter
+* callback.c: more efficient error handling in conversion of a callback's
+return values
+* new function gtk.void_ptr to wrap a Lua value as a void*, which can be
+passed to callback etc.  The wrappers can be freed explicitely.
+* override for g_tree_destroy to avoid calling g_Free on the tree twice
+
+2008-05-01
+* split types.c into mulitple files (enum.c, voidptr.c)
+* API change for void* wrappers
+
+2008-05-08
+* discontinue the use of the global environment; store data only in the global
+table "gtk".  This change makes lua-gtk work properly within SciTE, and
+probably other embedded situations.
+
+2008-05-16
+* include X specific functions - #include <gdk/gdkx.h>
+* select functions by pathname components instead of function names
+* include all libxml2 functions
+* update to support cmph 0.8
+* new examples/xid.lua to demonstrate how to get the XID of a window
+
+2008-05-20
+* examples/xid.lua enhanced
+* bugfix when a non-function is stored in a widget's metatable.
+
+2008-06-18
+* new examples/raedic.lua which is modeled after grae, to fetch definitions of
+spanish words from the Real Academia Española.
+
+2008-06-19
+* don't automatically call gtk_init when the user does it himself
+* override for gtk_icon_theme_get_search_path
+* fix for a SEGV due to an uninitialized variable in lua2ffi_ptr
+* warn if glade.lua is used with Gtk runtime version >= 2.12
+* provide read-only access to all global Gtk variables
+
+2008-06-21
+* allow NIL to be passed instead of a function pointer to Gtk functions
+* handle multiple return values from Lua callbacks for output arguments
+* new examples/menu.lua to show how to use a popup menu, and callbacks with
+output parameters.
+* enum.c: make sure gtk.init has been called before looking up an enum type
+* handle the type boolean*
+* support for callback output arguments of type int*
+
+2008-06-22
+* removal of the automatic type conversion string to long for GValue setting
+* glade: convert value for set_property to integer if required
+* gtk2: try the _utf8 suffix for Windows platforms when looking for functions
+
+2008-06-23
+* examples/tree.lua: demonstrate how to fetch the selection
+* gvalue.c: don't automatically convert a string to a number
+* glade.lua: convert value for set_property to number if required, no
+automatic conversion (removed)
+* hash-cmph.c: bugfix for Win32
+
+2008-06-24
+* include glib/gstdio.h and force all functions to be defined (g_stat etc.)
+* g_dir_close override added (it frees the structure)
+* luagtk_invalidate_widget added - to avoid reusing freed widgets
+
+2008-06-25
+* try _utf8 suffix when looking for class methods on Win32
+
+2008-06-30
+* support everything in the gio library
+* override for g_list_free to avoid hard-to-debug double-free errors
+* update of ChangeLog
 
