@@ -32,6 +32,7 @@ extern int override_size;
 int gtk_is_initialized = 0;
 const char msgprefix[] = "[gtk]";
 
+
 /**
  * Initialize Gtk if it hasn't happened yet.  This is mostly called through
  * the macro GTK_INITIALIZE, which calls this function only if
@@ -43,6 +44,7 @@ void luagtk_init_gtk()
 	return;
     gtk_is_initialized = 1;
     gtk_init(NULL, NULL);
+    luagtk_boxed_register();
 }
     
 
@@ -161,6 +163,17 @@ static int l_gtk_lookup(lua_State *L)
 	    return luaL_error(L, "%s not found: gtk.%s", msgprefix, s);
 	goto found;
     }
+
+    // retrieve the type ID for the boxed Lua types
+    if (!strcmp(s, "boxed_type")) {
+	GTK_INITIALIZE();
+	lua_pushinteger(L, luagtk_boxed_value_type);
+	lua_pushstring(L, s);
+	lua_pushvalue(L, -2);
+	lua_rawset(L, 1);
+	return 1;
+    }
+	
 
     // Otherwise, simply look it up
     strcpy(func_name, s);
@@ -412,7 +425,7 @@ static const luaL_reg gtk_methods[] = {
     {"new",		l_new },
     {"get_osname",	l_get_osname },
     {"void_ptr",	l_void_ptr },
-    {"get_vwrapper_count", l_get_vwrapper_count },
+    {"get_vwrapper_count",  l_get_vwrapper_count },
     { NULL, NULL }
 };
 
@@ -447,6 +460,7 @@ int luaopen_gtk(lua_State *L)
     luagtk_init_overrides(L);
     luagtk_init_channel(L);
     luagtk_init_debug(L);
+    luagtk_init_boxed(L);
 
     // an object that can be used as NIL
     lua_pushliteral(L, "NIL");
