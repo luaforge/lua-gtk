@@ -530,3 +530,9 @@ automatic conversion (removed)
 * override for g_list_free to avoid hard-to-debug double-free errors
 * update of ChangeLog
 
+2008-07-09
+* support for boxed Lua values, e.g. for ListStore.
+
+2008-07-13
+* support long long int, signed long long int.
+

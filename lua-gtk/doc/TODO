@@ -16,6 +16,11 @@ BUGS
 - regressions
 	dump_struct: show what a struct* is if it is not NULL
 
+- g_assertion_message is used in GLib starting with 2.15 for the macro
+  G_VALUE_COLLECT.  If lua-gtk is compiled for 2.15 or newer, this call
+  will be there.  But when used with an older GLib version e.g. 2.14,
+  this will fail.  A warning is shown at startup.
+
 - overrides don't do the trace output, which happens in luagtk_call.
   How to do this??  This should happen automatically and not require some
   boilerplate code for each override.  There are C and Lua overrides, about
@@ -241,14 +246,15 @@ _*_fch.g requires _*_fch.b * sizeof(short) bytes, I reckon.
 - Additional Library Support.  If available at compile time and enabled,
   compile it in.  If not available at runtime, disable this part of the API.
 
-  Done: Cairo, GLib, GObject, ATK, Pango, gdk-pixbuf, GDK, GTK+, GtkHTML
+  Done: Cairo, GLib, GObject, ATK, Pango, gdk-pixbuf, GDK, GTK+, GtkHTML,
+  libxml2, gio
 
   GNOME Developer Platform Libraries (only non-deprecated):
   glib, gio, gobject, atk, at-spi, gail, pango, gdk-pixbuf, gdk, gtk+,
   libxml2, libxslt, libglade, gconf.
 
   Still missing:
-  gio, at-spi, gail, libxml2, libxslt, libglade, gconf.
+  at-spi, gail, libxslt, libglade, gconf.
 
 
 	gio
@@ -259,6 +265,9 @@ _*_fch.g requires _*_fch.b * sizeof(short) bytes, I reckon.
 		#include <gio/gdesktopappinf.h>
 		#include <gio/gunixinputstream.h>
 		#include <gio/gunixoutputstream.h>
+	
+	at-spi
+		install libatspi-dev, libatspi1.0-0
 
   - cairo - http://cairographics.org/
   	partly working, not tested much
@@ -289,10 +298,6 @@ _*_fch.g requires _*_fch.b * sizeof(short) bytes, I reckon.
 	libgnomeprint2.2-dev
 	libart-2.0-dev
 
-  - xml2
-  	libxml2-dev
-	already included in types.xml, but functions are not extracted.
-
   - libxslt
 	libxslt1-dev
 
@@ -316,4 +321,19 @@ http://alien.luaforge.net/
    they have to be declared individually.
  - doesn't know about Gtk's type hierarchy
 
+- Support easy modification of metatables of widgets.  Something like
+  gtk.get_metatable "GdkWindow" or similar.  Maybe make it as simple as
+
+  	mt = gtk.get_metatable "GdkWindow"
+	mt.__get_xid = function(w) return gdk.gtk_x11_drawable_get_xid(w) end
+
+
+DOCUMENTATION
+=============
+
+  - write some more documentation (on the website), in addition to the
+    automatically generated documentation (luadoc)
+
+  - update the website with current examples; e.g. glade.lua should not
+    be used anymore, instead use GtkBuilder.
 
