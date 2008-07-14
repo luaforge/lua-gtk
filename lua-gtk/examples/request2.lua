@@ -37,7 +37,7 @@ function download_callback(arg, ev, data1, data2, data3)
 	return
     elseif ev == 'error' then
 	download_running = 0
-	progress_label:set_text("Error: " .. data2)
+	set_status("Error: " .. data2)
     end
 end
 
