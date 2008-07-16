@@ -113,7 +113,7 @@ function_list = {}
 --
 function analyze_functions()
     local paths = { "gtk-2.0", "glib-2.0", "atk-1.0", "libxml2",
-	"gtkhtml-2.0", "pango-1.0", "cairo" }
+	"gtkhtml-2.0", "pango-1.0", "cairo", "gtksourceview-2.0" }
     local good_files = {}	    -- [id] = true
 
     -- determine which files are good
@@ -127,10 +127,11 @@ function analyze_functions()
     end
 
     -- Make a sorted list of functions to output.  Only use functions declared
-    -- in one of the "good" files.  v[1][3] contains the file's ID.
+    -- in one of the "good" files, and ignore those starting with "_", which
+    -- are most likely private.  v[1][3] contains the file's ID.
     for k, v in pairs(xml.funclist) do
 	local found = false
-	if good_files[v[1][3]] then
+	if good_files[v[1][3]] and string.sub(k, 1, 1) ~= "_" then
 		function_list[#function_list + 1] = k
 		_function_analyze(k)
 	end

@@ -14,6 +14,7 @@ SUMMARY=1
 DEBUGFUNCS=1
 HASHF=hsieh
 USE_GTKHTML=1
+USE_GTKSOURCEVIEW=1
 USE_CMPH=1
 DYNLINK=1
 CFLAGS=
@@ -42,6 +43,7 @@ show_help () {
     echo "  --no-summary       Don't show configure results"
     echo "  --disable-debug    Omit debugging functions like dump_struct"
     echo "  --disable-gtkhtml  No support for libgtkhtml"
+    echo "  --disable-gtksourceview  No support for libgtksourceview"
     echo "  --disable-dynlink  Build time instead of runtime linking"
     echo "  --disable-cmph     Don't use cmph even if it is available"
     echo "  --with-cmph DIR    Use cmph source tree at the given location"
@@ -63,6 +65,8 @@ while test "$1"; do
 	--enable-debug) DEBUGFUNCS=1 ;;
 	--disable-gtkhtml) USE_GTKHTML= ;;
 	--enable-gtkhtml) USE_GTKHTML=1 ;;
+	--disable-gtksourceview) USE_GTKSOURCEVIEW= ;;
+	--enable-gtksourceview) USE_GTKSOURCEVIEW=1 ;;
 	--disable-dynlink) DYNLINK=0; DYNLINK_SET=1 ;;
 	--enable-dynlink) DYNLINK=1; DYNLINK_SET=1 ;;
 	--disable-cmph) USE_CMPH=0 ;;
@@ -363,6 +367,19 @@ else
     HTML_VERSION="disabled"
 fi
 
+# - libgtksourceview -
+if test "$USE_GTKSOURCEVIEW"; then
+    if $PC --exists gtksourceview-2.0; then
+	SOURCEVIEW_VERSION=$($PC --modversion gtksourceview-2.0)
+	echo "HAVE_SOURCEVIEW :=1" >> $CFG_M
+	echo "#define HAVE_LIBGTKSOURCEVIEW" >> $CFG_H
+    else
+	SOURCEVIEW_VERSION="not available"
+    fi
+else
+    SOURCEVIEW_VERSION="disabled"
+fi
+
 # C compiler
 
 if which gcc > /dev/null; then
@@ -545,6 +562,7 @@ if test "$SUMMARY"; then
     echo "   Using simple hash"
     fi
     echo "   Libgtkhtml-2.0:       $HTML_VERSION"
+    echo "   Libgtksourceview-2.0: $SOURCEVIEW_VERSION"
     echo "   Debugging symbols:    $DEBUG_INFO"
     echo "   Debugging functions:  $DEBUG_FUNCS_INFO"
     echo "   CFLAGS:               $CFLAGS"

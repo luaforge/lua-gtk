@@ -36,6 +36,11 @@ ifeq ($(HAVE_HTML), 1)
 MAKE_XML_FLAGS	+=--enable-gtkhtml
 endif
 
+# -- is libgtksourceview available? --
+ifeq ($(HAVE_SOURCEVIEW), 1)
+MAKE_XML_FLAGS	+=--enable-gtksourceview
+endif
+
 gtk2dll: build-tests ${ODIR}${ODLL}
 
 config configure:

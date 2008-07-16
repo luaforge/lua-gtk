@@ -8,6 +8,7 @@
 
 tmp_file = "tmpfile.c"
 enable_gtkhtml = false
+enable_gtksourceview = false
 
 -- end --
 
@@ -37,7 +38,7 @@ end
 --
 function generate_object(ofname, platform)
     local defs, ofile, s, rc = ""
-    local flags
+    local pkgs = "gtk+-2.0"
     local defs2 = ""
 
     ofile = io.open(tmp_file, "w")
@@ -59,17 +60,23 @@ function generate_object(ofname, platform)
 
     -- if libgtkhtml-2.0 is available, use that
     if enable_gtkhtml then
-	s = pkg_config("libgtkhtml-2.0", "--cflags")
-	if s then
-	    print "Libgtkhtml is available."
-	    flags = s
-	    defs2 = defs2 .. "#include <libgtkhtml/gtkhtml.h>\n"
-	end
+	pkgs = pkgs .. " libgtkhtml-2.0"
+	defs2 = defs2 .. "#include <libgtkhtml/gtkhtml.h>\n"
     end
 
-    if not flags then
-	flags = pkg_config("gtk+-2.0", "--cflags")
+    -- if libgtksourceview-2.0 is available, use that
+    if enable_gtksourceview then
+	pkgs = pkgs .. " gtksourceview-2.0"
+	defs2 = defs2 .. "#include <gtksourceview/gtksourceview.h>\n"
+	defs2 = defs2 .. "#include <gtksourceview/gtksourcelanguagemanager.h>\n"
+
+	-- the following include file is currently broken in my installation:
+	-- G_BEGIN_DECLS missing.
+	-- defs2 = defs2 .. "#include <gtksourceview/gtksourceprintcompositor.h>\n"
+	defs2 = defs2 .. "#include <gtksourceview/gtksourcestyleschememanager.h>\n"
     end
+
+    flags = pkg_config(pkgs, "--cflags")
 
 
     -- #undef __OPTIMIZE_: Avoid trouble with -O regarding __builtin_clzl.
@@ -176,6 +183,9 @@ repeat
     stop = false
     if arg[1] == "--enable-gtkhtml" then
 	enable_gtkhtml = true
+	table.remove(arg, 1)
+    elseif arg[1] == "--enable-gtksourceview" then
+	enable_gtksourceview = true
 	table.remove(arg, 1)
     else
 	stop = true
