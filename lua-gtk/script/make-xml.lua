@@ -6,11 +6,12 @@
 
 -- configuration --
 
-tmp_file = "tmpfile.c"
-enable_gtkhtml = false
-enable_gtksourceview = false
+config = {}
 
 -- end --
+
+tmp_file = "tmpfile.c"
+tmp_content = nil
 
 ---
 -- Call pkg-config and retrieve the answer
@@ -32,14 +33,29 @@ function pkg_config(package, option)
     return s
 end
 
+function add_defs(tbl)
+    if not tbl then return "" end
+    return table.concat(tbl, "\n") .. "\n"
+end
+
+function add_includes(tbl)
+    if not tbl then return "" end
+    local tbl2 = {}
+    for i, inc in ipairs(tbl) do
+	tbl2[#tbl2 + 1] = "#include " .. inc
+    end
+    return table.concat(tbl2, "\n") .. "\n"
+end
 
 ---
 -- Try to generate the XML file.  Returns 0 if ok, non-zero otherwise.
 --
-function generate_object(ofname, platform)
-    local defs, ofile, s, rc = ""
-    local pkgs = "gtk+-2.0"
-    local defs2 = ""
+function generate_xml(ofname, platform)
+    local ofile, s, rc
+    local pkgs = {}		-- pkg-config package list
+    local arch_os = config.arch_os
+    local defs = ""
+    local includes = ""
 
     ofile = io.open(tmp_file, "w")
     if not ofile then
@@ -47,58 +63,33 @@ function generate_object(ofname, platform)
 	return 1
     end
 
-    if string.match(platform, "win32") then
-	defs = "#define G_OS_WIN32\n"
-	    .. "#define GDKVAR extern\n"
-	    .. "#define __GTK_DEBUG_H__\n"
+    for _, lib in ipairs(config.libs) do
+	cfg_file = string.format("libs/%s.lua", lib.name)
+	cfg = load_config(cfg_file)
+	pkgs[#pkgs + 1] = cfg.pkg_config_name
+	if cfg.defs then
+	    defs = defs .. add_defs(cfg.defs.all)
+	    defs = defs .. add_defs(cfg.defs[arch_os])
+	end
+	if cfg.includes then
+	    includes = includes .. add_includes(cfg.includes.all)
+		.. add_includes(cfg.includes[arch_os])
+	end
+    end
+    
+    -- XXX this could already be done by configure, thus obviating the
+    -- need to call pkg-config at all.
+    flags = pkg_config(table.concat(pkgs, " "), "--cflags")
+    if config.cc_flags then
+	flags = flags .. " " ..config.cc_flags
     end
 
-    if string.match(platform, "linux") then
-	defs2 = defs2 .. "#include <gdk/gdkx.h>\n"
-	defs = defs .. "#define G_STDIO_NO_WRAP_ON_UNIX\n"
-    end
-
-    -- if libgtkhtml-2.0 is available, use that
-    if enable_gtkhtml then
-	pkgs = pkgs .. " libgtkhtml-2.0"
-	defs2 = defs2 .. "#include <libgtkhtml/gtkhtml.h>\n"
-    end
-
-    -- if libgtksourceview-2.0 is available, use that
-    if enable_gtksourceview then
-	pkgs = pkgs .. " gtksourceview-2.0"
-	defs2 = defs2 .. "#include <gtksourceview/gtksourceview.h>\n"
-	defs2 = defs2 .. "#include <gtksourceview/gtksourcelanguagemanager.h>\n"
-
-	-- the following include file is currently broken in my installation:
-	-- G_BEGIN_DECLS missing.
-	-- defs2 = defs2 .. "#include <gtksourceview/gtksourceprintcompositor.h>\n"
-	defs2 = defs2 .. "#include <gtksourceview/gtksourcestyleschememanager.h>\n"
-    end
-
-    flags = pkg_config(pkgs, "--cflags")
-
-
-    -- #undef __OPTIMIZE_: Avoid trouble with -O regarding __builtin_clzl.
-    -- Seems to have no other side effects (XML file exactly the same).
-    -- Suggested by Michael Kolodziejczyk on 2007-10-23
-
-    s = [[#undef __OPTIMIZE__
-#define GTK_DISABLE_DEPRECATED 1
-#define GDK_PIXBUF_ENABLE_BACKEND 1
-]] .. defs .. [[
-#include <gdk/gdktypes.h>
-]] .. defs .. [[
-#include <gtk/gtk.h>
-#include <glib/gstdio.h>
-#include <gio/gio.h>
-#include <cairo/cairo.h>
-#include <atk/atk-enum-types.h>
-]] .. defs2
-
-    ofile:write(s)
+    tmp_content = defs .. includes
+    ofile:write(tmp_content)
     ofile:close()
-    s = string.format("gccxml %s -fxml=%s %s", flags, ofname, tmp_file)
+    s = string.format("gccxml %s -fxml=%s %s %s", flags, ofname,
+	"--gccxml-compiler " .. config.cc,
+	tmp_file)
     rc = os.execute(s)
     os.remove(tmp_file)
 
@@ -111,23 +102,17 @@ end
 -- the Gtk version to be known.  If pkg-config doesn't exist, ask the user.
 --
 function download_interactive(ofname, platform)
+    local version
 
-    local s, fhandle, version 
-
-    s = string.format("pkg-config --modversion gtk+-2.0")
-    fhandle = io.popen(s)
-
-    if not fhandle then
+    version = pkg_config("gtk+-2.0", "--modversion")
+    if not version then
 	-- pkg-config not available?
 	print "make-xml.lua: What is your Gtk version?"
 	version = io.read()
 	if not version then return 3 end
-    else
-	version = fhandle:read("*l")
-	fhandle:close()
     end
 
-    print("Your Gtk Version is ", version)
+    print("Your Gtk Version is " .. tostring(version))
     return download_types_xml(ofname, platform, version)
 end
 
@@ -177,30 +162,43 @@ function download_types_xml(ofname, platform, version)
     return os.execute(s)
 end
 
--- MAIN --
 
-repeat
-    stop = false
-    if arg[1] == "--enable-gtkhtml" then
-	enable_gtkhtml = true
-	table.remove(arg, 1)
-    elseif arg[1] == "--enable-gtksourceview" then
-	enable_gtksourceview = true
-	table.remove(arg, 1)
-    else
-	stop = true
-    end
-until stop
+---
+-- Read a Lua configuration file.  In case of error, aborts the application.
+--
+-- @param fname  The path and name of the file to load
+-- @return  A table with the variables defined in that file.
+--
+function load_config(fname)
+    local chunk, msg = loadfile(fname)
+    if not chunk then print(msg); os.exit(1) end
+    local tbl = {}
+    setfenv(chunk, tbl)
+    chunk()
+    return tbl
+end
+
+-- MAIN --
+-- arguments: output_file_name, lua_config_file
 
 if not arg[1] or not arg[2] then
-    print "Parameters: output file name and the platform."
+    print "Parameters: output file name, lua config file."
     return
 end
 
-arg[2] = string.lower(arg[2])
-rc = generate_object(arg[1], arg[2])
+config = load_config(arg[2])
+assert(config.arch, "No architecture defined in config file")
+config.arch = string.lower(config.arch)
+config.arch_os = string.match(config.arch, "^[^-]+")
+
+rc = generate_xml(arg[1], config.arch)
 if rc ~= 0 then
-    rc = download_interactive(arg[1], arg[2])
+    rc = download_interactive(arg[1], config.arch)
+end
+
+if rc ~= 0 then
+    print(string.format("%s failed.  The C file content is:\n%s", arg[0],
+	tmp_content))
 end
 os.exit(rc)
 
