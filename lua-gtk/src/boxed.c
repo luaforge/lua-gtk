@@ -11,17 +11,24 @@
  *  luagtk_get_boxed_value
  *  luagtk_init_boxed
  *  luagtk_boxed_register
+ *
+ * New functions:
+ *  gtk.make_boxed_value
+ *  gtk.get_boxed_value
  */
 
 #include "luagtk.h"
 #include <lauxlib.h>
+#include <string.h>	    // strcmp
+#define LUAGTK_BOXED "LuaValue"
 
 int luagtk_boxed_value_type = 0;
 
 // To wrap a Lua value, it will be stored using the reference mechanism.
 struct boxed_lua_value {
-    int	ref;
-    lua_State *L;
+    int	ref;		    // reference in the registry
+    lua_State *L;	    // the Lua State the registry belongs to
+    GType type;		    // if nonzero, specifies which type to cast to
 };
 
 static gpointer _boxed_copy(gpointer val)
@@ -52,6 +59,19 @@ static void _fill_boxed_value(lua_State *L, struct boxed_lua_value *b,
     b->L = L;
     lua_pushvalue(L, index);
     b->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    b->type = 0;
+}
+
+static const luaL_reg boxed_methods[] = {
+    { NULL, NULL }
+};
+
+// On the top of the stack is the new userdata.  Set an appropriate metatable
+static void _set_boxed_metatable(lua_State *L)
+{
+    if (luaL_newmetatable(L, LUAGTK_BOXED))
+	luaL_register(L, NULL, boxed_methods);
+    lua_setmetatable(L, -2);
 }
 
 /**
@@ -63,7 +83,6 @@ void *luagtk_make_boxed_value(lua_State *L, int index)
     if (lua_isnil(L, index))
 	return NULL;
     struct boxed_lua_value *b = g_slice_new(struct boxed_lua_value);
-    // printf("new boxed value at %p\n", b);
     _fill_boxed_value(L, b, index);
     return b;
 }
@@ -81,6 +100,29 @@ static int l_make_boxed_value(lua_State *L)
     struct boxed_lua_value *b = (struct boxed_lua_value*) lua_newuserdata(L,
 	sizeof(*b));
     _fill_boxed_value(L, b, 1);
+    return 1;
+}
+
+
+/**
+ * Sometimes the automatic type conversion fails for vararg parameters, e.g.
+ * when an integer is given, and a double is required.  To enforce a type
+ * in this case, you can use gtk.cast("typename", value).
+ */
+static int l_cast(lua_State *L)
+{
+    const char *type_name = luaL_checkstring(L, 1);
+    luaL_checkany(L, 2);
+    GType type = g_type_from_name(type_name);
+    if (!type)
+	return luaL_error(L, "%s unknown type %s", msgprefix, type_name);
+
+    struct boxed_lua_value *b = (struct boxed_lua_value*) lua_newuserdata(L,
+	sizeof(*b));
+    _fill_boxed_value(L, b, 2);
+    _set_boxed_metatable(L);
+    b->type = type;
+
     return 1;
 }
 
@@ -107,6 +149,31 @@ int luagtk_get_boxed_value(lua_State *L, const void *p)
 
 
 /**
+ * A boxed value should now be used to fill a gtk_arg_types.
+ */
+void luagtk_boxed_to_ffi(lua_State *L, int index, union gtk_arg_types *dest,
+    ffi_type **argtype)
+{
+    struct boxed_lua_value *b = (struct boxed_lua_value*)
+	lua_topointer(L, index);
+    const char *type_name = g_type_name(b->type);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, b->ref);
+
+    // printf("luagtk_boxed_to_ffi: %p %s\n", b, type_name);
+
+    if (!strcmp(type_name, "gdouble")) {
+	dest->d = lua_tonumber(L, -1);
+	*argtype = &ffi_type_double;
+	lua_pop(L, 1);
+	return;
+    }
+
+    luaL_error(L, "%s boxed value contains unsupported type %s", msgprefix,
+	type_name);
+}
+
+
+/**
  * Given a boxed value, retrieve its contents.  Usually such boxed values
  * should be returned as GValue, which automatically "unwraps" such a box.
  */
@@ -119,6 +186,7 @@ static int l_get_boxed_value(lua_State *L)
 static const luaL_reg gtk_methods[] = {
     {"make_boxed_value",    l_make_boxed_value },
     {"get_boxed_value",	    l_get_boxed_value },
+    {"cast",		    l_cast },
     { NULL, NULL }
 };
 
@@ -134,4 +202,6 @@ void luagtk_boxed_register()
     luagtk_boxed_value_type = g_boxed_type_register_static("LuaValue",
 	_boxed_copy, _boxed_free);
 }
+
+
 
