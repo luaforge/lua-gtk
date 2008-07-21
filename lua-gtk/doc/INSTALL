@@ -11,7 +11,7 @@ Build Instructions for Linux
 My system is Debian/testing, where most of the required libraries are available
 as packages.  Prerequisites:
 
-  - Gtk2 (tested with 2.6.8, 2.8.16, 2.10.13, 2.12.5) with devel files
+  - Gtk2 (last tested with 2.12.10) with devel files
   - libffi
   - lua5.1, liblua-bit, liblua5.1-expat
   - lua sockets - required for the http/ftp etc. library
@@ -22,7 +22,7 @@ as packages.  Prerequisites:
 Package names in Debian:
 
 	libgtk2.0-dev
-	libffi4-dev
+	libffi5-dev
 	liblua5.1-0-dev
 	liblua5.1-expat0
 	liblua5.1-bit0
@@ -185,15 +185,25 @@ Step 1
 latest Gtk+2 libraries.  You need quite a few ZIP files for the individual
 components.  To make this easier, use the provided script:
 
-	mkdir -p mingw/gtk/zip
-	script/download-gtk-win.lua -d mingw/gtk/zip
+	mkdir -p mingw/gtk-zip mingw/gtk
+	script/download-gtk-win.lua mingw/gtk-zip
 	cd mingw/gtk
-	for i in zip/*.zip; do unzip $i; done
+	for i in ../gtk-zip/*.zip; do unzip $i; done
 
   Then install the Gtk runtime (not the -dev packages, just the normal ones)
 onto a Windows box.  Again, see README.win32.txt on how to edit the registry
 to add the install path to the search path.  It is possible to try it out with
 wine, although the fonts are at a huge size, I haven't figured out why, YMMV.
+
+  Interestingly, a few files seem to be missing from gtksourceview-2.2.2.zip,
+namely the *.rng files.  You have to copy them from the Linux package!  If
+these files are not present, you'll get this error message:
+
+	"could not find the RelaxNG schema file"
+
+  Copy the files styles.rng, language.rng and language2.rng from
+/usr/share/gtksourceview-2.0 to the appropriate directories of your Windows
+installation.
 
 
 Step 2
@@ -203,9 +213,9 @@ Build the library by calling
 
 	./configure --help
 	./configure --host win32-i386
-	make win32
+	make
 
-If gccxml produces an error, please try configuring with "--disable-gtkhtml",
+If gccxml produces an error, please try configuring with "--without gtkhtml",
 this fixes it for me.
 
 This builds the file build/win32-i386/gtk.dll.  To obtain a ZIP file with all

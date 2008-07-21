@@ -536,3 +536,21 @@ automatic conversion (removed)
 2008-07-13
 * support long long int, signed long long int.
 
+2008-07-16
+* support added for GtkSourceView, including an example
+
+2008-07-18
+* new configuration scheme with one file per library in libs/
+* configure script modified to use library config files
+* make-xml.lua script modified for new config files
+* Makefile.common modified for new config files
+* Makefile.common modified for new config files
+* parse-xml.lua modified for new config files
+* configure script rewritten in Lua
+
+2008-07-21
+* src/data.c gets the list of libraries to open from configure.lua
+* fix build process for Win32
+* boxed values with explicit type can be created with gtk.cast
+* first coverage analysis with gcov
+

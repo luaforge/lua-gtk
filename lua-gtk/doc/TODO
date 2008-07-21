@@ -30,12 +30,12 @@ BUGS
 
   GdkColor...
 
-- Next problem.  Arrays?  This is currently ignored.  It should add another
-  level of indirection, and possibly set a max. number of elements.  Basically
-  arrays could be nested, does this happen?
+- Arrays?  This is currently ignored.  It should add another level of
+  indirection, and possibly set a max. number of elements.  Basically arrays
+  could be nested, does this happen?
   
-- Next problem.  substructures and subunions are currently ignored.  Must
-  be supported e.g. for GdkEvent.  This has worked before?
+- Substructures and subunions are currently ignored.  Must be supported e.g.
+  for GdkEvent.  This has worked before?
 
   The elements can be accessed, though, e.g.
   dump_struct(gdkevent.grab_broken).  So, in reality, the data is all there.
@@ -53,9 +53,6 @@ BUGS
   writing into such structures.
 
 - g_convert & friends on win32 don't work.  some library component missing?
-
-- GtkTextTag sometimes freed with refcount 1, and later tagbuffer frees
-  it again.  some override is required!
 
 - GSList.  you have to call g_slist_free() yourself.  what about the
   items pointed to?  
@@ -126,6 +123,13 @@ IMPROVEMENTS
 
 - Cache the result of the lookup in luagtk_type_modify.  Allocate (type_count)
   number of short integers to store the offsets into the sorted string table.
+
+- can src/boxed.c and src/voidptr.c be merged?  Both wrap a Lua value in a
+  C structure.
+
+- order the lookup of dynamic libraries, e.g. by attaching a weight to
+  each lib in libs/*.lua.  This can reduce the number of DLLOOKUPs by placing
+  libgtk, libglib, libgobject first, and less frequently used libs later.
 
 - make it more modular?  I.e. support additional APIs through additional data
   files or rather .so/.dll files.  E.g. GtkSpell, or move GtkHTML into a 
@@ -247,7 +251,7 @@ _*_fch.g requires _*_fch.b * sizeof(short) bytes, I reckon.
   compile it in.  If not available at runtime, disable this part of the API.
 
   Done: Cairo, GLib, GObject, ATK, Pango, gdk-pixbuf, GDK, GTK+, GtkHTML,
-  libxml2, gio
+  libxml2, gio, GtkSourceView.
 
   GNOME Developer Platform Libraries (only non-deprecated):
   glib, gio, gobject, atk, at-spi, gail, pango, gdk-pixbuf, gdk, gtk+,
