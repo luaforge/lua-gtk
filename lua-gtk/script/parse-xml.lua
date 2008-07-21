@@ -34,8 +34,7 @@ output = require "xml-output"
 
 typedefs_sorted = {}
 typedefs_name2id = {}
-
-architecture = nil	-- target architecture
+config = {}		-- configuration of architecture, libraries
 free_methods = {}	-- [name] = 0/1
 input_file_name = nil
 parse_errors = 0	-- count errors
@@ -102,6 +101,20 @@ end
 
 function_list = {}
 
+function _get_include_paths()
+    local cfg_file, cfg, tbl
+
+    tbl = {}
+    for _, lib in ipairs(config.libs) do
+	cfg_file = string.format("libs/%s.lua", lib.name)
+	cfg = load_config(cfg_file)
+	for _, path in ipairs(cfg.include_dirs or {}) do
+	    tbl[#tbl + 1] = "/" .. path .. "/"
+	end
+    end
+
+    return tbl
+end
 ---
 -- Take a look at all relevant functions and the data types they reference.
 -- Mark all these data types as used.  Note that functions that only appear
@@ -112,8 +125,7 @@ function_list = {}
 -- a common prefix, e.g. getSystemId from libxml2.
 --
 function analyze_functions()
-    local paths = { "gtk-2.0", "glib-2.0", "atk-1.0", "libxml2",
-	"gtkhtml-2.0", "pango-1.0", "cairo", "gtksourceview-2.0" }
+    local paths = _get_include_paths()
     local good_files = {}	    -- [id] = true
 
     -- determine which files are good
@@ -350,7 +362,8 @@ function get_extra_data()
 		inverse = true
 		arch = arch2
 	    end
-	    active = arch == "all" and true or string.match(architecture, arch)
+	    active = arch == "all" and true or string.match(config.arch_os,
+		arch)
 	    if inverse then active = not active end
 	end
 
@@ -475,6 +488,21 @@ function info_num(label, value)
     print(string.format("  %-40s%d", label, value))
 end
 
+---
+-- Read a Lua configuration file.  In case of error, aborts the application.
+--
+-- @param fname  The path and name of the file to load
+-- @return  A table with the variables defined in that file.
+--
+function load_config(fname)
+    local chunk, msg = loadfile(fname)
+    if not chunk then print(msg); os.exit(1) end
+    local tbl = {}
+    setfenv(chunk, tbl)
+    chunk()
+    return tbl
+end
+
 
 -- MAIN --
 
@@ -490,12 +518,15 @@ end
 
 -- remaining must be three --
 if #arg ~= 3 then
-    print(string.format("Usage: %s [options] {outputdir} {xmlfile} {arch}",
+    print(string.format("Usage: %s [options] {outputdir} {xmlfile} {cfgfile}",
 	arg[0]))
     return
 end
 
-architecture = arg[3]
+config = load_config(arg[3])
+assert(config.arch, "No architecture defined in config file")
+config.arch = string.lower(config.arch)
+config.arch_os = string.match(config.arch, "^[^-]+")
 
 -- read the XML data
 xml.parse_xml(arg[2])
