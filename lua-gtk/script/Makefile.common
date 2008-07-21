@@ -31,16 +31,6 @@ else
 OFILES	+=hash-simple.$(O) ${HASH}.$(O) _funclist.$(O) _enumlist.$(O)
 endif
 
-# -- is libgtkhtml available? --
-ifeq ($(HAVE_HTML), 1)
-MAKE_XML_FLAGS	+=--enable-gtkhtml
-endif
-
-# -- is libgtksourceview available? --
-ifeq ($(HAVE_SOURCEVIEW), 1)
-MAKE_XML_FLAGS	+=--enable-gtksourceview
-endif
-
 gtk2dll: build-tests ${ODIR}${ODLL}
 
 config configure:
@@ -80,16 +70,16 @@ ${ODIR}_override.c: ${ODIR}override.luac ${ODIR}file2c
 	$H ${ODIR}file2c override < $< > $@
 
 ${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}gtkdata.%.h: ${ODIR}types.xml \
-	script/parse-xml.lua src/fundamental.lua \
+	script/parse-xml.lua src/fundamental.lua $(ODIR)config.lua \
 	src/char_ptr_handling.txt script/xml-types.lua script/xml-parser.lua \
 	script/xml-output.lua script/common.lua src/include_types.txt
 	@echo "Generating Gtk Data..."
-	$H script/parse-xml.lua "${ODIR}" "$<" "$(ARCH)"
+	$H script/parse-xml.lua "${ODIR}" "$<" "$(ODIR)config.lua"
 
 # if config.h changes, chances are that make-xml must be run again.
-${ODIR}types.xml: script/make-xml.lua $(ODIR)config.h
+${ODIR}types.xml: script/make-xml.lua $(ODIR)config.h $(ODIR)config.lua
 	$I
-	$H script/make-xml.lua $(MAKE_XML_FLAGS) "$@" $(ARCH)
+	$H script/make-xml.lua "$@" $(ODIR)config.lua
 
 ${ODIR}%.$(O): ${ODIR}%.c
 	$I
@@ -107,7 +97,7 @@ ${ODIR}ffi-types.$(O): src/ffi-types.c
 
 ${ODIR}ffi-types: ${ODIR}ffi-types.$(O)
 	$I
-	$H ${HOSTCC} -o $@ $< -lffi
+	$H ${HOSTCC} $(CFLAGS) -o $@ $< -lffi
 
 # -- cmph hash --
 
