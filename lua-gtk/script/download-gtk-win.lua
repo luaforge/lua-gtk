@@ -18,19 +18,22 @@ for name, descr in pairs { curl="curl binding", lfs="Lua Filesystem" } do
     end
 end
 
-require "curl"
-require "lfs"
-
 -- Access via FTP is basically possible, but may use reverse DNS checking and
 -- not play nicely with firewalls and NAT, so I use HTTP.
 base = "http://ftp.gnome.org/pub/gnome/binaries/win32/"
 
--- main packages; the -dev libraries are required for building, too.
-packages1 = { "atk", "glib", "gtk+", "pango" }
+-- main packages; the -dev libraries are required for building, too (?).
+-- NOTE: gtkhtml is there, but it is GtkHTML 1 version 3.x, but not GtkHTML 2,
+-- which is supported by lua-gtk.
+packages1 = { "atk", "glib", "gtk+", "pango", "gtksourceview",
+    "gail", "GConf", "libgnome", "ORBit2", "libbonobo", "gnome-vfs" }
 
 -- packages in dependencies; no -dev libraries needed.
 packages2 = { "cairo", "gettext%-runtime", "libiconv", "libjpeg",
-    "libpng", "libtiff", "zlib" }
+    "libpng", "libtiff", "zlib", "libgnurx", "libxml2", "popt" }
+
+-- Note: the following packages are only required for GtkSourceView:
+-- gconf, gailutil, gnome, libgnurx, xml2, ORBit2, libbonobo, popt, gnome-vfs
 
 devel = false
 
@@ -47,6 +50,7 @@ function get_main_packages(c, list)
 	if dir then
 	    dir = base .. package .. "/" .. dir 
 	    pat = string.gsub(package, "%+", "%%+")
+	    pat = string.gsub(pat, "%-", "%%-")
 	    dir_list = get_directory_listing(c, dir)
 	    get_file(c, dir_list, dir, string.format("^%s%%-%%d.*zip$", pat))
 	    if devel then
