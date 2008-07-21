@@ -34,9 +34,14 @@ endif
 # If not configured yet, do it now
 ifeq ($(wildcard build/$(ARCH)/config.make), )
 
+CONFIG_OPT=
+ifneq ($(ARCH), )
+CONFIG_OPT=--host $(ARCH)
+endif
+
 tags .DEFAULT::
 	@echo Running the configure script...
-	$H ./configure --debug --host $(ARCH) && $(submake) $(MAKECMDGOALS)
+	$H ./configure.lua --debug $(CONFIG_OPT) && $(submake) $(MAKECMDGOALS)
 else
 
 $(warning Building for $(ARCH)...)
