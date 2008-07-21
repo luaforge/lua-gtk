@@ -406,6 +406,7 @@ static void _closure_push_arguments(lua_State *L, struct callback *cb,
     // push the arguments to the Lua stack
     for (arg_nr=0; sig < sig_end; arg_nr ++) {
 	ar->type_idx = get_next_argument(&sig);
+	call_info_check_argcount(ar->ci, arg_nr + 1);
 	if (arg_nr == 0)    // skip retval
 	    continue;
 	ar->func_arg_nr = arg_nr;
@@ -453,7 +454,7 @@ static void _closure_return_values(lua_State *L, struct callback *cb,
 	ar->type_idx = get_next_argument(&sig);
 
 	// only consider the return value and output arguments.
-	if (arg_nr > 0 && !ar->ci->arg_flags[arg_nr])
+	if (arg_nr > 0 && !ar->ci->args[arg_nr].flags)
 	    continue;
 	
 	ar->type = type_list + ar->type_idx;
