@@ -10,7 +10,7 @@ LIBFINAL := touch
 .PRECIOUS: ${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}%.keys ${ODIR}%.mph
 
 OFILES	:=types.$O gtk2.$O boxed.$O data.$O enum.$O voidptr.$O \
-	call.$(O) callback.$(O) channel.$(O) gvalue.$(O) override.$(O) \
+	call.$(O) callback.$(O) closure.$O channel.$O gvalue.$O override.$O \
 	debug.$(O) widget.$(O) widget_types.$(O) widget_meta.$(O) \
 	gtkdata.structs.$(O) _override.$(O) gtkdata.globals.$O
 LH	:=src/luagtk.h ${ODIR}config.h
@@ -240,10 +240,6 @@ doc:
 	$H luadoc -d build/reference lib src/*.c
 	( cd html_in; ../script/gen-html.lua )
 
-#	src/gtk2.c \
-#		src/call.c src/callback.c \
-#		src/channel.c src/override.c
-
 help:
 	@echo "Usage: make.sh [architecture] [target]"
 	@echo "  architecture:  optional, may be linux-i386, linux-amd64 or win32-i386"
@@ -257,6 +253,7 @@ funclist: all ${ODIR}gtkdata.funcs.txt
 
 ${ODIR}call.$O: ${ODIR}luagtk_ffi.h ${LH}
 ${ODIR}callback.$O: ${LH}
+${ODIR}closure.$O: ${LH}
 ${ODIR}channel.$O: ${LH}
 ${ODIR}data.$O: ${LH} src/luagtk_hash.h
 ${ODIR}debug.$O: ${LH}
