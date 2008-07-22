@@ -461,6 +461,7 @@ int luaopen_gtk(lua_State *L)
     luagtk_init_channel(L);
     luagtk_init_debug(L);
     luagtk_init_boxed(L);
+    luagtk_init_closure(L);
 
     // an object that can be used as NIL
     lua_pushliteral(L, "NIL");
