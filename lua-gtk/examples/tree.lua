@@ -43,10 +43,12 @@ end
 function show_selection_2(btn, mainwin)
     local tv = mainwin.tree_view
     local sel = tv:get_selection()
-    sel:selected_foreach(function(model, path, iter, data)
+    sel:selected_foreach(gtk.closure(function(model, path, iter, data)
 	local s = model:get_value(iter, 2)
 	print(s)
-    end, nil)
+	-- demonstrate that the active closure won't be collected
+	collectgarbage "collect"
+    end), nil)
 end
 
 function MainWin.new()
