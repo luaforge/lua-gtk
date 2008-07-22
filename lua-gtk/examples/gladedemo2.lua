@@ -6,7 +6,7 @@
 require "gtk"
 require "gtk.glade"
 
-local widgets
+widgets = nil
 
 -- Signal handlers for Menu
 function window1_destroy_cb()
@@ -33,10 +33,11 @@ function main()
     file = string.gsub(arg[0], "%.lua", ".glade")
     tree = gtk.glade.read(file)
     widgets = gtk.glade.create(tree, "window1")
-    gtk.main()
 end
 
 main()
+collectgarbage("collect")
+gtk.main()
 widgets = nil
 
 -- Show widgets that are still referenced.  The list should be empty, at
