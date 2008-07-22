@@ -341,7 +341,11 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 }
 
 
-
+/**
+ * Given a type, change the level of indirections by "ind_delta", so for
+ * example ("char**", -1) turns into "char*".  This is needed when a function
+ * argument is an output argument.
+ */
 const struct type_info *luagtk_type_modify(const struct type_info *ti,
     int ind_delta)
 {
@@ -377,6 +381,7 @@ static int _call_return_values(lua_State *L, int index, struct call_info *ci)
     for (arg_nr = 0; s < s_end; arg_nr++) {
 	ar.type_idx = get_next_argument(&s);
 
+	// ffi2lua_xxx functions may use more than one argument.
 	if (skip) {
 	    skip--;
 	    continue;
@@ -394,8 +399,8 @@ static int _call_return_values(lua_State *L, int index, struct call_info *ci)
 	if (idx) {
 
 	    // Find the type of the returned value; it's the type of the
-	    // argument with one less level of indirections.
-	    // XXX this should be cached.
+	    // argument with one less level of indirections.  This probably
+	    // could be cached, but I don't think that's worth the effort.
 	    if (arg_nr != 0) {
 		const char *ftype_name = FTYPE_NAME(ar.arg_type);
 		// struct* is not an output parameter.
@@ -419,11 +424,6 @@ static int _call_return_values(lua_State *L, int index, struct call_info *ci)
 	    ar.arg = &ci->args[arg_nr].ffi_arg;
 	    ar.func_arg_nr = arg_nr;
 	    ar.lua_type = arg_nr ? lua_type(L, ar.index) : LUA_TNIL;
-#if 0
-	    if (arg_nr > 0)
-		printf("retval #%d, index %d, type %s -> %s\n", arg_nr,
-		    ar.index, lua_typename(L, ar.lua_type), TYPE_NAME(ar.type));
-#endif
 	    int cnt = ffi_type_ffi2lua[idx](&ar);
 	    if (cnt > 0)
 		skip = cnt - 1;
@@ -502,7 +502,8 @@ int luagtk_call(lua_State *L, struct func_info *fi, int index)
 	    /* evaluate the return values */
 	    rc = _call_return_values(L, index, ci);
 	} else {
-	    printf("FFI call to %s couldn't be initialized\n", fi->name);
+	    return luaL_error(L, "%s FFI call to %s couldn't be initialized.",
+		msgprefix, fi->name);
 	}
     }
 
