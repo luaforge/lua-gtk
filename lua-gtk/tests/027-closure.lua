@@ -7,6 +7,7 @@
 --
 
 require "gtk"
+-- gtk.set_debug_flags("closure")
 
 compare_count = 0
 
@@ -41,7 +42,11 @@ function value_destroy(value)
 end
 
 -- has to create a closure
-t = gtk.g_tree_new_full(compare_func, nil, key_destroy, value_destroy)
+cl1 = gtk.closure(compare_func)
+cl2 = gtk.closure(key_destroy)
+cl3 = gtk.closure(value_destroy)
+t = gtk.g_tree_new_full(cl1, nil, cl2, cl3)
+-- cl3 = nil
 
 -- Add some nodes to the tree.  Arguments are "gpointer", i.e. void* wrappers
 -- are created for key and value.  Note that gtk.void_ptr is NOT used, so no
@@ -57,15 +62,16 @@ collectgarbage("collect")
 collectgarbage("collect")
 
 -- when using an iterator that doesn't return boolean, an error must happen.
-rc, msg = pcall(t.foreach, t, traverse_func, gtk.void_ptr(nil))
+traverse_func_cl = gtk.closure(traverse_func)
+rc, msg = pcall(t.foreach, t, traverse_func_cl, gtk.void_ptr(nil))
 assert(rc == false)
 
 -- a "good" iterator function returns a boolean.  In the first case, it
 -- returns false and thus only touches the first item.
-t:foreach(traverse_func, gtk.void_ptr(false))
+t:foreach(traverse_func_cl, gtk.void_ptr(false))
 
 -- Now traverse all items.
-t:foreach(traverse_func, gtk.void_ptr(true))
+t:foreach(traverse_func_cl, gtk.void_ptr(true))
 
 assert(seen["1"] == 3)
 assert(seen["2"] == 1)
