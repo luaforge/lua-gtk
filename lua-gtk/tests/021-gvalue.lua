@@ -54,3 +54,8 @@ v:init(gtk.G_TYPE_UINT64)
 v:set_uint64(-1)
 assert_ismaxint(v)
 
+-- test double
+v:unset()
+v:init(gtk.G_TYPE_DOUBLE)
+v:set_double(5.0)
+
