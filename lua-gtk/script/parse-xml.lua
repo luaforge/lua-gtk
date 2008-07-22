@@ -420,6 +420,9 @@ enums = {}
 -- Certain #defines from the Gtk/Gdk include files are relevant, but not
 -- included in types.xml.  Extract them and add them to the ENUM list.
 --
+-- @param fname  Full pathname of the file to read
+-- @param nums  boolean - whether to extract numerical #defines
+--
 function parse_header_file(fname, nums)
     local line2 = ""
     local name, value
@@ -447,7 +450,6 @@ function parse_header_file(fname, nums)
 		if name and value then
 		    assert(not enums[name])
 		    enums[name] = { val=tonumber(value), context="__dummy" }
-		    -- print(encode_enum(name, tonumber(value), 0))
 		    break
 		end
 	    end
@@ -458,7 +460,6 @@ function parse_header_file(fname, nums)
 	    if name and value then
 		assert(not enums[name])
 		enums[name] = { val=value, context="__dummy" }
-		-- print(encode_enum(name, value, 0))
 		break
 	    end
 
@@ -469,8 +470,17 @@ function parse_header_file(fname, nums)
 		-- *4 is what G_TYPE_MAKE_FUNDAMENTAL does.
 		assert(not enums[name])
 		enums[name] = { val=tonumber(value) * 4, context="__dummy" }
-		-- print(encode_enum(name, value * 4, 0))
 		break
+	    end
+
+	    -- Atoms
+	    name, value = string.match(line,
+		"^#define ([A-Z0-9_]+)%s+_GDK_MAKE_ATOM%s*%((%d+)%)")
+	    if name and value then
+		assert(not enums[name])
+		local ctx = typedefs_name2id["GdkAtom*"]
+		assert(ctx, "Unknown type GdkAtom* in #define")
+		enums[name] = { val=tonumber(value), context=ctx }
 	    end
 
 	    -- nothing usable in this line, skip.
@@ -560,6 +570,8 @@ parse_header_file(path_gtk .. "/gdk/gdkkeysyms.h", true)
 parse_header_file(path_glib .. "/gio/gfileinfo.h", false)
 parse_header_file(path_glib .. "/gio/gvolumemonitor.h", false)
 parse_header_file(path_glib .. "/glib/gmain.h", true)
+parse_header_file(path_gtk .. "/gdk/gdkselection.h", false)
+parse_header_file(path_gtk .. "/gdk/gdktypes.h", false)
 
 output.output_types(arg[1] .. "/gtkdata.structs.c")
 output.output_enums(arg[1] .. "/gtkdata.enums.txt")

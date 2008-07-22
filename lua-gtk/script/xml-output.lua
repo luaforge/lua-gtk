@@ -30,6 +30,8 @@ function output_enums(ofname)
 
     for k, enum in pairs(xml.enum_values) do
 	t = typedefs[enum.context]
+	assert(t, "Unknown context (structure) " .. tostring(enum.context)
+	    .. " for enum " .. k)
 	if t.in_use or t.enum_redirect then
 	    keys[#keys + 1] = k
 	end
