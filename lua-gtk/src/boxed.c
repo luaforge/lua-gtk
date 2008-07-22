@@ -31,27 +31,6 @@ struct boxed_lua_value {
     GType type;		    // if nonzero, specifies which type to cast to
 };
 
-static gpointer _boxed_copy(gpointer val)
-{
-    struct boxed_lua_value *b = (struct boxed_lua_value*) val, *b2;
-
-    b2 = g_slice_new(struct boxed_lua_value);
-    // printf("boxed copy %p -> %p\n", b, b2);
-
-    b2->L = b->L;
-    lua_rawgeti(b->L, LUA_REGISTRYINDEX, b->ref);
-    b2->ref = luaL_ref(b->L, LUA_REGISTRYINDEX);
-
-    return (gpointer) b2;
-}
-
-static void _boxed_free(gpointer val)
-{
-    // printf("boxed free %p\n", val);
-    struct boxed_lua_value *b = (struct boxed_lua_value*) val;
-    luaL_unref(b->L, LUA_REGISTRYINDEX, b->ref);
-    g_slice_free(struct boxed_lua_value, val);
-}
 
 static void _fill_boxed_value(lua_State *L, struct boxed_lua_value *b,
     int index)
@@ -62,8 +41,47 @@ static void _fill_boxed_value(lua_State *L, struct boxed_lua_value *b,
     b->type = 0;
 }
 
+/**
+ * Experiment - access the object stored in the boxed value.  The type casting
+ * for widgets is not really useful, is it?
+ */
+static int l_boxed_index(lua_State *L)
+{
+    struct boxed_lua_value *b = (struct boxed_lua_value*) lua_topointer(L, 1);
+    const char *key = lua_tostring(L, 2);
+    if (!strcmp(key, "value")) {
+	lua_rawgeti(b->L, LUA_REGISTRYINDEX, b->ref);
+
+	// no type cast added - simply return the value.
+	if (!b->type)
+	    return 1;
+
+	// for this to work, the Lua value must be a widget.
+	struct widget *w = luagtk_check_widget(L, -1);
+	if (!w)
+	    return luaL_error(L, "%s %s is not a widget, cast impossible.",
+		msgprefix, LUAGTK_BOXED);
+
+	GTK_INITIALIZE();
+	const char *type_name = g_type_name(b->type);
+	const struct type_info *ti = find_struct(type_name, 1);
+	luagtk_get_widget(L, w->p, ti - type_list, 0);
+	return 1;
+    }
+    return 0;
+}
+
+// pretty printing
+static int l_boxed_tostring(lua_State *L)
+{
+    lua_pushfstring(L, LUAGTK_BOXED " at %p", lua_topointer(L, 1));
+    return 1;
+}
+
 static const luaL_reg boxed_methods[] = {
-    { NULL, NULL }
+    { "__index",    l_boxed_index },
+    { "__tostring", l_boxed_tostring },
+    { NULL,	    NULL }
 };
 
 // On the top of the stack is the new userdata.  Set an appropriate metatable
@@ -113,7 +131,8 @@ static int l_cast(lua_State *L)
 {
     const char *type_name = luaL_checkstring(L, 1);
     luaL_checkany(L, 2);
-    GType type = g_type_from_name(type_name);
+    GTK_INITIALIZE();
+    GType type = luagtk_g_type_from_name(type_name);
     if (!type)
 	return luaL_error(L, "%s unknown type %s", msgprefix, type_name);
 
@@ -195,13 +214,40 @@ void luagtk_init_boxed(lua_State *L)
     luaL_register(L, NULL, gtk_methods);
 }
 
-// register a new boxed type with GObject that allows to wrap an arbitrary
-// Lua value.
+/**
+ * GObject wants to copy a boxed value.  We now need another reference for the
+ * Lua value.
+ */
+static gpointer _boxed_copy(gpointer val)
+{
+    struct boxed_lua_value *b = (struct boxed_lua_value*) val, *b2;
+
+    b2 = g_slice_new(struct boxed_lua_value);
+    b2->L = b->L;
+    lua_rawgeti(b->L, LUA_REGISTRYINDEX, b->ref);
+    b2->ref = luaL_ref(b->L, LUA_REGISTRYINDEX);
+
+    return (gpointer) b2;
+}
+
+/**
+ * When GObject wants to free a boxed value, unreference the Lua value
+ * associated with it, and release the memory.
+ */
+static void _boxed_free(gpointer val)
+{
+    struct boxed_lua_value *b = (struct boxed_lua_value*) val;
+    luaL_unref(b->L, LUA_REGISTRYINDEX, b->ref);
+    g_slice_free(struct boxed_lua_value, val);
+}
+
+/**
+ * Register a new boxed type with GObject that allows to wrap an arbitrary Lua
+ * value.
+ */
 void luagtk_boxed_register()
 {
     luagtk_boxed_value_type = g_boxed_type_register_static("LuaValue",
 	_boxed_copy, _boxed_free);
 }
-
-
 
