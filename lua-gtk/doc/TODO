@@ -14,7 +14,9 @@ BUGS
 ====
 
 - regressions
-	dump_struct: show what a struct* is if it is not NULL
+	message "No automatic guessing" for:
+		- MurrineStyle - GtkStyle
+		- GdkGCX11 - GdkGC
 
 - g_assertion_message is used in GLib starting with 2.15 for the macro
   G_VALUE_COLLECT.  If lua-gtk is compiled for 2.15 or newer, this call
@@ -79,7 +81,10 @@ BUGS
 - running Win executables with wine under Linux, and using glade.lua - font
   sizes are insanely large.
 
-
+- automatically create a closure when a function is given as an argument to
+  a Gtk function.  Make sure that it won't be GC'd until the function call
+  returns.  Useful for foreach() type of functions.
+  see src/types.c:lua2ffi_func_ptr
 
 MISSING FEATURES
 ================
@@ -99,8 +104,8 @@ MISSING FEATURES
 
 - wrapper for gtk_tree_model_get would be nice.
 
-- add more #defines from the Gtk includes to the ENUM list automatically.
-	gdk/gdkselection.h
+- accept GdkAtom enums in lua2ffi_struct_ptr, or rather make GdkAtom #defines
+  behave like struct*.
 
 - more documentation
 	- user documentation must be written by hand, the luadoc output

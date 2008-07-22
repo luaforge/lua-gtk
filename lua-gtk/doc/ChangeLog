@@ -553,4 +553,24 @@ automatic conversion (removed)
 * fix build process for Win32
 * boxed values with explicit type can be created with gtk.cast
 * first coverage analysis with gcov
+* removed the arbitrary limit on number of arguments to a library function.
+This limit could be exceeded with vararg functions.
+* removal of the g_object_%s lookup for methods of objects in widget_meta.c
+* fixed a refcount problem in gvalue.c
+* inclusion of following types (see src/include_types.txt): GtkHPaned,
+GtkVPaned, GtkVSeparator, GtkHSeparator, GtkCellRendererPixbuf, AtkNoOpObject,
+AtkNoOpObjectFactory
+* parse-xml: add some GdkAtom #defines
+
+
+2008-07-22
+* fix for tests/018-enumptr.lua
+* dump_struct: follow pointers to other structures
+* boxedvalue: metatable with __tostring and __index, via that "value" to
+access the value; do a typecast if so requested
+* closures: code moved to own file (closure.c)
+* closures: new Lua value for closures.  The user has to create closures
+explicitely now via gtk.closure(func), which allows for correct memory
+management
+* new debug flag "closure" to debug closure allocation and freeing.
 
