@@ -406,6 +406,7 @@ function write_config()
     cfg_m("CFLAGS", cflags .. " " .. flags)
     if use_liblist then
 	cfg_h("#define LUAGTK_LIBRARIES " .. table.concat(libraries) .. ";")
+	cfg_h("#define LUAGTK_LIBRARY_CNT " .. #libraries)
     end
     if extra_lib ~= "" then
 	cfg_m("EXTRA_LIB", extra_lib)
