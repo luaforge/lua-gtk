@@ -12,7 +12,7 @@ require "gtk"
 compare_count = 0
 
 -- Comparison function for insertion into the g_tree.
-function compare_func(a, b)
+function compare_func(a, b, data)
     compare_count = compare_count + 1
     a = a.value
     b = b.value
@@ -46,7 +46,12 @@ cl1 = gtk.closure(compare_func)
 cl2 = gtk.closure(key_destroy)
 cl3 = gtk.closure(value_destroy)
 t = gtk.g_tree_new_full(cl1, nil, cl2, cl3)
--- cl3 = nil
+t._cl1 = cl1
+t._cl2 = cl2
+t._cl3 = cl3
+cl1 = nil
+cl2 = nil
+cl3 = nil
 
 -- Add some nodes to the tree.  Arguments are "gpointer", i.e. void* wrappers
 -- are created for key and value.  Note that gtk.void_ptr is NOT used, so no
@@ -58,20 +63,18 @@ for i = 1, 100 do
 end
 
 -- demonstrate that the wrappers created so far are not freed prematurely.
-collectgarbage("collect")
-collectgarbage("collect")
+collectgarbage "collect" 
 
 -- when using an iterator that doesn't return boolean, an error must happen.
-traverse_func_cl = gtk.closure(traverse_func)
-rc, msg = pcall(t.foreach, t, traverse_func_cl, gtk.void_ptr(nil))
+rc, msg = pcall(t.foreach, t, traverse_func, gtk.void_ptr(nil))
 assert(rc == false)
 
 -- a "good" iterator function returns a boolean.  In the first case, it
 -- returns false and thus only touches the first item.
-t:foreach(traverse_func_cl, gtk.void_ptr(false))
+t:foreach(traverse_func, gtk.void_ptr(false))
 
 -- Now traverse all items.
-t:foreach(traverse_func_cl, gtk.void_ptr(true))
+t:foreach(traverse_func, gtk.void_ptr(true))
 
 assert(seen["1"] == 3)
 assert(seen["2"] == 1)
@@ -81,7 +84,7 @@ assert(seen["100"] == 1)
 t:destroy()
 
 -- check that no wrappers remain allocated.
-collectgarbage("collect")
+collectgarbage "collect" 
 
 -- statistics:
 --  number of times the compare_function was called
