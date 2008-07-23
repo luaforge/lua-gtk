@@ -30,9 +30,9 @@ function build_gui()
     b = gtk.button_new_from_stock(gtk.GTK_STOCK_OK)
     b:connect('clicked', function()
 	-- the custom function returns 0 if found, 1 otherwise.
-	item = grp:find_custom(nil, gtk.closure(function(a, the_nil)
+	item = grp:find_custom(nil, function(a, the_nil)
 	    return a:get_active() and 0 or 1
-	end))
+	end)
 	if item then
 	    r = item.data:cast("GtkRadioButton")
 	    print("You selected", r._id)

@@ -29,7 +29,7 @@ end
 menu:show_all()
 
 now = gtk.get_current_event_time()
-menu:popup(nil, nil, gtk.closure(position_func), nil, 3, now)
+menu:popup(nil, nil, position_func, nil, 3, now)
 
 gtk.main()
 
