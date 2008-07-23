@@ -248,9 +248,11 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
     const unsigned char *s, *s_end;
     struct argconv_t ar;
     struct call_arg *ca;
-    int arg_nr, stack_top = lua_gettop(L), idx;
+    int arg_nr, idx;
 
     /* build the call stack by parsing the parameter list */
+    ar.stack_top = lua_gettop(L);	    // last argument's index
+    ar.stack_curr_top = ar.stack_top;	    // expected top (for debuggin)
     ar.L = L;
     ar.ci = ci;
     s = ci->fi->args_info;
@@ -261,7 +263,7 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 
     // Check that enough space for arguments (+1 for the return value)
     // is allocated.
-    int arg_count = stack_top - index;
+    int arg_count = ar.stack_top - index;
     call_info_check_argcount(ci, arg_count + 1);
 
     // look at each required parameter for this function.
@@ -286,7 +288,7 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 	}
 
 	// No more arguments available?
-	if (index+arg_nr > stack_top) {
+	if (index+arg_nr > ar.stack_top) {
 	    // If the current (probably last) argument is vararg, this is OK,
 	    // because a vararg doesn't need any extra arguments.
 	    if (strcmp(FTYPE_NAME(ar.arg_type), "vararg")) {
@@ -306,13 +308,13 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 	    ar.index = index + arg_nr;
 	    ar.arg = &ci->args[arg_nr].ffi_arg;
 	    ar.func_arg_nr = arg_nr;
-	    int st_pos_1 = lua_gettop(L);
+//	    int st_pos_1 = lua_gettop(L);
 	    ffi_type_lua2ffi[idx](&ar);
 
 	    // Shouldn't happen.  Can be fixed, but complain anyway
-	    if (lua_gettop(L) != st_pos_1) {
+	    if (lua_gettop(L) != ar.stack_curr_top) {
 		call_info_msg(ci, LUAGTK_DEBUG, "lua2ffi changed the stack\n");
-		lua_settop(L, st_pos_1);
+		lua_settop(L, ar.stack_curr_top);
 	    }
 
 	    // The function might use up more than one parameter, e.g. when
@@ -331,7 +333,7 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
     ci->arg_count = arg_nr - 1;
 
     // Warn about unused arguments.
-    int n = stack_top - (index+arg_nr-1);
+    int n = ar.stack_top - (index+arg_nr-1);
     if (n > 0) {
 	call_info_msg(ci, LUAGTK_WARNING,
 	    "%d superfluous argument%s\n", n, n==1?"":"s");
@@ -459,7 +461,10 @@ int luagtk_call_byname(lua_State *L, const char *func_name)
  * Call a library function from Lua.  The information about parameters and
  * return values is compiled in (automatically generated). 
  *
- * Stack: parameters starting at "index".
+ * @param L  Lua State
+ * @param fi  Description of the library function to call
+ * @param index  Lua stack position where the first argument is
+ * @return  The number of results on the Lua stack
  */
 int luagtk_call(lua_State *L, struct func_info *fi, int index)
 {
