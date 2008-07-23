@@ -279,57 +279,59 @@ static int _special_alloc(const char *struct_name)
 #undef _VERSION
 
 
-/**
- * Allocate a structure, initialize with zero and return it.
+/*- Do the actual allocation of one or more items
  *
- * This is NOT intended for widgets or structures that have specialized
- * creator functions, like gtk_window_new and such.  Use it for simple
- * structures like GtkTreeIter.
- *
- * The widget is, as usual, a Lua wrapper in the form of a userdata,
- * containing a pointer to the actual widget.
- *
- * @name new
- * @luaparam name  Name of the structure to allocate
- * @luaparam ...  optional additional arguments to the allocator function.
- * @luareturn The new structure
+ * @param count  Number of contiguous structures to allocate.  If 0, then
+ *  allocate a single object, while 1 means an array with just one element.
+ * @param arg_start  Index on the Lua stack of the first extra argument
  */
-static int l_new(lua_State *L)
+static int _new_array(lua_State *L, int count, int arg_start)
 {
     const char *struct_name = luaL_checkstring(L, 1);
     const struct type_info *ti;
     void *p;
     struct func_info fi;
     char tmp_name[80];
-    int rc;
+    int rc, flags;
 
     GTK_INITIALIZE();
 
-    if (!(ti=find_struct(struct_name, 1))) {
-	printf("%s structure %s not found\n", msgprefix, struct_name);
-	return 0;
+    if (!(ti=find_struct(struct_name, 1)))
+	return luaL_error(L, "%s structure %s not found\n", msgprefix,
+	    struct_name);
+
+    /* There may be an allocator function; if so, use it (but only for single
+     * objects, not for arrays); use the optional additional arguments */
+    if (count) {
+	luagtk_make_func_name(tmp_name, sizeof(tmp_name), struct_name, "new");
+	if (find_func(tmp_name, &fi))
+	    return luagtk_call(L, &fi, arg_start);
     }
 
-    /* There may be an allocator function; if so, use it; any additional
-     * parameters to this function start at Lua stack position 2, use them. */
-    luagtk_make_func_name(tmp_name, sizeof(tmp_name), struct_name, "new");
-    if (find_func(tmp_name, &fi))
-	return luagtk_call(L, &fi, 2);
-
     /* no additional arguments must be given - they won't be used. */
-    luaL_checktype(L, 2, LUA_TNONE);
+    luaL_checktype(L, arg_start, LUA_TNONE);
 
-    /* Some objects don't use the GSlice mechanism, depending on the Gtk
-     * version.  Allocation would be fine, but calling the free or copy
-     * function would mess things up. */
-    rc = _special_alloc(struct_name);
+    if (count) {
+	/* Arrays are marked specially.  Even if count == 1, this is still
+	 * an array and must support the access to array[1]. */
+	rc = 1;
+	flags = FLAG_ARRAY | FLAG_NEW_OBJECT;
+    } else {
+	/* Some objects don't use the GSlice mechanism, depending on the Gtk
+	 * version.  Allocation would be fine, but calling the free or copy
+	 * function would mess things up.  Therefore determine what method
+	 * to use. */
+	rc = _special_alloc(struct_name);
+	flags = FLAG_ALLOCATED | FLAG_NEW_OBJECT;
+    }
+
     switch (rc) {
 	case 0:
 	    p = g_slice_alloc0(ti->st.struct_size);
 	    break;
 	
 	case 1:
-	    p = g_malloc(ti->st.struct_size);
+	    p = g_malloc(ti->st.struct_size * count);
 	    break;
 	
 	case 2:;
@@ -354,8 +356,52 @@ static int l_new(lua_State *L)
     /* Make a Lua wrapper for it, push it on the stack.  FLAG_ALLOCATED causes
      * the _malloc_handler be used, and FLAG_NEW_OBJECT makes it not complain
      * about increasing the (non existant) refcounter. */
-    luagtk_get_widget(L, p, ti - type_list, FLAG_ALLOCATED | FLAG_NEW_OBJECT);
+    luagtk_get_widget(L, p, ti - type_list, flags);
+
+    if (count) {
+	struct widget *w = (struct widget*) lua_topointer(L, -1);
+	w->array_size = count;
+    }
+    
     return 1;
+}
+
+/**
+ * Allocate a structure, initialize with zero and return it.
+ *
+ * This is NOT intended for widgets or structures that have specialized
+ * creator functions, like gtk_window_new and such.  Use it for simple
+ * structures like GtkTreeIter.
+ *
+ * The widget is, as usual, a Lua wrapper in the form of a userdata,
+ * containing a pointer to the actual widget.
+ *
+ * @name new
+ * @luaparam name  Name of the structure to allocate
+ * @luaparam ...  optional additional arguments to the allocator function.
+ * @luareturn The new structure
+ */
+static int l_new(lua_State *L)
+{
+    return _new_array(L, 0, 2);
+}
+
+
+/**
+ * Allocate an array of structures.
+ *
+ * @name new_array
+ * @luaparam name  Name of the structure
+ * @luaparam n  Number of elements to allocate
+ * @luareturn  The widget array
+ *
+ */
+static int l_new_array(lua_State *L)
+{
+    int n = luaL_checknumber(L, 2);
+    if (n > 0)
+	return _new_array(L, n, 3);
+    return luaL_error(L, "%s Invalid array size %d", msgprefix, n);
 }
 
 
@@ -423,6 +469,7 @@ static int l_get_vwrapper_count(lua_State *L)
 static const luaL_reg gtk_methods[] = {
     {"__index",		l_gtk_lookup },
     {"new",		l_new },
+    {"new_array",	l_new_array },
     {"get_osname",	l_get_osname },
     {"void_ptr",	l_void_ptr },
     {"get_vwrapper_count",  l_get_vwrapper_count },
