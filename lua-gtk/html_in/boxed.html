@@ -1,0 +1,77 @@
+
+<%= html_header("Reference") %>
+
+<h2>Boxed Values</h2>
+
+<p>
+It is sometimes useful to pass an arbitrary Lua value to a library function,
+which then stores it and can return it later.  GObject provides the type
+<a href="http://library.gnome.org/devel/gobject/stable/gobject-Boxed-Types.html">"GBoxed"</a>,
+which is a generic wrapper for arbitrary C structures.  LuaGtk defines a new
+boxed type that has a reference to a Lua type, and can therefore store one
+Lua value each.
+</p>
+
+<p>
+This is useful for example to store a table in one column of a GtkTreeStore,
+most likely in column 0.  This is an example how to do it:
+</p>
+
+<div class="code"><code>
+store = gtk.list_store_new(2, gtk.boxed_type, gtk.G_TYPE_STRING)
+iter = gtk.new "GtkTreeIter"
+row1 = { id=5, name="Row One", value=20 }
+row2 = { id=6, name="Row Two", value=25, _type="boxed" }
+
+store:insert_with_values(nil, 0,
+   0, gtk.make_boxed_value(row),
+   1, row.name,
+   -1)
+
+store:insert_with_values(iter, 0,
+   0, row2,
+   1, row2.name,
+   -1)
+</code></div>
+
+<p>
+In this example, a GtkListStore is created with two columns: one to hold a
+boxed type, another with a string.  Two variants are shown how to tell LuaGtk
+that the vararg argument should be a boxed value: either you call the
+function <tt>gtk.make_boxed_value</tt>, or you provide a table that has the
+field _type set to "boxed".
+</p>
+
+<p>
+To access these values again, do the following:
+</p>
+
+<div class="code"><code>
+row = store:get_value(iter, 0)
+print(row.name)
+</code></div>
+
+<p>
+When a function returns a GValue that contains such a boxed value, it is
+automatically "extracted" and the wrapped value is returned.  See
+src/gvalue.c:luagtk_fill_gvalue().
+</p>
+
+<p>
+When you have a boxed value, e.g. created by gtk.make_boxed_value, you can
+still access its fields directly (assuming that it is a table or something
+with an appropriate metatable).  There is one exception: when you access
+the field "value" (only for reading), the wrapped Lua value is returned
+instead.
+</p>
+
+
+<div class="code"><code>
+val = gtk.make_boxed_value { field1=10, field2=20, field3=30 }
+assert(val.field1 == 10)
+assert(val.field2 == 20)
+assert(val.value.field3 == 30)
+val.field4 = 40
+assert(val.field4 == 40)
+</code></div>
+
