@@ -7,7 +7,7 @@ tar-bin: all
 	(D="lua-gtk-$(VERSION)"; mkdir -p $$D/gtk $$D/examples; \
 	cp $(ODIR)$(ODLL) $$D/; strip $$D/$(ODLL); \
 	cp lib/*.lua $$D/gtk/; \
-	cp examples/*.lua $$D/examples/; \
+	cp examples/*.{lua,glade,ui} $$D/examples/; \
 	cp doc/README.binary $$D/README; \
 	cp doc/COPYING doc/AUTHORS $$D/; \
 	cp script/install.lua $$D; \
