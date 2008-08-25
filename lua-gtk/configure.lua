@@ -8,7 +8,7 @@ require "lfs"
 
 -- default settings
 
-luagtk_version = "0.8"
+luagtk_version = "0.9"
 show_summary = true
 hash_func = "hsieh"
 debug_funcs = true	    -- include some debugging functions
@@ -705,6 +705,8 @@ end
 --
 function setup_ffi()
     local rc, cmd, cmd2, cmd3
+
+    if not libffi_lib then return end
 
     cfg_m("LIBFFI_LIB", libffi_lib)
     cmd = string.format("%s -o %s/test-ffi%s -I %s %s src/test-ffi.c %s",
