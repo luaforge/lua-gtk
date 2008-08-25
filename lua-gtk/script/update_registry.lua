@@ -36,14 +36,20 @@ if not s then
 end
 
 here = lfs.currentdir() .. "\\bin"
-pat = string.lower(string.gsub(here, "[%$%^%(%)%%%.%[%]%+%-%?]", "%%%1"))
 
-if string.match(string.lower(s), pat) then
-    print("Already set.")
-    os.exit(0)
+-- filter out existing entries for lua-gtk
+local tbl = {}
+for item in string.gmatch(s, "[^;]+") do
+    if not string.match(item, "\\lua%-gtk") then
+	tbl[#tbl+1] = item
+    elseif item == here then
+	print "Already set."
+	os.exit(0)
+    end
 end
+tbl[#tbl+1] = here
 
-s = s .. ";" .. here
+s = table.concat(tbl, ";")
 reg_set(path, key, s)
 
 
