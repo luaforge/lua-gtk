@@ -3,6 +3,9 @@
 -- Simple installation script for Lua-Gtk.
 -- by Wolfgang Oertl
 
+
+require "lfs"
+
 ---
 -- Install a file or directory into the first applicable target directory from
 -- the Lua search path.
@@ -11,15 +14,19 @@
 -- @param pattern  What to replace in the search path
 -- @param source  File or directory in the current directory to install
 --
-function do_install(ar, pattern, source)
-    local dest, cmd
+function do_install(ar, pattern, source, dest)
+    local dest2, cmd
 
     for path in string.gmatch(ar, "[^;]+") do
 	-- if too short, then it's ./?.so or something.
 	if path:len() > 10 then
-	    dest = path:gsub(pattern, source)
-	    if dest ~= path then
-		cmd = string.format("cp -a %s %s", source, dest)
+	    dest2 = path:gsub(pattern, dest)
+	    if dest2 ~= path then
+		if lfs.attributes(dest2, "mode") then
+		    print("Destination exists:", dest2)
+		    break
+		end
+		cmd = string.format("cp -a %s %s", source, dest2)
 		print(cmd)
 		os.execute(cmd)
 		break
@@ -28,6 +35,6 @@ function do_install(ar, pattern, source)
     end
 end
 
-do_install(package.cpath, "%?.so", "gtk.so")
-do_install(package.path, "%?.lua", "gtk")
+do_install(package.cpath, "%?.so", "build/linux-i386/gtk.so", "gtk.so")
+do_install(package.path, "%?.lua", "lib", "gtk")
 
