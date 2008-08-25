@@ -302,7 +302,7 @@ static int _new_array(lua_State *L, int count, int arg_start)
 
     /* There may be an allocator function; if so, use it (but only for single
      * objects, not for arrays); use the optional additional arguments */
-    if (count) {
+    if (count == 0) {
 	luagtk_make_func_name(tmp_name, sizeof(tmp_name), struct_name, "new");
 	if (find_func(tmp_name, &fi))
 	    return luagtk_call(L, &fi, arg_start);
