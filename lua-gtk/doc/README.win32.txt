@@ -7,6 +7,14 @@ Lua-Gtk2
 also Lua 5.1 binaries and some other libraries.
 
 
+**** IMPORTANT HINT ****
+
+Currently, ftp.gnome.org provides the library libpng12-0.dll, but the other
+libraries depend on libpng13.dll.  You can rename the 12-0 release to 13
+without ill effects, as it seems.  At least my examples work.
+
+
+
 Installation
 ------------
 
@@ -23,7 +31,7 @@ and update the registry to include the bin directory in the search path.
   After this change log out and log in again to make the change effective.
 Now you can run the examples from the command line like this:
 
-  cd ....\lua-gtk-0.8
+  cd ....\lua-gtk-0.9
   lua5.1 examples\button.lua
 
 More examples are available in the CVS repository on luaforge:
