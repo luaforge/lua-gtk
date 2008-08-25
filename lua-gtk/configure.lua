@@ -708,6 +708,8 @@ function setup_ffi()
 
     if not libffi_lib then return end
 
+    summary("LibFFI", libffi_lib)
+
     cfg_m("LIBFFI_LIB", libffi_lib)
     cmd = string.format("%s -o %s/test-ffi%s -I %s %s src/test-ffi.c %s",
 	cc, odir, exe_suffix, odir, libffi_inc, libffi_lib)
