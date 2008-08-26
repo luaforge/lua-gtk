@@ -42,7 +42,7 @@ end
 --
 function on_location_changed(box)
     local store = box:get_model()
-    local iter = gtk.new "GtkTreeIter"
+    local iter = gtk.new "TreeIter"
     box:get_active_iter(iter)
     local prov = store:get_value(iter, 1, nil)
     local location = store:get_value(iter, 2, nil)
@@ -150,8 +150,8 @@ function build_gui()
 
     -- setup location selector.  Name, Provider, Location Code
     local location = widgets.location
-    local store = gtk.list_store_new(3, gtk.G_TYPE_STRING, gtk.G_TYPE_STRING,
-	gtk.G_TYPE_STRING)
+    local store = gtk.list_store_new(3, glib.TYPE_STRING, glib.TYPE_STRING,
+	glib.TYPE_STRING)
     location:set_model(store)
 
     local r = gtk.cell_renderer_text_new()
@@ -169,7 +169,7 @@ function build_gui()
     configfunc()
 
     -- add some locations
-    local iter = gtk.new "GtkTreeIter"
+    local iter = gtk.new "TreeIter"
     for i, info in pairs(config.locations) do
 	store:append(iter)
 	store:set(iter, 0, info[1], 1, info[2], 2, info[3], -1)
