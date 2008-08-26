@@ -30,9 +30,9 @@ function on_button_save_clicked()
 	callback = save_done,
     }
 
-    local iter_start = gtk.new "GtkTextIter"
-    local iter_end = gtk.new "GtkTextIter"
-    local iter = gtk.new "GtkTreeIter"
+    local iter_start = gtk.new "TextIter"
+    local iter_end = gtk.new "TextIter"
+    local iter = gtk.new "TreeIter"
     local title_s, title, descr_s, descr, album_s, album
 
     for i, lang in pairs(languages) do
@@ -148,7 +148,7 @@ function _album_changed(combo, this_lang)
     print("- album changed", combo, this_lang, _album_changed_block)
     if _album_changed_block then return end
 
-    iter = gtk.new "GtkTreeIter"
+    iter = gtk.new "TreeIter"
     trid = 0
 
     if combo:get_active_iter(iter) then

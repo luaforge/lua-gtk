@@ -25,8 +25,8 @@ next_preload = nil	-- image_nr of the image that should be preloaded next
 function setup_image_view()
 
     -- setup album tree. album.id, album.name, album.lang, album.trid
-    album_store = gtk.tree_store_new(4, gtk.G_TYPE_INT, gtk.G_TYPE_STRING,
-	gtk.G_TYPE_STRING, gtk.G_TYPE_INT)
+    album_store = gtk.tree_store_new(4, glib.TYPE_INT, glib.TYPE_STRING,
+	glib.TYPE_STRING, glib.TYPE_INT)
     mainwin.album_list:set_model(album_store)
     local r = gtk.cell_renderer_text_new()
     local c = gtk.tree_view_column_new_with_attributes("Name", r, "text",
@@ -34,10 +34,15 @@ function setup_image_view()
     mainwin.album_list:append_column(c)
 
     for lang, name in pairs{ de='Deutsch', en='Englisch', es='Spanisch'} do
-	album_store_iter[lang] = album_store:append1(nil, nil, 0, lang, name)
+	local iter = gtk.new "TreeIter"
+	album_store:append(iter, nil)
+	album_store:set(iter, 0, 0, 1, lang, 2, name, -1)
+	album_store_iter[lang] = iter
+--	album_store_iter[lang] = album_store:append1(nil, nil, 0, lang, name)
+
 	-- album.id, album.name, album.trid
-	local store = gtk.list_store_new(3, gtk.G_TYPE_INT, gtk.G_TYPE_STRING,
-	    gtk.G_TYPE_INT)
+	local store = gtk.list_store_new(3, glib.TYPE_INT, glib.TYPE_STRING,
+	    glib.TYPE_INT)
 	local s = "album_" .. lang
 	mainwin[s]:set_model(store)
 	album_store_lang[lang] = store
@@ -51,8 +56,8 @@ function setup_image_view()
 
     -- setup icon view
     local image_list = mainwin.image_list
-    image_store = gtk.list_store_new(3, gtk.G_TYPE_INT, gtk.G_TYPE_STRING,
-	gtk.gdk_pixbuf_get_type())
+    image_store = gtk.list_store_new(3, glib.TYPE_INT, glib.TYPE_STRING,
+	gdk.pixbuf_get_type())
     image_list:set_model(image_store)
     image_list:set_text_column(1)
     image_list:set_pixbuf_column(2)
@@ -101,7 +106,7 @@ end
 --
 function set_album_list(list)
     local combo = mainwin.album_de
-    local iter, album_iter, album_nrs = gtk.new "GtkTreeIter"
+    local iter, album_iter, album_nrs = gtk.new "TreeIter"
 
     album_translations = {}
     album_nrs = { en=0, de=0, es=0 }
@@ -114,12 +119,18 @@ function set_album_list(list)
 	if not album_iter then
 	    print("* Album with unknown language", album.lang)
 	else
-	    album_store:append1(iter, album_iter, album.id, album.lang,
-		album.name, album.trid or 0)
+	    album_store:append(iter, album_iter)
+	    album_store:set(iter, 0, album.id, 1, album.lang, 2, album.name,
+		3, album.trid or 0, -1)
+--	    album_store:append1(iter, album_iter, album.id, album.lang,
+--		album.name, album.trid or 0)
 
 	    -- also fill the combo boxes on the new image page
-	    album_store_lang[album.lang]:append1(iter, album.id,
-		album.name, album.trid or 0)
+	    local store = album_store_lang[album.lang]
+	    store:append(iter)
+	    store:set(iter, 0, album.id, 1, album.name, 2, album.trid or 0, -1)
+--	    album_store_lang[album.lang]:append1(iter, album.id,
+--		album.name, album.trid or 0)
 
 	    -- link translations together
 	    if album.trid and album.trid ~= 0 then
@@ -139,7 +150,7 @@ end
 -- add them to the image view (in the callback).
 --
 function on_album_list_row_activated(tree, path, column)
-    local iter = gtk.new("GtkTreeIter")
+    local iter = gtk.new "TreeIter"
     local model = tree:get_model()
     model:get_iter(iter, path)
     local album_id = model:get_value(iter, 0, nil);
@@ -171,11 +182,11 @@ function image_list_response(resp)
     image_count = 0
     set_status "Done."
 
-    local iter = gtk.new "GtkTreeIter"
+    local iter = gtk.new "TreeIter"
     for i, image in ipairs(list) do
-	-- image_store:append(iter)
-	-- image_store:set(iter, 0, image.id, 1, image.title, 2, nil, -1)
-	image_store:append1(iter, image.id, image.title, nil)
+	image_store:append(iter)
+	image_store:set(iter, 0, image.id, 1, image.title, 2, nil, -1)
+--	image_store:append1(iter, image.id, image.title, nil)
 	table.insert(thumbs_list, image.id)
 	image.image_nr = image_count
 	images[image.id] = image
@@ -257,7 +268,7 @@ function thumbnail_received(resp)
 
     if iter then
 	local loader, pix, rc
-	loader = gtk.gdk_pixbuf_loader_new()
+	loader = gdk.pixbuf_loader_new()
 	rc = loader:write(resp.data, #resp.data, nil)
 	loader:close(nil)
 
@@ -431,7 +442,7 @@ function _preview_received(resp)
 	    mainwin.progress:set_fraction(0)
 	end
     else
-	loader = gtk.gdk_pixbuf_loader_new()
+	loader = gdk.pixbuf_loader_new()
 	rc = loader:write(resp.data, #resp.data, nil)
 	loader:close(nil)
 
@@ -527,7 +538,7 @@ function _image_nr_to_id(image_nr)
     if image_nr < 0 or image_nr >= image_count then return end
 
     path = gtk.tree_path_new_from_string(tostring(image_nr))
-    iter = gtk.new "GtkTreeIter"
+    iter = gtk.new "TreeIter"
     model = mainwin.image_list:get_model()
     if model:get_iter(iter, path) then
 	return model:get_value(iter, 0, nil), model, iter
@@ -590,9 +601,9 @@ function on_button_image_delete_clicked()
     local image_id = _image_nr_to_id(image_nr)
     local title = images[image_id].title
     local dlg = gtk.message_dialog_new(mainwin.mainwin,
-	gtk.GTK_DIALOG_MODAL + gtk.GTK_DIALOG_DESTROY_WITH_PARENT,
-	gtk.GTK_MESSAGE_QUESTION,
-	gtk.GTK_BUTTONS_OK_CANCEL, "Delete the image %s with all translations?",
+	gtk.DIALOG_MODAL + gtk.DIALOG_DESTROY_WITH_PARENT,
+	gtk.MESSAGE_QUESTION,
+	gtk.BUTTONS_OK_CANCEL, "Delete the image %s with all translations?",
 	    title)
     dlg:connect('response', _delete_response)
     -- dlg._image_id = image_id
@@ -609,7 +620,7 @@ function _delete_response(dlg, rc)
     local id = _del_image_id
     _del_image_id = nil
     dlg:destroy()
-    if not id or rc == gtk.GTK_RESPONSE_CANCEL then return end
+    if not id or rc == gtk.RESPONSE_CANCEL then return end
 
     server_request{{
 	cmd = 'delete-image',

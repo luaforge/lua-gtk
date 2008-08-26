@@ -31,10 +31,11 @@ require "transport"
 require "view"
 require "image_add"
 require "settings"
+require "pango"
 
 config_file = "cms-admin.conf"
 languages = {}		-- list of languages; retrieved from server.
-os = gtk.get_osname()
+os = gnome.get_osname()
 mainwin = nil		-- list of widgets in the main window
 selected_file = nil	-- currently selected filename (only valid images)
 upload_running = false	-- true while the image upload is active
@@ -92,7 +93,7 @@ function on_filechooser_update_preview()
 
     selected_file = nil
 
-    local info, width, height = gtk.gdk_pixbuf_get_file_info(fname, 0, 0)
+    local info, width, height = gdk.pixbuf_get_file_info(fname, 0, 0)
 
     if not info then
 	img:clear()
@@ -103,10 +104,10 @@ function on_filechooser_update_preview()
 
     local pixbuf
     if os == "win32" then
-	pixbuf = gtk.gdk_pixbuf_new_from_file_at_size_utf8(fname,
+	pixbuf = gdk.pixbuf_new_from_file_at_size_utf8(fname,
 	    width, height, nil)
     else
-	pixbuf = gtk.gdk_pixbuf_new_from_file_at_size(fname, width, height, nil)
+	pixbuf = gdk.pixbuf_new_from_file_at_size(fname, width, height, nil)
     end
 
     if pixbuf then
@@ -144,7 +145,7 @@ function on_filechooser_file_activated(filechooser)
     if os == "win32" then
 	utf8_fname = selected_file
     else
-	utf8_fname = gtk.g_filename_to_utf8(selected_file, -1, 0, 0, nil)
+	utf8_fname = glib.filename_to_utf8(selected_file, -1, 0, 0, nil)
 	    or selected_file
     end
 
@@ -153,10 +154,10 @@ function on_filechooser_file_activated(filechooser)
 
     -- scale the image, compress to jpeg
     if os == "win32" then
-	pixbuf = gtk.gdk_pixbuf_new_from_file_at_size_utf8(selected_file,
+	pixbuf = gdk.pixbuf_new_from_file_at_size_utf8(selected_file,
 	    cfg.upload_resize_x, cfg.upload_resize_y, nil)
     else
-	pixbuf = gtk.gdk_pixbuf_new_from_file_at_size(selected_file,
+	pixbuf = gdk.pixbuf_new_from_file_at_size(selected_file,
 	    cfg.upload_resize_x, cfg.upload_resize_y, nil)
     end
     local buf = pixbuf:save_to_buffer("jpeg")
@@ -252,9 +253,9 @@ end
 function fatal_error(msg, ...)
     set_status "Fatal error."
     local dlg = gtk.message_dialog_new(mainwin.mainwin,
-	gtk.GTK_DIALOG_MODAL + gtk.GTK_DIALOG_DESTROY_WITH_PARENT,
-	gtk.GTK_MESSAGE_ERROR,
-	gtk.GTK_BUTTONS_OK, msg, ...)
+	gtk.DIALOG_MODAL + gtk.DIALOG_DESTROY_WITH_PARENT,
+	gtk.MESSAGE_ERROR,
+	gtk.BUTTONS_OK, msg, ...)
     dlg:run()
     gtk.main_quit()
 end
@@ -286,7 +287,6 @@ end
 -- Main: build the main window using the glade library.
 --
 function main()
-    gtk.init(0)
     tree = gtk.glade.read("cms-admin.glade")
     mainwin = gtk.glade.create(tree, "mainwin")
     mainwin.mainwin:connect('destroy', on_button_quit_clicked)
