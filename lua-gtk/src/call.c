@@ -24,8 +24,6 @@
 #include <string.h>	    // memset, strcmp, memcpy
 #include <stdarg.h>	    // va_start etc.
 
-#include "luagtk_ffi.h"	    // LUAGTK_FFI_TYPE() macro
-
 
 /* extra arguments that have to be allocated are kept in this list. */
 struct call_info_list {
@@ -203,7 +201,7 @@ void call_info_check_argcount(struct call_info *ci, int n)
 #define ALLOC_MORE(p, type) p = (type*) g_realloc(p, n * sizeof(*p)); \
     memset(p + old_n, 0, sizeof(*p) * (n - old_n))
     ALLOC_MORE(ci->args, struct call_arg);
-    ALLOC_MORE(ci->argtypes, ffi_type*);
+    ALLOC_MORE(ci->argtypes, const ffi_type*);
     ALLOC_MORE(ci->argvalues, void*);
 #undef ALLOC_MORE
 
@@ -496,7 +494,8 @@ int luagtk_call(lua_State *L, struct func_info *fi, int index)
     /* call the function */
     if (_call_build_parameters(L, index, ci)) {
 	if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, ci->arg_count,
-	    ci->argtypes[0], ci->argtypes + 1) == FFI_OK) {
+	    (ffi_type*) ci->argtypes[0],
+	    (ffi_type**) ci->argtypes + 1) == FFI_OK) {
 
 	    // A trace function displaying the argument values could be called
 	    // from here.  This doesn't exist yet.

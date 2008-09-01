@@ -171,7 +171,7 @@ int luagtk_get_boxed_value(lua_State *L, const void *p)
  * A boxed value should now be used to fill a gtk_arg_types.
  */
 void luagtk_boxed_to_ffi(lua_State *L, int index, union gtk_arg_types *dest,
-    ffi_type **argtype)
+    const ffi_type **argtype)
 {
     struct boxed_lua_value *b = (struct boxed_lua_value*)
 	lua_topointer(L, index);
