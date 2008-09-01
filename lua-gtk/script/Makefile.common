@@ -85,20 +85,6 @@ ${ODIR}%.$(O): ${ODIR}%.c
 	$I
 	$H ${CC} ${CFLAGS} -c -o $@ $<
 
-# -- ffi magic --
-
-${ODIR}luagtk_ffi.h: ${ODIR}ffi-types
-	$I
-	$H ${ODIR}ffi-types > $@
-
-${ODIR}ffi-types.$(O): src/ffi-types.c
-	$I
-	$H ${HOSTCC} ${CFLAGS} -o $@ -c $<
-
-${ODIR}ffi-types: ${ODIR}ffi-types.$(O)
-	$I
-	$H ${HOSTCC} $(CFLAGS) -o $@ $< -lffi
-
 # -- cmph hash --
 
 ${ODIR}%.keys: ${ODIR}%.txt
@@ -194,13 +180,12 @@ clean:
 	$I
 	$H rm -f ${ODIR}${ODLL} ${ODIR}generate ${ODIR}_*.c ${ODIR}*.$(O)
 	$H rm -f ${ODIR}file2c ${ODIR}override.luac ${ODIR}hash-cmph-generate
-	$H rm -f ${ODIR}ffi-types
 
 mrproper: clean
 	$I
 	$H rm -f ${ODIR}gtkdata.* ${ODIR}hash-fch-* ${ODIR}config.* \
-		${ODIR}types.xml ${ODIR}ffi-ofs ${ODIR}link.[ch] \
-		${ODIR}luagtk_ffi.h ${ODIR}cmph_types.h \
+		${ODIR}types.xml ${ODIR}link.[ch] \
+		${ODIR}cmph_types.h \
 		${ODIR}test-*-ok ${ODIR}test-*${EXESUFFIX}
 install: all
 	# you need to be root for this!
@@ -251,7 +236,7 @@ funclist: all ${ODIR}gtkdata.funcs.txt
 
 # -- dependencies --
 
-${ODIR}call.$O: ${ODIR}luagtk_ffi.h ${LH}
+${ODIR}call.$O: ${LH}
 ${ODIR}callback.$O: ${LH}
 ${ODIR}closure.$O: ${LH}
 ${ODIR}channel.$O: ${LH}
@@ -268,11 +253,10 @@ ${ODIR}hash-fch.$O: $(LH) src/hash-cmph.h
 ${ODIR}hash-bdz.$O: $(LH) src/hash-cmph.h
 ${ODIR}interface.$O: ${LH}
 ${ODIR}override.$O: ${LH}
-${ODIR}types.$O: $(LH) ${ODIR}gtkdata.types.c ${ODIR}luagtk_ffi.h
+${ODIR}types.$O: $(LH) ${ODIR}gtkdata.types.c
 ${ODIR}enum.$O: $(LH)
 ${ODIR}voidptr.$O: $(LH)
 ${ODIR}widget.$O: ${LH}
 ${ODIR}widget_meta.$O: ${LH}
 ${ODIR}widget_types.$O: ${LH}
-
 
