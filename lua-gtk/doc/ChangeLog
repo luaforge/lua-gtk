@@ -574,3 +574,6 @@ explicitely now via gtk.closure(func), which allows for correct memory
 management
 * new debug flag "closure" to debug closure allocation and freeing.
 
+2008-10-01
+* added g_connect_after (requested by Anders Eurenius)
+

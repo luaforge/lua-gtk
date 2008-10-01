@@ -5,6 +5,7 @@
  *
  * Exported functions:
  *   luagtk_connect
+ *   luagtk_connect_after
  *   luagtk_disconnect
  */
 
@@ -262,18 +263,8 @@ static void _free_callback_info(gpointer data, GClosure *closure)
  * @name gtk
  */
 
-/**
- * Connect a signal to a Lua function.
- *
- * @name connect
- * @luaparam widget
- * @luaparam signal_name  Name of the signal, like "clicked"
- * @luaparam handler  A Lua function (the callback)
- * @luaparam ...  (optional) extra parameters to the callback
- *
- * @return  The handler id, which can be used to disconnect the signal.
- */
-int luagtk_connect(lua_State *L)
+// This is the actual connect function.
+static int _connect(lua_State *L, GConnectFlags connect_flags)
 {
     luaL_checktype(L, 1, LUA_TUSERDATA);
     luaL_checktype(L, 2, LUA_TSTRING);
@@ -335,13 +326,35 @@ int luagtk_connect(lua_State *L)
 
     handler_id = g_signal_connect_data(w->p, signame,
 	(GCallback) _callback, cb_info, _free_callback_info,
-	G_CONNECT_SWAPPED);
+	G_CONNECT_SWAPPED | connect_flags);
 
     lua_pushnumber(L, handler_id);
 
     return 1;
 }
 
+
+
+/**
+ * Connect a signal to a Lua function.
+ *
+ * @name connect
+ * @luaparam widget
+ * @luaparam signal_name  Name of the signal, like "clicked"
+ * @luaparam handler  A Lua function (the callback)
+ * @luaparam ...  (optional) extra parameters to the callback
+ *
+ * @return  The handler id, which can be used to disconnect the signal.
+ */
+int luagtk_connect(lua_State *L)
+{
+    return _connect(L, 0);
+}
+
+int luagtk_connect_after(lua_State *L)
+{
+    return _connect(L, G_CONNECT_AFTER);
+}
 
 /**
  * Disconnect a signal handler from a given widget.
