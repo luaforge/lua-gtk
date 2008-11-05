@@ -51,12 +51,31 @@ function Mainwin.new()
 	vbox:pack_start(sv, true, true, 0)
 	self.view = gtk.text_view_new()
 	sv:add_with_viewport(self.view)
-	self.buffer = self.view:get_buffer()
 
+	-- new statusbar
+	self.status = gtk.statusbar_new()
+	self.context_id = self.status:get_context_id("bufpos")
+	vbox:pack_start(self.status, false, true, 0)
+
+	-- Callback to update cursor position.
+	self.buffer = self.view:get_buffer()
+	self.buffer:connect_after('mark-set', update_status)
 
 	self.w:show_all()
 	return self
 end
+
+function update_status()
+	local win = mainwin
+	local mark = win.buffer:get_insert()
+	local iter = gtk.new "GtkTextIter"
+	win.buffer:get_iter_at_mark(iter, mark)
+	win.status:pop(win.context_id)
+	win.status:push(win.context_id, string.format("Line %d, Column %d",
+		iter:get_line() + 1, iter:get_line_offset() + 1))
+
+end
+
 
 -- NOTE: for callbacks, self is the calling widget, i.e. the GtkToolButton.
 --
@@ -87,5 +106,6 @@ end
 -- main --
 require "gtk"
 mainwin = Mainwin.new()
+update_status()
 gtk.main()
 
