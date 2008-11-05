@@ -1,8 +1,8 @@
 -- vim:sw=4:sts=4
 --
 
-local base, print, table, string, pairs, tonumber = _G, print, table, string,
-    pairs, tonumber
+local base, print, table, string, pairs, tonumber, tostring =
+        _G, print, table, string, pairs, tonumber, tostring
 
 require "gtk"
 require "gtk.strict"
@@ -19,9 +19,10 @@ require "gtk.strict"
 --   read(filename)
 --	Read the Glade XML file, parse and return the parse tree.
 --
---   create(tree, widgetname)
+--   create(tree, widgetname, scope)
 --      Use the parse tree to find the given widget, then create it and all
---      child widgets.  Returns a table with all the created widgets.
+--      child widgets.  Returns a table with all the created widgets.  Signal
+--      handlers are looked up in the table scope, if not nil.
 --
 -- EXAMPLE
 --
@@ -32,7 +33,7 @@ require "gtk.strict"
 --   widgets = gtk.glade.create(tree, "top_level_window_name")
 --   gtk.main()
 --
--- Copyright (C) 2007 Wolfgang Oertl
+-- Copyright (C) 2007, 2008 Wolfgang Oertl
 --
 
 module "gtk.glade"
@@ -66,7 +67,7 @@ function print_r(obj, prefix)
 	    print_r(v, prefix .. " ")
 	    print(prefix .. ")")
 	else
-	    print(prefix .. k .. " = " .. base.tostring(v))
+	    print(prefix .. k .. " = " .. tostring(v))
 	end
     end
 end
@@ -457,6 +458,21 @@ function GtkButton(el)
     return w, { response_id=1 }
 end
 
+
+--
+-- Special handler for "custom" widgets, i.e. with a user-provided Lua
+-- constructor.
+--
+function Custom(el, scope)
+    local f = scope[el.p.creation_function]
+    if not f then
+	base.error("Creation function for custom widget not found: "
+	    .. tostring(el.p.creation_function))
+    end
+    return f(el.p), { creation_function=1, string1=1, string2=1, int1=1,
+	int2=1 }
+end
+
 property_setter = {
     adjustment = function(w, k, s)
 	local a = gtk.adjustment_new(string.match(s,
@@ -476,7 +492,6 @@ property_setter = {
 -- globals (sort of) used in make_widget to reduce stack size need to be
 -- declared to make gtk.strict happy.
 __type_nr = 0
-__handler = 0
 
 
 --
@@ -485,16 +500,18 @@ __handler = 0
 -- @param widgets  List of widgets (all of them)
 -- @param el       child_info
 -- @param parent   (optional) add new widgets to this parent
+-- @param scope	   (optional) table to look up signal handlers
 -- @return         The created widget, and inserts all created widgets into the
 --                 table "widgets".
 --
-function make_widget(widgets, el, parent)
-    local w, child, ignore_prop
+function make_widget(widgets, el, parent, scope)
+    local w, ignore_prop, handler
+    scope = scope or base
 
     -- special handler?
     local handler = base.rawget(_M, el.class)
     if handler then
-	w, ignore_prop = handler(el)
+	w, ignore_prop = handler(el, scope)
     else
 	-- generic handler.  use a global here, to reduce stack size
 	__type_nr = gtk.g_type_from_name(el.class)
@@ -504,7 +521,7 @@ function make_widget(widgets, el, parent)
 
     -- store the widget by ID in the widgets table.
     -- gtk.luagtk_register_widget(w)
-    widgets[el.id] = w
+    widgets[el.id] = base.assert(w, "widget " .. tostring(el.id) .. " is nil")
 
     -- hack -- have to set can_default before has_default.  also, has to be
     -- added to parent first
@@ -526,21 +543,30 @@ function make_widget(widgets, el, parent)
     -- create children, if any, and add them to this widget
     if el.children then
 	for i, child_info in pairs(el.children) do
-	    child = make_widget(widgets, child_info, w)
+	    make_widget(widgets, child_info, w, scope)
 	end
     end
 
     -- If it has signal handlers, try to connect them.
-    -- use a global (__handler) to reduce stack size.
     if el.signals then
 	for k, v in pairs(el.signals) do
-	    __handler = base[v.handler] or gtk[v.handler]
-	    if not __handler then	
+	    handler = scope[v.handler]
+
+	    -- resolve dots.  "gtk" is always available.
+	    if not handler then
+		handler = scope
+		for k in v.handler:gmatch('[.]?([^.]+)') do
+		    handler = (k == 'gtk') and gtk or handler[k]
+		    if not handler then break end
+		end
+	    end
+
+	    if not handler then
 		print(string.format("no handler for signal %s:%s - %s",
 		    el.id, v.name, v.handler))
 	    else
-		w:connect(v.name, __handler, v.object
-		    and (widgets[v.object] or base[v.object] or v.object))
+		w:connect(v.name, handler, v.object
+		    and (widgets[v.object] or scope[v.object] or v.object))
 	    end
 	end
     end
@@ -558,9 +584,10 @@ end
 --
 -- @param tree   The widget tree as returned from read.
 -- @param path   Name of the top widget, typically "window1" or similar.
+-- @param scope  The scope in which to search for callbacks, etc.
 -- @return       A table with all the widgets; key=name, value=widget.
 --
-function create(tree, path)
+function create(tree, path, scope)
     local w, w2
     local widgets = {}
 
@@ -571,8 +598,8 @@ function create(tree, path)
 
     -- Disable output buffering for stdout; else, on SEGV, not all output
     -- is displayed.
-    base.io.stdout:setvbuf("no")
-    make_widget(widgets, w, nil)
+    -- base.io.stdout:setvbuf("no")
+    make_widget(widgets, w, nil, scope)
     return widgets
 end
 
