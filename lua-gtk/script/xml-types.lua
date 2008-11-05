@@ -101,18 +101,6 @@ function register_fundamental(t)
     }
     ffi_type_name2id[name] = fid
 
-    -- Special case for char*: add another entry for const char*, which
-    -- must directly follow the regular char* entry.
-    if name == "char*" then
-	ffi_type_map[fid + 1] = {
-	    name = "const char*",
-	    pointer = t.pointer,
-	    bit_len = t.size or 0,
-	    basename = t.fname,
-	}
-	main.char_ptr_second = fid + 1
-    end
-
     t.fid = fid
 end
 

@@ -336,7 +336,6 @@ end
 function output_fundamental_types(ofname)
     local ofile, ffitype, type_code, ofs
 
-    assert(char_ptr_second)
     ofile = io.open(ofname, "w")
     ofs = _type_name_add("INVALID")
     ofile:write(string.format("struct ffi_type_map_t ffi_type_map[] = {\n"
@@ -344,19 +343,13 @@ function output_fundamental_types(ofname)
 
     for i, v in ipairs(types.ffi_type_map) do
 	ffitype = types.fundamental_to_ffi(v) or { nil, 0, nil, nil, nil, nil }
-
-	-- Here the second char* entry gets the "4" flag to mark it as const.
-	-- This is then used in src/types.c:ffi2lua_char_ptr.
-	-- FFI_CHAR_PTR_CONST
-	local flags = (i == char_ptr_second) and 1 or 0
-
 	ofs = _type_name_add(v.name)
 	ofile:write(string.format("  { %d, %d, %d, %d, %s, %s, %s, %s, %s }, "
 	    .. "/* %d %s */\n",
 	    ofs,		-- name_ofs
 	    v.bit_len or 0,	-- bit_len
 	    v.pointer,		-- indirections
-	    ffitype[2] + flags,	-- flags
+	    ffitype[2],		-- flags
 	    ffitype[3] and "LUA2FFI_" .. string.upper(ffitype[3]) or 0,
 	    ffitype[4] and "FFI2LUA_" .. string.upper(ffitype[4]) or 0,
 	    ffitype[5] and "LUA2STRUCT_" .. string.upper(ffitype[5]) or 0,

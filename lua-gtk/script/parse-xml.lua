@@ -25,8 +25,6 @@ require "bit"
 package.path = package.path .. ";" .. string.gsub(arg[0], "%/[^/]+$", "/?.lua")
 require "common"
 
-char_ptr_second = nil
-
 xml = require "xml-parser"
 typedefs = xml.typedefs
 types = require "xml-types"
