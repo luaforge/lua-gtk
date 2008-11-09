@@ -1,11 +1,12 @@
 /* vim:sw=4:sts=4
  * Lua binding for the Gtk 2 toolkit.
  * This code handles callbacks from Gtk to Lua.
- * Copyright (C) 2005, 2007 Wolfgang Oertl
+ * Copyright (C) 2005, 2008 Wolfgang Oertl
  *
  * Exported functions:
- *   luagtk_connect
- *   luagtk_disconnect
+ *   glib_connect
+ *   glib_connect_after
+ *   glib_disconnect
  */
 
 /**
@@ -14,8 +15,7 @@
  * @description Handle callbacks from Gtk to Lua.
  */
 
-#include "luagtk.h"
-#include <lauxlib.h>	    // luaL_check*, luaL_ref/unref
+#include "module.h"
 #include <stdarg.h>
 #include <gobject/gvaluecollector.h>
 #include <string.h>	    // memset (in G_VALUE_COLLECT)
@@ -27,7 +27,7 @@
 struct callback_info {
     int handler_ref;		/* reference to the function to call */
     int args_ref;		/* reference to a table with additional args */
-    int widget_ref;		/* reference to the widget: avoids GC */
+    int object_ref;		/* reference to the object: avoids GC */
     lua_State *L;		/* the Lua state this belongs to */
     GSignalQuery query;		/* information about the signal, see below */
 };
@@ -50,7 +50,7 @@ static void _callback_type_error(lua_State *L, struct callback_info *cbi,
 	funcinfo[0] = 0;
 
     luaL_error(L, "%s can't convert return type %s to %s for signal handler "
-	"of %s%s", msgprefix, lua_typename(L, is_type),
+	"of %s%s", api->msgprefix, lua_typename(L, is_type),
 	lua_typename(L, expected_type), cbi->query.signal_name, funcinfo);
 }
 
@@ -90,7 +90,7 @@ static int _callback_return_value(lua_State *L, int return_type,
 	
 	default:
 	    luaL_error(L, "%s unhandled callback return type %d of callback %s",
-		msgprefix, return_type, cbi->query.signal_name);
+		api->msgprefix, return_type, cbi->query.signal_name);
     }
 
     return val;
@@ -129,11 +129,11 @@ asm(
 /**
  * Handler for Gtk signal callbacks.  Find the proper Lua callback, build the
  * parameters, call, and optionally return something to Gtk.  This runs in the
- * lua_State that was used to call luagtk_connect with, and therefore probably
+ * lua_State that was used to call glib_connect with, and therefore probably
  * uses the stack of the main function, which mustn't be modified.
  *
  * @param data   a pointer to a struct callback_info
- * @param ...    Variable arguments, and finally the widget pointer.
+ * @param ...    Variable arguments, and finally the object pointer.
  * @return       A value to return to Gtk.
  */
 static int _callback(void *data, ...)
@@ -148,42 +148,42 @@ static int _callback(void *data, ...)
     lua_rawgeti(L, LUA_REGISTRYINDEX, cbi->handler_ref);
     if (lua_isnil(L, -1)) {
 	lua_pop(L, 1);
-	return luaL_error(L, "%s callback handler not found.", msgprefix);
+	return luaL_error(L, "%s callback handler not found.", api->msgprefix);
     }
 
-    /* first parameter: the widget */
-    lua_rawgeti(L, LUA_REGISTRYINDEX, cbi->widget_ref);
+    /* first parameter: the object */
+    lua_rawgeti(L, LUA_REGISTRYINDEX, cbi->object_ref);
     if (lua_isnil(L, -1)) {
 	lua_pop(L, 2);
-	return luaL_error(L, "%s callback widget not found.", msgprefix);
+	return luaL_error(L, "%s callback object not found.", api->msgprefix);
     }
-    struct widget *w = (struct widget*) lua_topointer(L, -1);
+    struct object *w = (struct object*) lua_touserdata(L, -1);
 
     /* push all the signal arguments to the Lua stack */
     arg_cnt = cbi->query.n_params;
 
     // retrieve the additional parameters using the stdarg mechanism.
     va_start(ap, data);
+    GValue gv = { 0 };
     for (i=0; i<arg_cnt; i++) {
 	GType type = cbi->query.param_types[i] & ~G_SIGNAL_TYPE_STATIC_SCOPE;
 	gchar *err_msg = NULL;
-	GValue gv;
-	memset(&gv, 0, sizeof(gv));
 
 	g_value_init(&gv, type);
 	G_VALUE_COLLECT(&gv, ap, G_VALUE_NOCOPY_CONTENTS, &err_msg);
 	if (err_msg)
-	    return luaL_error(L, "%s vararg %d failed: %s", msgprefix, i+1,
+	    return luaL_error(L, "%s vararg %d failed: %s", api->msgprefix, i+1,
 		err_msg);
-	luagtk_push_gvalue(L, &gv);
+	api->push_gvalue(L, &gv);
+	g_value_unset(&gv);
     }
 
-    /* The widget is the last parameter to this function.  The Lua callback
+    /* The object is the last parameter to this function.  The Lua callback
      * gets it as the first parameter, though, so it isn't really used. */
-    void *widget = va_arg(ap, void*);
-    if (widget != w->p) {
-	fprintf(stderr, "Warning: _callback on different widget: %p %p\n",
-	    w->p, widget);
+    void *object = va_arg(ap, void*);
+    if (object != w->p) {
+	fprintf(stderr, "Warning: _callback on different object: %p %p\n",
+	    w->p, object);
     }
     va_end(ap);
 
@@ -204,11 +204,26 @@ static int _callback(void *data, ...)
     GType return_type = cbi->query.return_type & ~G_SIGNAL_TYPE_STATIC_SCOPE;
     return_count = (return_type == G_TYPE_NONE) ? 0 : 1;
 
+    struct object *delete_o = NULL;
+
+    /* extra hack */
+    if (!strcmp(cbi->query.signal_name, "query-tooltip"))
+	// argument #5 is the GtkTooltip, which must be released NOW.
+	delete_o = (struct object*) lua_touserdata(L, stack_top + 6);
+
     /* Call the callback! */
     lua_call(L, arg_cnt+extra_args+1, return_count);
 
     /* Determine the return value (default is zero) */
     int val = _callback_return_value(L, return_type, cbi);
+
+    if (delete_o && !delete_o->is_deleted) {
+	// XXX this is lg_dec_refcount
+	struct object_type *ot = api->get_object_type(L, delete_o);
+	if (ot)
+	    ot->handler(delete_o, WIDGET_UNREF, 0);
+	api->invalidate_object(L, delete_o);
+    }
 
     /* make sure the stack is back to the original state */
     lua_settop(L, stack_top);
@@ -239,12 +254,12 @@ void dummy() {
 static void _free_callback_info(gpointer data, GClosure *closure)
 {
     // data is a struct callback_info.  It contains references, free them.
-    // see luagtk_connect().
+    // see glib_connect().
     struct callback_info *cb_info = (struct callback_info*) data;
 
-    // remove the reference to the callback function (closure) & the widget
+    // remove the reference to the callback function (closure) & the object
     luaL_unref(cb_info->L, LUA_REGISTRYINDEX, cb_info->handler_ref);
-    luaL_unref(cb_info->L, LUA_REGISTRYINDEX, cb_info->widget_ref);
+    luaL_unref(cb_info->L, LUA_REGISTRYINDEX, cb_info->object_ref);
 
     // remove the reference to the table with the extra arguments
     if (cb_info->args_ref)
@@ -266,14 +281,14 @@ static void _free_callback_info(gpointer data, GClosure *closure)
  * Connect a signal to a Lua function.
  *
  * @name connect
- * @luaparam widget
+ * @luaparam object
  * @luaparam signal_name  Name of the signal, like "clicked"
  * @luaparam handler  A Lua function (the callback)
  * @luaparam ...  (optional) extra parameters to the callback
  *
  * @return  The handler id, which can be used to disconnect the signal.
  */
-int luagtk_connect(lua_State *L)
+static int _connect(lua_State *L, GConnectFlags connect_flags)
 {
     luaL_checktype(L, 1, LUA_TUSERDATA);
     luaL_checktype(L, 2, LUA_TSTRING);
@@ -284,16 +299,17 @@ int luagtk_connect(lua_State *L)
     struct callback_info *cb_info;
     guint signal_id;
 
-    // get the widget
-    struct widget *w = (struct widget*) lua_topointer(L, 1);
+    // get the object
+    struct object *w = (struct object*) lua_touserdata(L, 1);
     if (!w || !w->p)
-	luaL_error(L, "trying to connect to a NULL widget\n");
+	luaL_error(L, "trying to connect to a NULL object\n");
 
     // determine the signal
     const char *signame = lua_tostring(L, 2);
     signal_id = g_signal_lookup(signame, G_OBJECT_TYPE(w->p));
     if (!signal_id)
-	luaL_error(L, "Can't find signal %s::%s\n", WIDGET_NAME(w), signame);
+	luaL_error(L, "Can't find signal %s::%s\n", api->get_object_name(w),
+	    signame);
 
     cb_info = g_slice_new(struct callback_info);
     cb_info->L = L;
@@ -302,10 +318,10 @@ int luagtk_connect(lua_State *L)
     if (cb_info->query.signal_id != signal_id) {
 	g_slice_free(struct callback_info, cb_info);
 	luaL_error(L, "invalid signal ID %d for signal %s::%s\n",
-	    signal_id, WIDGET_NAME(w), signame);
+	    signal_id, api->get_object_name(w), signame);
     }
 
-    /* stack: widget - signame - func - .... */
+    /* stack: object - signame - func - .... */
 
     /* The callback is either a function, or a table with the function and
      * additional paramters.
@@ -316,9 +332,9 @@ int luagtk_connect(lua_State *L)
     lua_pushvalue(L, 3);
     cb_info->handler_ref = luaL_ref(L, LUA_REGISTRYINDEX);
 
-    // make a reference to the widget - to avoid it being garbage collected.
+    // make a reference to the object - to avoid it being garbage collected.
     lua_pushvalue(L, 1);
-    cb_info->widget_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    cb_info->object_ref = luaL_ref(L, LUA_REGISTRYINDEX);
 
     // if there are more arguments, put them into a table, and store a
     // reference to it.  When called just with NIL as "more arguments", ignore
@@ -335,28 +351,39 @@ int luagtk_connect(lua_State *L)
 
     handler_id = g_signal_connect_data(w->p, signame,
 	(GCallback) _callback, cb_info, _free_callback_info,
-	G_CONNECT_SWAPPED);
+	G_CONNECT_SWAPPED | connect_flags);
 
     lua_pushnumber(L, handler_id);
 
     return 1;
 }
 
+int glib_connect(lua_State *L)
+{
+    return _connect(L, 0);
+}
+
+int glib_connect_after(lua_State *L)
+{
+    return _connect(L, G_CONNECT_AFTER);
+
+}
+
 
 /**
- * Disconnect a signal handler from a given widget.
+ * Disconnect a signal handler from a given object.
  *
  * @name disconnect
- * @luaparam widget  The widget to disconnect a handler for
+ * @luaparam object  The object to disconnect a handler for
  * @luaparam handler_id  The handler ID of the connection, as returned from
  *   the connect function.
  */
-int luagtk_disconnect(lua_State *L)
+int glib_disconnect(lua_State *L)
 {
     luaL_checktype(L, 1, LUA_TUSERDATA);
     luaL_checktype(L, 2, LUA_TNUMBER);
 
-    struct widget *w = (struct widget*) lua_topointer(L, 1);
+    struct object *w = (struct object*) lua_touserdata(L, 1);
     gulong handler_id = lua_tointeger(L, 2);
     g_signal_handler_disconnect(w->p, handler_id);
 
