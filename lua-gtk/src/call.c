@@ -5,8 +5,8 @@
  * This module contains the routines that call Gtk functions from Lua.
  *
  * Exported functions:
- *   luagtk_call
- *   luagtk_call_byname
+ *   lg_call
+ *   lg_call_byname
  *   get_next_argument
  *   call_info_alloc_item
  *   call_info_msg
@@ -19,12 +19,11 @@
  * @name gtk_internal.call
  */
 
-#include "luagtk.h"
-#include <lauxlib.h>	    // luaL_error
+#include "luagnome.h"
 #include <string.h>	    // memset, strcmp, memcpy
 #include <stdarg.h>	    // va_start etc.
 
-#include "luagtk_ffi.h"	    // LUAGTK_FFI_TYPE() macro
+#include "lg_ffi.h"	    // LUAGTK_FFI_TYPE() macro
 
 
 /* extra arguments that have to be allocated are kept in this list. */
@@ -93,6 +92,29 @@ void *call_info_alloc_item(struct call_info *ci, int size)
     return item + 1;
 }
 
+static void call_info_free_arg(struct call_info *ci, int idx)
+{
+    lua_State *L = ci->L;
+    struct call_arg *ca = &ci->args[idx];
+    int method = ca->free_method;
+
+    switch (method) {
+	case FREE_METHOD_BOXED:
+	    lg_boxed_free(ca->ffi_arg.p);
+	    break;
+	
+	case FREE_METHOD_GVALUE:
+	    g_value_unset((GValue*) ca->ffi_arg.p);
+	    break;
+	
+	default:
+	    luaL_error(L, "%s internal error: undefined free_method %d in "
+		"call_info_free_arg", msgprefix, method);
+    }
+}
+	    
+	    
+
 
 /**
  * Release a call_info structure.  The attached extra parameters are freed,
@@ -107,11 +129,18 @@ void *call_info_alloc_item(struct call_info *ci, int size)
 void call_info_free(struct call_info *ci)
 {
     struct call_info_list *p, *next;
+    int i;
 
+    // free all extra memory allocated for arguments
     for (p=ci->first; p; p=next) {
 	next = p->next;
 	g_free(p);
     }
+
+    // possibly free more arguments
+    for (i=0; i<ci->arg_count; i++)
+	if (ci->args[i].free_method)
+	    call_info_free_arg(ci, i);
 
     if (ci->warnings == 1)
 	printf("\n");
@@ -156,7 +185,7 @@ void call_info_free_pool()
 void call_info_warn(struct call_info *ci)
 {
     if (!ci->warnings)
-	luagtk_call_trace(ci->L, ci->fi, ci->index);
+	lg_call_trace(ci->L, ci->fi, ci->index);
     ci->warnings = 1;
 }
 
@@ -172,7 +201,7 @@ const static char *_call_info_messages[] = {
  *
  * @param level    Error level; 0=debug, 1=info, 2=warning, 3=error
  */
-void call_info_msg(struct call_info *ci, enum luagtk_msg_level level,
+void call_info_msg(struct call_info *ci, enum lg_msg_level level,
     const char *format, ...)
 {
     call_info_warn(ci);
@@ -213,23 +242,52 @@ void call_info_check_argcount(struct call_info *ci, int n)
 
 /**
  * Retrieve the next argument spec from the binary representation (data from
- * the hash table).
+ * the hash table).  Only native types are returned.
  *
- * As you can see, the data consists of a type number; if the high bit is set,
- * then two more bytes follow with a structure number.  The caller must take
- * care not to read past the end of the data.
+ * The types are sorted by descending frequency, so that lower type numbers
+ * are more common.  If the type number is less than 128, it is encoded in
+ * one byte; if more, two bytes are required.
  *
- * @param p    Pointer to the pointer to the current position (will be updated)
- * @param type_idx  (output) type of the next parameter
+ * A type number can be preceded by flags (zero byte + flag byte).
+ *
+ * The caller must take care not to read past the end of the data.
+ * The caller must set ar->ts.module_idx.
+ *
+ * @param p  Pointer to the pointer to the current position (will be updated)
+ * @param ar  Argument conversion structure.  It has the fields arg_flags, ts
  */
-inline int get_next_argument(const unsigned char **p)
+inline void get_next_argument(lua_State *L, const unsigned char **p,
+    struct argconv_t *ar)
 {
     const unsigned char *s = *p;
     unsigned int v = *s++;
+
+    // a zero byte means that a flag byte follows, then the actual value.
+    ar->arg_flags = 0;
+    if (G_UNLIKELY(!v)) {
+	ar->arg_flags = *s++;
+	v = *s++;
+    }
+
+    // high bit set - use two bytes (high order byte first).
     if (v & 0x80)
 	v = ((v << 8) | *s++) & 0x7fff;
     *p = s;
-    return (int) v;
+    ar->ts.type_idx = (int) v;
+
+    // immediately resolve non-native types.
+    ar->ts = lg_type_normalize(L, ar->ts);	// OK
+
+    /*
+    type_info_t ti = lg_get_type_info(ar->ts);
+    const struct ffi_type_map_t *ffi = lg_get_ffi_type(ar->ts);
+    printf("%s arg #%d: %s.%d = %s*%d - %s\n",
+	ar->ci->fi->name, ar->func_arg_nr,
+	modules[ar->ts.module_idx]->name, ar->ts.type_idx,
+	lg_get_type_name(ar->ts),
+	ti->st.indirections,
+	FTYPE_NAME(ffi));
+    */
 }
 
 
@@ -251,8 +309,9 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
     int arg_nr, idx;
 
     /* build the call stack by parsing the parameter list */
+    memset(&ar, 0, sizeof(ar));
     ar.stack_top = lua_gettop(L);	    // last argument's index
-    ar.stack_curr_top = ar.stack_top;	    // expected top (for debuggin)
+    ar.stack_curr_top = ar.stack_top;	    // expected top (for debugging)
     ar.L = L;
     ar.ci = ci;
     s = ci->fi->args_info;
@@ -263,14 +322,15 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 
     // Check that enough space for arguments (+1 for the return value)
     // is allocated.
-    int arg_count = ar.stack_top - index;
-    call_info_check_argcount(ci, arg_count + 1);
+    int arg_count = ar.stack_top - index + 1;
+    call_info_check_argcount(ci, arg_count);
 
     // look at each required parameter for this function.
     for (arg_nr = 0; s < s_end; arg_nr++) {
-	ar.type_idx = get_next_argument(&s);
-	ar.type = type_list + ar.type_idx;
-	ar.arg_type = ffi_type_map + ar.type->fundamental_id;
+	ar.func_arg_nr = arg_nr;
+	ar.ts.module_idx = ci->fi->module_idx;
+	get_next_argument(L, &s, &ar);
+	ar.arg_type = lg_get_ffi_type(ar.ts);
 
 	idx = ar.arg_type->ffi_type_idx;
 	if (idx == 0) {
@@ -303,11 +363,10 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 	ci->argvalues[arg_nr] = &ca->ffi_arg;
 
 	// if there's a handler to convert the argument, do it
-	idx = ar.arg_type->lua2ffi_idx;
-	if (idx) {
+	idx = ar.arg_type->conv_idx;
+	if (idx && ffi_type_lua2ffi[idx]) {
 	    ar.index = index + arg_nr;
 	    ar.arg = &ci->args[arg_nr].ffi_arg;
-	    ar.func_arg_nr = arg_nr;
 //	    int st_pos_1 = lua_gettop(L);
 	    ffi_type_lua2ffi[idx](&ar);
 
@@ -329,8 +388,8 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 	}
     }
 
-    // The return value doesn't count, therefore -1.
-    ci->arg_count = arg_nr - 1;
+    // The return value is included (no -1)
+    ci->arg_count = arg_nr;
 
     // Warn about unused arguments.
     int n = ar.stack_top - (index+arg_nr-1);
@@ -340,21 +399,6 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
     }
 
     return 1;
-}
-
-
-/**
- * Given a type, change the level of indirections by "ind_delta", so for
- * example ("char**", -1) turns into "char*".  This is needed when a function
- * argument is an output argument.
- */
-const struct type_info *luagtk_type_modify(const struct type_info *ti,
-    int ind_delta)
-{
-    const char *name = TYPE_NAME(ti);
-    const struct ffi_type_map_t *ffi = ffi_type_map + ti->fundamental_id;
-    int ind = ffi->indirections + ind_delta;
-    return find_struct(name, ind);
 }
 
 
@@ -381,7 +425,9 @@ static int _call_return_values(lua_State *L, int index, struct call_info *ci)
     s_end = s + ci->fi->args_len;
 
     for (arg_nr = 0; s < s_end; arg_nr++) {
-	ar.type_idx = get_next_argument(&s);
+	ar.func_arg_nr = arg_nr;
+	ar.ts.module_idx = ci->fi->module_idx;
+	get_next_argument(L, &s, &ar);
 
 	// ffi2lua_xxx functions may use more than one argument.
 	if (skip) {
@@ -389,15 +435,50 @@ static int _call_return_values(lua_State *L, int index, struct call_info *ci)
 	    continue;
 	}
 
-	ar.type = type_list + ar.type_idx;
-	ar.arg_type = ffi_type_map + ar.type->fundamental_id;
+	ar.arg_type = lg_get_ffi_type(ar.ts);
+	int idx = ar.arg_type->conv_idx;
+
+	if (arg_nr == 0) {
+
+	    // The actual return value must be handled.
+	    if (idx == 0) {
+		call_info_warn(ci);
+		luaL_error(L, "%s unhandled return type %s\n",
+		    msgprefix, FTYPE_NAME(ar.arg_type));
+	    }
+	} else if (ar.arg_type->indirections == 0) {
+	    // only pointers can be output types.
+	    continue;
+	} else if (ci->args[arg_nr].is_output == 0) {
+	    // not marked as output during first argument scanning
+	    continue;
+	} else if (!idx || !ffi_type_ffi2lua[idx]) {
+	    // no type conversion defined
+	    continue;
+	} else {
+	    // Remove one level of indirections from the type.  This will
+	    // be the output type.
+	    ar.ts = lg_type_modify(L, ar.ts, -1);
+	    if (!ar.ts.value) {
+		printf("could not modify type!\n");
+		continue;
+	    }
+	}
+
+	ar.index = index + arg_nr - 1;
+	ar.arg = &ci->args[arg_nr].ffi_arg;
+	ar.lua_type = arg_nr ? lua_type(L, ar.index) : LUA_TNIL;
+	int cnt = ffi_type_ffi2lua[idx](&ar);
+	if (cnt > 0)
+	    skip = cnt - 1;
+
+#if 0
 
 	// always return the actual return value; others only if they are
 	// pointers and thus can be an output value.
 	if (arg_nr != 0 && ar.arg_type->indirections == 0)
 	    continue;
 
-	int idx = ar.arg_type->ffi2lua_idx;
 	if (idx) {
 
 	    // Find the type of the returned value; it's the type of the
@@ -415,16 +496,16 @@ static int _call_return_values(lua_State *L, int index, struct call_info *ci)
 		if (!strcmp(ftype_name, "void*"))
 		    continue;
 		//printf("arg_type %s, idx %d\n", FTYPE_NAME(ar.arg_type), idx);
-		ar.type = luagtk_type_modify(ar.type, -1);
-		if (!ar.type)
+		ar.ts = lg_type_modify(L, ar.ts, -1);
+		if (!ar.ts.value) {
+		    printf("could not modify type!\n");
 		    continue;
-		ar.type_idx = ar.type - type_list;
+		}
 	    }
 
 	    // return all arguments that look like output arguments.
 	    ar.index = index + arg_nr - 1;
 	    ar.arg = &ci->args[arg_nr].ffi_arg;
-	    ar.func_arg_nr = arg_nr;
 	    ar.lua_type = arg_nr ? lua_type(L, ar.index) : LUA_TNIL;
 	    int cnt = ffi_type_ffi2lua[idx](&ar);
 	    if (cnt > 0)
@@ -435,6 +516,7 @@ static int _call_return_values(lua_State *L, int index, struct call_info *ci)
 	    luaL_error(L, "%s unhandled return type %s\n",
 		msgprefix, FTYPE_NAME(ar.arg_type));
 	}
+#endif
     }
 
     /* return number of return values now on the stack. */
@@ -448,11 +530,31 @@ static int _call_return_values(lua_State *L, int index, struct call_info *ci)
  * Note: this does NOT consider overrides, which is intentional as some
  * override functions use this to call into Gtk.
  */
-int luagtk_call_byname(lua_State *L, const char *func_name)
+int lg_call_byname(lua_State *L, cmi mi, const char *func_name)
 {
     struct func_info fi;
-    if (find_func(func_name, &fi))
-	return luagtk_call(L, &fi, 1);
+    if (lg_find_func(L, mi, func_name, &fi))
+	return lg_call(L, &fi, 1);
+    return luaL_error(L, "%s function %s not found", msgprefix, func_name);
+}
+
+/**
+ * Similar to lg_call_byname, but when the module of the function is
+ * provided as name and not directly.
+ */
+int lg_call_function(lua_State *L, const char *mod_name, const char *func_name)
+{
+    int i;
+    struct func_info fi;
+    cmi mi;
+
+    for (i=1; i<=module_count; i++) {
+	mi = modules[i];
+	if (mod_name && strcmp(mod_name, mi->name))
+	    continue;
+	if (lg_find_func(L, mi, func_name, &fi))
+	    return lg_call(L, &fi, 1);
+    }
     return luaL_error(L, "%s function %s not found", msgprefix, func_name);
 }
 
@@ -466,20 +568,15 @@ int luagtk_call_byname(lua_State *L, const char *func_name)
  * @param index  Lua stack position where the first argument is
  * @return  The number of results on the Lua stack
  */
-int luagtk_call(lua_State *L, struct func_info *fi, int index)
+int lg_call(lua_State *L, struct func_info *fi, int index)
 {
     struct call_info *ci;
     ffi_cif cif;
     int rc = 0;
 
-    // If the user calls gtk_init, don't do it automatically.
-    if (G_UNLIKELY(!gtk_is_initialized)) {
-	if (strcmp(fi->name, "gtk_init"))
-	    luagtk_init_gtk();
-	else {
-	    gtk_is_initialized = 1;
-	}
-    }
+    cmi mi = modules[fi->module_idx];
+    if (mi->call_hook)
+	mi->call_hook(L, fi);
 
     // allocate (or re-use from the pool) a call_info structure.
     ci = call_info_alloc();
@@ -495,7 +592,7 @@ int luagtk_call(lua_State *L, struct func_info *fi, int index)
 
     /* call the function */
     if (_call_build_parameters(L, index, ci)) {
-	if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, ci->arg_count,
+	if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, ci->arg_count - 1,
 	    ci->argtypes[0], ci->argtypes + 1) == FFI_OK) {
 
 	    // A trace function displaying the argument values could be called
