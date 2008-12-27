@@ -106,7 +106,7 @@ typedef int (*struct2lua_t)(struct argconvs_t*);
 
 /*-
  * One entry in the type map.  By replacing pointers by indices to separate
- * tables, the size of each entry is just 8 bytes.
+ * tables, the size of each entry is just 34 bits.  Could two bits be removed?
  */
 struct ffi_type_map_t {
     unsigned int
@@ -127,6 +127,7 @@ extern const struct2lua_t ffi_type_struct2lua[];
 
 // in types.c
 void lg_empty_table(lua_State *L, int index);
+void get_bits_long(struct argconvs_t *ar, char *dest);
 
 // in voidptr.c
 struct value_wrapper;
@@ -297,6 +298,8 @@ int lg_object_newindex(lua_State *L);
 // in init.c
 extern const char msgprefix[];
 int lg_push_closure(lua_State *L, struct func_info *fi);
+int lg_argerror(lua_State *L, int narg, const char *format, ...);
+struct func_info *lg_get_closure(lua_State *L, int index);
 
 // in boxed.c
 extern int lg_boxed_value_type;
