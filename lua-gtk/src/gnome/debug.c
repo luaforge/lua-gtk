@@ -216,7 +216,6 @@ int function_signature(lua_State *L, const struct func_info *fi,
     return 1;
 }
 
-extern int lg_call_wrapper(lua_State *L);
 
 /**
  * Get the function signature for a closure that has been created for a
@@ -229,24 +228,8 @@ extern int lg_call_wrapper(lua_State *L);
  */
 static int _function_sig_for_closure(lua_State *L)
 {
-    int align = 0;
-    if (lua_gettop(L) > 1)
-	align = luaL_checknumber(L, 2);
-
-    /* Check the validity of the closure; must wrap lg_call_wrapper. */
-    lua_CFunction func = lua_tocfunction(L, 1);
-    if (func != &lg_call_wrapper)
-	luaL_error(L, "%s invalid closure", msgprefix);
-
-    /* The first upvalue of the closure is the func_info.  See
-     * src/gnome/init.c:lg_push_closure.  The check should never fail. */
-    lua_getupvalue(L, 1, 1);
-    struct func_info *fi = (struct func_info*) lua_touserdata(L, -1);
-    if (!fi)
-	luaL_error(L, "%s invalid closure (upvalue 1 not a valid userdata)",
-	    msgprefix);
-
-    return function_signature(L, fi, align);
+    int align = lua_gettop(L) > 1 ? luaL_checknumber(L, 2) : 0;
+    return function_signature(L, lg_get_closure(L, 1), align);
 }
 
 
@@ -333,9 +316,6 @@ void lg_call_trace(lua_State *L, struct func_info *fi, int index)
 
 static char spaces[] = "                                                      ";
 
-extern void get_bits_long(lua_State *L, const unsigned char *ptr,
-    int bitofs, int bitlen, char *dest);
-
 /**
  * Dump all elements of a structure.  Recurse into substructures and optionally
  * also follow pointers.
@@ -363,11 +343,12 @@ static void _dump_struct_1(lua_State *L, typespec_t ts, unsigned char *obj,
     printf(", type %s, size %d, elements %d\n", name, ti->st.struct_size,
 	elem_count);
 
-    ts2.module_idx = ts.module_idx;
     for (i=0; i<elem_count; i++) {
 	se = elem_list + ti->st.elem_start + i;
 	name = lg_get_struct_elem_name(ts.module_idx, se);
+	ts2.module_idx = ts.module_idx;
 	ts2.type_idx = se->type_idx;
+	ts2 = lg_type_normalize(L, ts2);
 	arg_type = lg_get_ffi_type(ts2);
 	size = se->bit_length;
 	int show_bytes = size % 8 == 0;
@@ -387,8 +368,13 @@ static void _dump_struct_1(lua_State *L, typespec_t ts, unsigned char *obj,
 	// the contents of that other structure as well (unless NULL)
 	if (follow_ptr && !strcmp(FTYPE_NAME(arg_type), "struct*")) {
 	    void *dest_ptr;
-	    get_bits_long(L, obj, se->bit_offset, se->bit_length, (void*)
-		&dest_ptr);
+	    struct argconvs_t ar;
+
+	    ar.ptr = obj;
+	    ar.se = se;
+	    ar.L = L;
+	    get_bits_long(&ar, (char*) &dest_ptr);
+
 	    if (dest_ptr) {
 		printf(" %*.*s%2d %s*", indent, indent, spaces, i, name);
 		_dump_struct_1(L, ts2, dest_ptr, indent + 4, follow_ptr);
