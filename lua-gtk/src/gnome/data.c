@@ -381,9 +381,20 @@ found:;	typespec_t ts2;
     return ts;
 }
 
-/* Find a constant in the given module */
+
+/**
+ * Find a constant by name in the given module.
+ * Entries for constants start with a flag byte.
+ *   0x80   set if a type_idx is included.
+ *   0x40   set if this is a string
+ *   0x20   set if the (numeric) value is negative.
+ *   0x1f   used for the value, or the type_idx if set
+ * Following that is another type_idx byte, if the flag 0x80 is set, and then
+ * all the rest of the bytes are the value; for a string, just that, and for
+ * numeric values high to low.
+ */
 static int _find_constant(lua_State *L, typespec_t *ts, const char *key,
-	int keylen, int *result)
+    int keylen, int *result)
 {
     int datalen, val;
     const unsigned char *res;
