@@ -553,13 +553,13 @@ void *lg_use_closure(lua_State *L, int index, typespec_t ts, int arg_nr,
 	if (arg_nr)
 	    luaL_argerror(L, arg_nr, "must be a closure, use gtk.closure");
 	else
-	    luaL_error(L, "%s value must be a closure");
+	    luaL_error(L, "[LG gnome 7] Value must be a closure");
     }
 
     if (!cl->ts.value)
 	_setup_closure(L, cl, ts, arg_nr, func_name);
     else if (cl->ts.value != ts.value)
-	luaL_error(L, "%s closure used with different signature", msgprefix);
+	luaL_error(L, "[LG gnome 8] Closure used with different signature");
 
     // It would be logical to always call "code", but sometimes "closure" must
     // be called instead.  The configure script determines which one works.
