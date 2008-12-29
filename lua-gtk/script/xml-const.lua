@@ -73,10 +73,10 @@ function encode_enum(name, val, type_idx)
 end
 
 function enum_statistics()
-    info_num("Enum Count", enum_count)
-    info_num("Enum raw data bytes", enum_rawdata)
-    info_num("Enum string count", enum_strings)
-    info_num("Enum negative numbers", enum_negative)
-    info_num("Enums with type_idx", enum_typenr)
+    info_num("Constant Count", enum_count)
+    info_num("Constant raw data bytes", enum_rawdata)
+    info_num("Constant string count", enum_strings)
+    info_num("Constant negative numbers", enum_negative)
+    info_num("Constants with type_idx", enum_typenr)
 end
 
