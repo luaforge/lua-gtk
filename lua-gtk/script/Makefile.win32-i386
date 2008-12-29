@@ -23,3 +23,5 @@ zip: all
 	cd /tmp; \
 	zip -r $$DEST lua-gtk-$(VERSION))
 
+LIBS	+=$(LUA_LIB)
+
