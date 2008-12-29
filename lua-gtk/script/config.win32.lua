@@ -43,8 +43,9 @@ cross_run = ""
 
 cfg_m("INDIR1", "/usr/local/lib/lua/5.1")
 cfg_m("INDIR2", "/usr/local/share/lua/5.1")
-cfg_m("ODLL", "gtk.dll")
-cfg_m("EXTRA_LIB += " .. lua_dir .. "/lua5.1.dll")
+cfg_m("DLLEXT", ".dll")
+lua_lib = lua_dir .. "/lua5.1.dll"
+-- cfg_m("EXTRA_LIB += " .. lua_dir .. "/lua5.1.dll")
 cfg_m("LUADIR", lua_dir)
 cfg_m("EXESUFFIX", ".exe")
 cfg_l('cc_flags = "-I %s"', iconv_dir)
