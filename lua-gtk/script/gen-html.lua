@@ -7,78 +7,193 @@
 -- It recursively reads all files, processes the .html files,
 -- copies .css and .png.  Output directory is defined below.
 --
--- Copyright (C) 2007 Wolfgang Oertl <wolfgang.oertl@gmail.com>
+-- Copyright (C) 2007, 2008 Wolfgang Oertl <wolfgang.oertl@gmail.com>
 --
--- TODO
---  - don't hard code the menu
---  - option parsing for output directory, input files etc.
+-- menu_entry structure: [1]=basename, [2]=title, [3]=submenu, [seen]=true
 --
 
-require "luadoc.lp"
 require "lfs"
 
-html_header = [[
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" 
-    "http://www.w3.org/TR/html4/strict.dtd">
-<html>
+page_template = nil
+input_dir = nil
+output_dir = nil
+config = nil
+main_menu = nil
 
-<head>
- <meta name="description" content="The Lua-Gtk Homepage #TITLE#">
- <meta name="keywords" content="Lua, Gtk">
- <title>Lua-Gtk #TITLE#</title>
- <link rel="stylesheet" href="lua-gtk.css" type="text/css">
-</head>
+-- expand tabs; taken from "Programming in Lua" by Roberto Ierusalimschy
+function expand_tabs(s, tab)
+    local corr = 0
+    tab = tab or 8
+    s = string.gsub(s, "()\t", function(p)
+	local sp = tab - (p - 1 + corr) % tab
+	corr = corr - 1 + sp
+	return string.rep(" ", sp)
+    end)
+    return s
+end
 
-<body>
+-- colorize keywords
+lua_keywords = { 
+    "and", "break", "do", "else", "elseif", "end", "false", "for",
+    "function", "if", "in", "local", "nil", "not", "or", "repeat",
+    "return", "then", "true", "until", "while",
+}
+--[[
+lua_library = { 
+    "assert", "collectgarbage", "dofile", "error", "getfenv",
+    "getmetatable", "ipairs", "load", "loadfile", "loadstring", "module",
+    "next", "pairs", "pcall", "print" "rawequal", "rawget", "rawset",
+    "require", "select", "setfenv", "setmetatable", "tonumber", "tostring",
+    "type", "unpack", "xpcall",
+}
+--]]
 
-<div id="header">
- <img width=128 height=128 border=0 alt="Lua-Gtk Logo" src="img/lua-gtk-logo.png"/>
- <p>Binding to Gtk 2 for Lua</p>
- <p>
-  <a href="index.html">Home</a> &middot;
-  <a href="examples1.html">Examples 1</a> &middot;
-  <a href="examples2.html">Examples 2</a> &middot;
-  <a href="reference.html">Reference</a>
- </p>
-</div>
+lua_gnome = { "gnome", "gtk", "glib", "gdk", "pango", "cairo", "gtkhtml",
+    "gtksourceview" }
 
-<div id="content">
-]]
+-- globals
+lua_keyindex = nil
+col_res = nil
+function put(s)
+    col_res[#col_res + 1] = s
+end
+word = ""
+delim = nil
 
-html_trailer = [[
-</div>
-</body>
-</html>
-]]
+states = {
 
-output_dir = "../build/html/"
+    -- looking for start of word
+    [1] = function(c)
+	if c == " " or c == "\n" then
+	    put(c)
+	    return 1
+	end
+
+	word = c
+
+	-- start of string
+	if c == '"' or c == "'" then
+	    delim = c
+	    return 4
+	end
+
+	if c >= '0' and c <= '9' then
+	    return 5
+	end
+
+	return 2
+    end,
+
+    -- collecting a word
+    [2] = function(c)
+	if string.match(c, "^[a-zA-Z_-]$") then
+	    word = word .. c
+	    -- comment
+	    if word == "--" then
+		return 3
+	    end
+	    return 2
+	end
+
+	-- number after "-": a negative constant.
+	if c >= "0" and c <= "9" and word == "-" then
+	    return states[5](c)
+	end
+
+	local cl = lua_keyindex[word]
+	if cl then
+	    put(string.format("<b class=\"%s\">%s</b>", cl, word))
+	elseif c == '.' then
+	    word = word .. c
+	    return 2
+	else
+	    put(word)
+	end
+	word = ""
+	put(c)
+	return 1
+    end,
+
+    -- comment
+    [3] = function(c)
+	if c == "\n" then
+	    put("<b class=\"co\">" .. word .. "</b>\n")
+	    word = ""
+	    return 1
+	end
+	word = word .. c
+	return 3
+    end,
+
+    -- in a string
+    [4] = function(c)
+	word = word .. c
+	if c == delim then
+	    put("<b class=\"st\">" .. word .. "</b>")
+	    return 1
+	end
+	return 4
+    end,
+
+    -- in a number
+    [5] = function(c)
+	if c >= '0' and c <= '9' then
+	    word = word .. c
+	    return 5
+	end
+	put("<b class=\"st\">" .. word .. "</b>")
+	return states[1](c)
+    end,
+
+}
+
+
+---
+-- Given some Lua code in "s" (may be one line or multiple lines), return
+-- HTML code for a colorized (syntax highlighted) representation.
+--
+function colorize(s)
+    if not lua_keyindex then
+	lua_keyindex = {}
+	for _, k in ipairs(lua_keywords) do lua_keyindex[k] = "kw" end
+	for _, k in ipairs(lua_gnome) do lua_keyindex[k] = "gn" end
+	for prefix, ar in pairs { [""]=_G, ["string."]=string,
+	    ["math."]=math, ["io."]=io, ["package."]=package,
+	    ["os."]=os, ["debug."]=debug, ["table."]=table,
+	    ["coroutine."]=coroutine } do
+	    for k, v in pairs(ar) do
+		if type(v) == "function" then
+		    lua_keyindex[prefix .. k] = "lb"
+		end
+	    end
+	end
+    end
+
+    local state = 1
+    word = ""
+    col_res = {}
+    for c in string.gmatch(s, ".") do
+	state = states[state](c)
+    end
+    states[state] "\n"
+    while col_res[#col_res] == "\n" do
+	table.remove(col_res)
+    end
+    return table.concat(col_res, "")
+end
 
 -- The environment available to the functions in the template.
 env = {
-
-   io = io, 
-
-    -- page header
-    html_header = function(title)
-	-- avoid the second return value (number of substitutions) to be
-	-- returned, too.
-	local s = string.gsub(html_header, "#TITLE#", title)
-	return s
-    end,
-
-    html_trailer = function()
-	return html_trailer
-    end,
 
     -- extract a function from a Lua source file
     copy_function = function(file, name)
 	local state = 0
 	local res = {}
 
-	local exists, _ = lfs.attributes("../" .. file)
-	if not exists then return "" end
+	local exists, _ = lfs.attributes(file)
+	if not exists then return "not found: " .. file end
 
-	for line in io.lines("../" .. file) do
+	for line in io.lines(file) do
 	    if state == 0 then
 		if string.match(line, "function " .. name) then
 		    state = 1
@@ -86,7 +201,7 @@ env = {
 	    end
 
 	    if state == 1 then
-		table.insert(res, line)
+		res[#res + 1] = colorize(expand_tabs(line))
 		if string.match(line, "^end") then
 		    break
 		end
@@ -96,6 +211,21 @@ env = {
 	return table.concat(res, "\n")
     end,
 
+    copy_file = function(file)
+	local f = io.open(file)
+	if not f then return "not found: " .. file end
+	local s = f:read "*a"
+	f:close()
+	return "<div class=\"code\"><code>\n" .. colorize(s)
+	    .. "</code></div>\n"
+    end,
+
+    inline_code = function(s, ...)
+	local sep = select('#', ...) > 0 and "\n" or ""
+	return "<div class=\"code\"><code>\n" .. colorize(s)
+	    .. sep .. table.concat({...}, "\n")
+	    .. "</code></div>\n"
+    end,
 }
 
 
@@ -112,6 +242,7 @@ function _mkdir(path)
 	lfs.mkdir(s)
     end
 end
+
 
 ---
 -- Copy a file.  All the directories leading to the destination file are
@@ -138,27 +269,173 @@ function _file_copy(from, to)
 end
 
 ---
+-- Add some entries to the menu: _parent in each item, further a basename
+-- index in config.menu_index.
+--
+function _prepare_menu(top, parent, ar)
+    ar = ar or top
+    for i, item in ipairs(ar) do
+	config.menu_index[item[1]] = item
+	item._parent = parent
+	if item[3] then
+	    _prepare_menu(top, item, item[3])	-- recurse
+	end
+    end
+end
+
+-- recursively look for the given basename.
+-- ar_in: the part of the menu to look in
+-- ar_out: path to the item if found; [1]=most specific, [2]=parent etc.
+function _find_in_menu(basename, ar_in, ar_out)
+
+    for i, item in ipairs(ar_in) do
+	if item[1] == basename then
+	    ar_out[#ar_out+1] = item
+	    return true
+	end
+
+	if item[3] and _find_in_menu(basename, item[3], ar_out) then
+	    ar_out[#ar_out+1] = item
+	    return true
+	end
+    end
+
+end
+
+
+---
+-- Build the side menu for the given menu_entry.  It consists of all siblings
+-- and all childs.
+-- @param menu  A menu structure
+-- @param current  The current menu; in order to descend there and display it
+--   differently.
+--
+function make_side_menu(current)
+    local path, m, tbl
+
+    -- determine the path to the current menu entry
+    path = {}
+    m = current
+    while m do
+	path[m] = 1
+	m = m._parent
+    end
+    path[current] = 2
+
+    tbl = {}
+    _make_side_menu(tbl, config.menu, path)
+
+    if #tbl == 0 then return "" end
+    return table.concat(tbl, "\n")
+end
+
+function _make_side_menu(tbl, menu, path)
+    if #menu == 0 then return end
+
+    tbl[#tbl + 1] = "<ul>"
+
+    for i, item in ipairs(menu) do
+	if path[item] == 2 then
+	    tbl[#tbl + 1] = string.format("<li><b>%s</b></li>", item[2])
+	else
+	    tbl[#tbl + 1] = string.format("<li><a href=\"%s.html\">%s</a></li>",
+		item[1], item[2])
+	end
+	if path[item] and item[3] then
+	    _make_side_menu(tbl, item[3], path)
+	end
+    end
+
+    tbl[#tbl + 1] = "</ul>"
+end
+
+-- Helper function for _make_side_menu.
+function _add_menu_items(tbl, ar)
+    for i, item in ipairs(ar) do
+	tbl[#tbl + 1] = string.format("<li><a href=\"%s.html\">%s</a></li>",
+	    item[1], item[2])
+    end
+end
+
+
+---
+-- Fill the template using the current menu entry and the given input file,
+-- and write the resulting HTML file to ofile.
+--
+function _process_html(ifname, ofname, menu_entry)
+    local ifile, ofile, ar, page
+
+    if not page_template then
+	ifile = assert(io.open(input_dir .. "/template.html"))
+	page_template = ifile:read "*a"
+	ifile:close()
+    end
+
+    ifile = assert(io.open(ifname))
+
+    ar = {}
+    ar.SIDEMENU = make_side_menu(menu_entry)
+    ar.TITLE = menu_entry[2]
+    ar.CONTENT = _evaluate_html(ifile:read "*a")
+    ar.MAINMENU = main_menu
+    ar.CONTENTCLASS = (ar.SIDEMENU == "") and "center" or "right"
+    ifile:close()
+
+    page = string.gsub(page_template, "#([A-Z]+)#", ar)
+
+    ofile = assert(io.open(ofname, "w"))
+    ofile:write(page)
+    ofile:close()
+end
+
+
+---
+-- HTML from the input file can contain macros in the form %<= ... %>, which
+-- is exactly what luadoc supports.  The ... is evaluated as Lua expression,
+-- and its result replaces the whole macro.
+--
+function _evaluate_html(s)
+    return string.gsub(s, "<%%=(.-)%%>", function(fn)
+	local chunk = assert(loadstring("return " .. fn))
+	setfenv(chunk, env)
+	return chunk()
+    end)
+end
+
+---
 -- Process a file.  If it is a HTML file, run the luadoc template routines on
 -- it, otherwise (if it has a known extension) copy it to the destination.
 --
 function _read_file(path)
-    if string.match(path, "%.html$") then
-	print("Processing " .. path)
-	_mkdir(output_dir .. path)
-	local f = io.open(output_dir .. path, "w")
-	assert(f)
-	io.output(f)
-	luadoc.lp.include(path, env)
-	f:close()
+    local path1, path_in, basename, menu_entry
+
+    path1 = string.sub(path, #input_dir + 1)
+    _mkdir(output_dir .. path1)
+
+    basename = string.match(path, "([a-z0-9_]+)%.html$")
+    if basename then
+	if basename == "template" then return end
+	menu_entry = assert(config.menu_index[basename],
+	    "Missing menu entry for input file " .. basename)
+	-- if a .in file exists in the output directory, process that instead.
+	-- it might exist if the doc file has been preprocessed.
+	path_in = output_dir .. path1 .. ".in"
+	if lfs.attributes(path_in, "mode") ~= "file" then
+	    path_in = path
+	end
+	print("Processing " .. path_in)
+	menu_entry.seen = true
+	_process_html(path_in, output_dir .. path1, menu_entry)
 	return
     end
 
     if string.match(path, "%.png$") or string.match(path, "%.css$") then
 	print("Copying " .. path)
-	_file_copy(path, output_dir .. path)
+	_file_copy(path, output_dir .. path1)
 	return
     end
 end
+
 
 ---
 -- Process a file or directory.  Files are handled by _read_file, while
@@ -180,5 +457,66 @@ function _read_file_dir(path)
     end
 end
 
-_read_file_dir(".")
+
+---
+-- Read the configuration file for the documentation, which currently only
+-- defines the menu structure, including the title for each entry.
+--
+function _read_config(ifname)
+    local ifile = assert(io.open(ifname))
+    local s = ifile:read "*a"
+    ifile:close()
+    local closure = assert(loadstring(s))
+    config = {}
+    setfenv(closure, config)
+    closure()
+
+    -- build the main menu
+    local tbl = {}
+    for _, entry in ipairs(config.menu) do
+	tbl[#tbl + 1] = string.format("<a href=\"%s.html\">%s</a>",
+	    entry[1], entry[2])
+    end
+    main_menu = table.concat(tbl, " &middot;\n")
+
+    config.menu_index = {}
+    _prepare_menu(config.menu)
+
+end
+
+---
+-- Walk the menu tree and find entries that no file was generated for.
+-- Either find a ".in" file in the build directory, or complain.
+--
+function _check_menu()
+    local ifname, ofname
+
+    for basename, item in pairs(config.menu_index) do
+	if not item.seen then
+	    ifname = string.format("%s/%s.html.in", output_dir, basename)
+	    ofname = string.format("%s/%s.html", output_dir, basename)
+
+	    if lfs.attributes(ifname, "mode") == "file" then
+		print("Processing " .. ifname)
+		item.seen = true
+		_process_html(ifname, ofname, item)
+	    else
+		print("Missing input file for", basename)
+	    end
+	end
+    end
+end
+
+-- MAIN --
+if not arg[2] then
+    print(string.format("Usage: %s [input directory] [output directory]",
+	arg[0]))
+    os.exit(1)
+end
+
+input_dir = arg[1]
+output_dir = arg[2]
+_read_config(arg[1] .. "/menu.lua")
+_read_file_dir(arg[1])
+_check_menu()
 
