@@ -12,6 +12,8 @@ config = {}
 
 tmp_file = "tmpfile.c"
 tmp_content = nil
+dump_c = false
+require "script/util"
 
 ---
 -- Call pkg-config and retrieve the answer
@@ -57,24 +59,16 @@ function generate_xml(ofname, platform)
     local defs = ""
     local includes = ""
 
-    ofile = io.open(tmp_file, "w")
-    if not ofile then
-	print("Can't open output file " .. tmp_file)
-	return 1
+    cfg_file = string.format("%s/spec.lua", config.srcdir)
+    cfg = load_spec(cfg_file)
+    pkgs[#pkgs + 1] = cfg.pkg_config_name
+    if cfg.defs then
+	defs = defs .. add_defs(cfg.defs.all)
+	defs = defs .. add_defs(cfg.defs[arch_os])
     end
-
-    for _, lib in ipairs(config.libs) do
-	cfg_file = string.format("libs/%s.lua", lib.name)
-	cfg = load_config(cfg_file)
-	pkgs[#pkgs + 1] = cfg.pkg_config_name
-	if cfg.defs then
-	    defs = defs .. add_defs(cfg.defs.all)
-	    defs = defs .. add_defs(cfg.defs[arch_os])
-	end
-	if cfg.includes then
-	    includes = includes .. add_includes(cfg.includes.all)
-		.. add_includes(cfg.includes[arch_os])
-	end
+    if cfg.includes then
+	includes = includes .. add_includes(cfg.includes.all)
+	    .. add_includes(cfg.includes[arch_os])
     end
     
     -- XXX this could already be done by configure, thus obviating the
@@ -85,6 +79,18 @@ function generate_xml(ofname, platform)
     end
 
     tmp_content = defs .. includes
+
+    if dump_c then
+	print(tmp_content)
+	os.exit(0)
+    end
+
+    ofile = io.open(tmp_file, "w")
+    if not ofile then
+	print("Can't open output file " .. tmp_file)
+	return 1
+    end
+
     ofile:write(tmp_content)
     ofile:close()
     s = string.format("gccxml %s -fxml=%s %s %s", flags, ofname,
@@ -163,37 +169,29 @@ function download_types_xml(ofname, platform, version)
 end
 
 
----
--- Read a Lua configuration file.  In case of error, aborts the application.
---
--- @param fname  The path and name of the file to load
--- @return  A table with the variables defined in that file.
---
-function load_config(fname)
-    local chunk, msg = loadfile(fname)
-    if not chunk then print(msg); os.exit(1) end
-    local tbl = {}
-    setfenv(chunk, tbl)
-    chunk()
-    return tbl
-end
-
 -- MAIN --
 -- arguments: output_file_name, lua_config_file
 
-if not arg[1] or not arg[2] then
-    print "Parameters: output file name, lua config file."
+if arg[1] == "--dump-c" then
+    dump_c = true
+    table.remove(arg, 1)
+end
+
+if not arg[1] then
+    print "Parameters: build directory."
     return
 end
 
-config = load_config(arg[2])
+config = load_config(arg[1] .. "/config.lua")
 assert(config.arch, "No architecture defined in config file")
+assert(config.module, "No module defined in config file")
 config.arch = string.lower(config.arch)
 config.arch_os = string.match(config.arch, "^[^-]+")
+ofname = arg[1] .. "/types.xml"
 
-rc = generate_xml(arg[1], config.arch)
+rc = generate_xml(ofname, config.arch)
 if rc ~= 0 then
-    rc = download_interactive(arg[1], config.arch)
+    rc = download_interactive(ofname, config.arch)
 end
 
 if rc ~= 0 then
@@ -201,6 +199,4 @@ if rc ~= 0 then
 	tmp_content))
 end
 os.exit(rc)
-
-
 
