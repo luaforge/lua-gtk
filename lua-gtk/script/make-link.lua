@@ -1,6 +1,5 @@
 #! /usr/bin/env lua
 -- vim:sw=4:sts=4
---
 -- Read linklist.txt and the type XML file to generate the C and header files.
 -- Copyright (C) 2007 Wolfgang Oertl
 --
@@ -14,9 +13,9 @@
 -- All the functions called by a Lua script using the lua-gtk binding are
 -- looked up in the same fashion anyway, so the additional code is little.
 --
--- This helps when some libraries are optional, currently gtkhtml.  If it
--- isn't available at runtime, this doesn't matter until a function is
--- called.
+-- The advantage of this method over letting the dynamic loaded do this is
+-- that when symbols are missing, the library is loaded anyway and works
+-- until the missing symbol is accessed.
 --
 -- In order to guarantee full type checking (return values, parameters), the
 -- function signatures are extracted from types.xml just like parse-xml.lua
@@ -25,7 +24,9 @@
 --
 
 require "lxp"
+require "script.util"
 
+funclist_ordered = {}	    -- [idx] = "name"
 funclist = {}		    -- [name] = { type, { rettype, arg1, arg, ... } }
 typedefs = {}		    -- [id] = { type, name/id }
 globals = {}		    -- [name] = { type }
@@ -169,6 +170,7 @@ end
 
 -- Environment to evaluate conditions in
 cond_env = {}
+cond_env.__index = cond_env
 
 -- List of libraries to query the version for.  The first column is the
 -- lib name, and the second the lib name for pkg-config.
@@ -195,33 +197,56 @@ end
 
 
 ---
--- Read the list of functions to link to.  Comment lines are ignored.
+-- Load the spec file and extract the "linklist" section, which may be missing.
+-- Each entry in that list may be in one of two formats:
+--
+--  "name",		unconditionally include that function
+--  { "name", "cond" }	include only if cond evaluates to true.
 --
 function read_list(fname)
-    local name, cond, chunk, msg, rc
+    local cfg, list, cond, chunk
 
-    for line in io.lines(fname) do
-	if #line > 0 and string.sub(line, 1, 1) ~= "#" then
-	    name, cond = string.match(line, "^(%S+)(.*)$")
-	    rc = true
-	    if cond ~= '' then
-		chunk, msg = loadstring("return " .. cond)
-		if not chunk then
-		    print("Faulty condition", cond)
-		    rc = false
-		else
-		    setfenv(chunk, cond_env)
-		    rc = chunk()
-		end
-	    end
-	    
-	    -- add to list if no condition was given or the cond was met.
-	    if rc then
-		funclist[name] = cond
+    cfg = load_spec(fname, true)
+    list = cfg.linklist
+    if not list then return end
+
+    for i, item in ipairs(list) do
+	if type(item) == "string" then
+	    _add_function(item)
+	else
+	    assert(type(item) == "table")
+	    assert(type(item[1]) == "string")
+	    assert(type(item[2]) == "string")
+	    cond = "return " .. item[2]
+	    chunk = assert(loadstring(cond))
+	    setfenv(chunk, cond_env)
+	    if chunk() then
+		_add_function(item[1])
 	    end
 	end
     end
+
 end
+
+function _add_function(name)
+    funclist[name] = true
+    funclist_ordered[#funclist_ordered + 1] = name
+end
+
+--[[
+-- from script/parse-xml.lua
+function load_config(fname)
+    local chunk, msg = loadfile(fname)
+    if not chunk then print(msg); os.exit(1) end
+    local tbl = { include_spec=include_spec }
+    setfenv(chunk, tbl)
+    chunk()
+    return tbl
+end
+
+function include_spec(name)
+end
+--]]
 
 
 ---
@@ -241,9 +266,6 @@ function check_completeness()
     return err
 end
 
--- number of functions
-local func_nr = 0
-
 ---
 -- Write the #defines that redirect function calls to the indirect pointers
 -- stored in the array dl_link
@@ -252,12 +274,15 @@ local func_nr = 0
 --
 function output_header(ofname, ifname)
     local ofile = io.open(ofname, "w")
-    local ar, ar1, sig
+    local ar, ar1, sig, def
 
     ofile:write(string.format("/* Automatically generated from %s */\n\n",
 	ifname))
 
-    for name, def in pairs(funclist) do
+    ofile:write(string.format("extern linkfuncptr %s_table[];\n", prefix))
+
+    for nr, name in ipairs(funclist_ordered) do
+	def = funclist[name]
 
 	ar = {}
 	for k, v in pairs(def[2]) do
@@ -268,16 +293,14 @@ function output_header(ofname, ifname)
 
 	    -- definition to redirect uses of the function to the pointer
 	    ar1 = table.remove(ar, 1)
-	    sig = string.format("#define %s ((%s(*)(%s)) dl_link[%d])\n",
-		name, ar1, table.concat(ar, ","), func_nr)
+	    sig = string.format("#define %s ((%s(*)(%s)) %s_table[%d])\n",
+		name, ar1, table.concat(ar, ","), prefix, nr-1)
 	
 	else	    -- "var"
-	    sig = string.format("#define %s (*(%s*) dl_link[%d])\n",
-		name, ar[1], func_nr)
+	    sig = string.format("#define %s (*(%s*) %s_table[%d])\n",
+		name, ar[1], prefix, nr-1)
 	end
 	ofile:write(sig)
-
-	func_nr = func_nr + 1
     end
 
     ofile:close()
@@ -291,13 +314,12 @@ function output_c(ofname, ifname)
     local ofile = io.open(ofname, "w")
 
     ofile:write(string.format("/* Automatically generated from %s */\n\n"
-	.. "#include \"luagtk.h\"\n"
-	.. "linkfuncptr dl_link[%d];\nconst char dl_names[] = \n", ifname,
-	func_nr))
-    for name, def in pairs(funclist) do
+	.. "#include \"common.h\"\n"
+	.. "linkfuncptr %s_table[%d];\nconst char %s_names[] = \"\"\n",
+	ifname, prefix, #funclist_ordered, prefix))
+    for nr, name in ipairs(funclist_ordered) do
 	-- pointer and a means to set it to the real function
-	ofile:write(string.format("  \"%s\\000\"\n",
-	    name, name))
+	ofile:write(string.format("  \"%s\\000\"\n", name, name))
     end
     ofile:write(";\n")
     ofile:close()
@@ -305,13 +327,14 @@ end
 
 -- MAIN --
 
-if (#arg ~= 4) then
-    print("Arguments: XML file, function list, output header file, "
-	.. "output C file")
+if (#arg ~= 5) then
+    print("Arguments: XML file, spec file, output header file, "
+	.. "output C file, prefix")
     os.exit(1)
 end
 
 get_lib_versions()
+prefix = arg[5]
 read_list(arg[2])
 parse_xml(arg[1])
 if check_completeness() ~= 0 then
