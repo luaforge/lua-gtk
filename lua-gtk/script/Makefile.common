@@ -1,278 +1,212 @@
 
+# Common Makefile rules to build a library module.  Following variables need
+# to be set before including this file:
+#
+# MODULE
+# Name of the module.  Source is in src/$(MODULE), and the build directory
+# (with configure-generated config files) is in build/$(ARCH)/$(MODULE).
+#
+# SRC
+# (optional) list of module specific source files in addition to init.c and the
+# files generated from the headers (types, functions etc.)
+#
+
+ifeq ($(MODULE), )
+ $(error You have to define $$MODULE)
+endif
+
+all: module_$(MODULE) dummy
+
+dummy:
+	@true
+
+# Read state file if exists.  Don't use :=, because then the new state (if
+# changed) wouldn't be used in the submake invocation.  May be overridden on
+# the command line.
+FILE := $(wildcard build/make.state)
+ifneq ($(FILE), )
+    include $(FILE)
+endif
+
+ifeq ($(wildcard build/$(ARCH)/$(MODULE)/config.make), )
+    $(error Library $(ARCH)/$(MODULE) not yet configured)
+endif
+
+# $(warning Building $(ARCH) $(MODULE)...)
+
+# include the config file
+include build/$(ARCH)/$(MODULE)/config.make
+
 # -- general configuration --
-HASH	:=hash-$(HASHF)
+#HASH	:=hash-$(HASHF)
 O	:=o
 LIBINSTALL := cp
 LIBFINAL := touch
+IDIR	:=src/$(MODULE)
+DYNLINK_PREFIX :=$(MODULE)
+BINDIR	=build/$(ARCH)/
+DEVMOD	:=build/$(ARCH)/gnomedev.so
 # -- end general configuration --
 
+# -- non-core-module settings --
+ifeq ($(COREMODULE), )
+SRC	:=init generated module $(SRC)
+OFILES	=$(SRC) types globals fundamentals
+
+#$(DEVMOD):
+#	$(error Build the gnome module first)
+
+else
+OFILES	=$(SRC)
+endif
+
+# Run make with "H=" as an argument to show all build commands; otherwise
+# just show each build target.
+H	:=@
+ifeq ($(H), @)
+ I	=@echo $@
+else
+ I	:=
+endif
+
+# how to recursively call make (if required)
+submake = $(MAKE) -r --no-print-directory
+
+
+module_$(MODULE): $(ODIR)$(MODULE)$(DLLEXT)
+
+# cleanup
+clean:
+	$H rm -f $(addprefix $(ODIR),$(addsuffix .$O,$(OFILES)) $(CLEAN)) \
+		$(ODIR)$(MODULE)$(DLLEXT) \
+		$(ODIR)constants* $(ODIR)functions* $(ODIR)link.[ch] \
+		$(ODIR)types.* $(ODIR)fundamentals.* \
+		$(ODIR)types.xml $(ODIR)globals.c $(ODIR)generated.c \
+		$(ODIR)parse-xml.log
+
+mrproper: clean
+	$H rm -f $(ODIR)config.{h,lua,make}
+
+size: $(addprefix $(ODIR), $(addsuffix .$O,$(OFILES)))
+	$H size -t $(addprefix $(ODIR), $(addsuffix .$O,$(OFILES)))
+	$H size $(ODIR)$(MODULE)$(DLLEXT)
+
+wc:
+	$H wc $(IDIR)/*.[ch]
+
 .PHONY:	tags wc tar install mrproper clean tests config_h doc size
-.PRECIOUS: ${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}%.keys ${ODIR}%.mph
+.PRECIOUS: $(ODIR)%.txt $(ODIR)%.c
 
-OFILES	:=types.$O gtk2.$O boxed.$O data.$O enum.$O voidptr.$O \
-	call.$(O) callback.$(O) closure.$O channel.$O gvalue.$O override.$O \
-	debug.$(O) widget.$(O) widget_types.$(O) widget_meta.$(O) \
-	gtkdata.structs.$(O) _override.$(O) gtkdata.globals.$O
-LH	:=src/luagtk.h ${ODIR}config.h
+# headers for dependencies
+DEP	:=include/common.h include/module.h $(ODIR)config.h
 
-# -- runtime linking? --
 ifeq ($(DYNLINK), 0)
-LIBS	:=${GTK_LIBS}
 else
-OFILES	+=link.$(O)
-LH	+=${ODIR}link.h
+OFILES	+=link
+DEP	+=$(ODIR)link.h
 endif
 
-# -- is cmph available? --
-ifeq ($(HAVE_CMPH), 1)
-OFILES	+=hash-functions.$O hash-cmph.$O hash-$(CMPH_ALGO).$O \
-	_funclist_$(CMPH_ALGO).$O _enumlist_$(CMPH_ALGO).$O
+# configure hash files depending on the setting in build/make.state.
+ifeq ($(COREMODULE), )
+ OFILES +=functions constants
 else
-OFILES	+=hash-simple.$(O) ${HASH}.$(O) _funclist.$(O) _enumlist.$(O)
+ ifeq ($(HAVE_CMPH), 1)
+  OFILES	+=hash-functions hash-cmph hash-$(HASH_METHOD)
+ else
+  OFILES	+=hash-simple # hash-$(HASH_METHOD) $(HASH)
+ endif
 endif
 
-gtk2dll: build-tests ${ODIR}${ODLL}
-
-config configure:
-	$H script/configure $(ARCH)
-
-
-# test that calling works properly.  For Win32, requires wine to be installed.
-build-tests: ${ODIR}test-vararg-ok
-
-${ODIR}test-%-ok: ${ODIR}test-%${EXESUFFIX}
-	$H $(CROSS_RUN) $^ && touch $@
-
-${ODIR}test-vararg${EXESUFFIX}: src/test-vararg.c
+# the target library
+$(ODIR)$(MODULE)$(DLLEXT): $(addprefix $(ODIR),$(addsuffix .$O,$(OFILES)))
 	$I
-	$H $(CC) $(CFLAGS) -I $(ODIR) -Wall -o $@ $^
-
-# rule to build the library.
-
-${ODIR}${ODLL}: $(addprefix ${ODIR}, ${OFILES})
-	$I
-	$H $(CC) ${LDFLAGS} -shared -o $@ $^ ${LIBFFI_LIB} ${EXTRA_LIB} ${LIBS}
-
-${ODIR}debug.$(O): src/debug.c
-	$I
-	$H ${CC} ${CFLAGS} -I lua-5.1/src -c -o $@ $<
-
-${ODIR}_funclist.c: ${ODIR}gtkdata.funcs.txt ${ODIR}generate src/luagtk_hash.h
-	$I
-	$H ${ODIR}generate -s 4096 -o $@ -n hash_info_funcs -d -f $<
-
-${ODIR}_enumlist.c: ${ODIR}gtkdata.enums.txt ${ODIR}generate src/luagtk_hash.h
-	$I
-	$H ${ODIR}generate -s 4096 -o $@ -n hash_info_enums -d -f $<
-
-${ODIR}_override.c: ${ODIR}override.luac ${ODIR}file2c
-	$I
-	$H ${ODIR}file2c override < $< > $@
-
-${ODIR}gtkdata.%.txt ${ODIR}gtkdata.%.c ${ODIR}gtkdata.%.h: ${ODIR}types.xml \
-	script/parse-xml.lua src/fundamental.lua $(ODIR)config.lua \
-	src/char_ptr_handling.txt script/xml-types.lua script/xml-parser.lua \
-	script/xml-output.lua script/common.lua src/include_types.txt
-	@echo "Generating Gtk Data..."
-	$H script/parse-xml.lua "${ODIR}" "$<" "$(ODIR)config.lua"
+	$H $(CC) $(LDFLAGS) -shared -o $@ $^ $(LIBS)
 
 # if config.h changes, chances are that make-xml must be run again.
 ${ODIR}types.xml: script/make-xml.lua $(ODIR)config.h $(ODIR)config.lua
 	$I
-	$H script/make-xml.lua "$@" $(ODIR)config.lua
+	$H script/make-xml.lua "$(ODIR)"
 
-${ODIR}%.$(O): ${ODIR}%.c
+$(ODIR)%.$O: $(ODIR)%.c
 	$I
 	$H ${CC} ${CFLAGS} -c -o $@ $<
 
-# -- ffi magic --
-
-${ODIR}luagtk_ffi.h: ${ODIR}ffi-types
+$(ODIR)%.$O: $(IDIR)/%.c $(DEP)
 	$I
-	$H ${ODIR}ffi-types > $@
+	$H $(CC) $(CFLAGS) -c -o $@ $<
 
-${ODIR}ffi-types.$(O): src/ffi-types.c
+# module.c is code required by modules to hook up with the core module and
+# must therefore be compiled into each module.
+$(ODIR)module.$O: include/module.c $(DEP)
 	$I
-	$H ${HOSTCC} ${CFLAGS} -o $@ -c $<
+	$H $(CC) $(CFLAGS) -c -o $@ $<
 
-${ODIR}ffi-types: ${ODIR}ffi-types.$(O)
-	$I
-	$H ${HOSTCC} $(CFLAGS) -o $@ $< -lffi
 
-# -- cmph hash --
+# - Dependencies for modules -
+$(ODIR)init.$O: $(IDIR)/init.c
+$(ODIR)constants.$O: include/lg-hash.h
+$(ODIR)functions.$O: include/lg-hash.h
+$(ODIR)types.$O: include/common.h $(ODIR)config.h
 
-${ODIR}%.keys: ${ODIR}%.txt
-	$I
-	$H sed 's/,.*$$//' < $^ > $@
-
-# -c gives the effort expended to finding a minimal hash function. lower
-#  value = more effort. 2.0 is about the minimum.
-${ODIR}%.$(CMPH_ALGO).mph: ${ODIR}%.keys
-	$I
-	$H $(CMPH_BIN) -a $(CMPH_ALGO) -m $@ -g $^
-
-${ODIR}_funclist_$(CMPH_ALGO).c: ${ODIR}hash-cmph-generate \
-	${ODIR}gtkdata.funcs.$(CMPH_ALGO).mph
-	$I
-	$H ${ODIR}hash-cmph-generate ${ODIR}gtkdata.funcs.$(CMPH_ALGO).mph \
-		${ODIR}gtkdata.funcs.txt "funcs" > $@
-
-${ODIR}_enumlist_$(CMPH_ALGO).c: ${ODIR}hash-cmph-generate \
-	${ODIR}gtkdata.enums.$(CMPH_ALGO).mph
-	$I
-	$H ${ODIR}hash-cmph-generate ${ODIR}gtkdata.enums.$(CMPH_ALGO).mph \
-		${ODIR}gtkdata.enums.txt "enums" > $@
-
-${ODIR}hash-fch.$(O): src/hash-fch.c
-	$I
-	$H ${CC} ${CMPH_CFLAGS} ${CFLAGS} -c -o $@ $<
-
-${ODIR}hash-bdz.$(O): src/hash-bdz.c
-	$I
-	$H ${CC} ${CMPH_CFLAGS} ${CFLAGS} -c -o $@ $<
-
-${ODIR}hash-functions.$(O): src/hash-functions.c
-	$I
-	$H ${CC} ${CMPH_CFLAGS} ${CFLAGS} -c -o $@ $<
-
-# -- helper programs for simple and cmph hash, to be compiled with HOSTCC --
-
-${ODIR}generate.$(O): src/generate.c
-	$I
-	$H ${HOSTCC} ${CFLAGS} -c -o $@ $<
-
-${ODIR}generate: ${ODIR}generate.$(O) ${ODIR}${HASH}-native.$(O)
-	$I
-	$H ${HOSTCC} -o $@ $^
-
-${ODIR}file2c: src/file2c.c
-	$I
-	$H ${HOSTCC} -o $@ $^
-
-${ODIR}hash-cmph-generate: ${ODIR}hash-cmph-generate.$(O)
-	$I
-	$H ${HOSTCC} -g -o $@ $^ $(CMPH_LIBS)
-
-${ODIR}hash-cmph-generate.$O: src/hash-cmph-generate.c
-	$I
-	$H ${HOSTCC} -g -o $@ ${CMPH_CFLAGS} -I ${ODIR} -c $< 
 
 # -- dynamic runtime linking --
 linkh: ${ODIR}link.h
-${ODIR}link.c ${ODIR}link.h: src/linklist.txt script/make-link.lua \
+${ODIR}link.c ${ODIR}link.h: $(IDIR)/spec.lua script/make-link.lua \
 	${ODIR}types.xml
 	$I
-	$H script/make-link.lua ${ODIR}types.xml src/linklist.txt \
-		${ODIR}link.h ${ODIR}link.c
+	$H script/make-link.lua ${ODIR}types.xml $(IDIR)/spec.lua \
+		${ODIR}link.h ${ODIR}link.c $(DYNLINK_PREFIX)_dynlink
+
+# Generation of data from the XML file
+
+$(ODIR)functions.txt $(ODIR)constants.txt $(ODIR)types.c \
+	$(ODIR)globals.c $(ODIR)fundamentals.c $(ODIR)generated.c: \
+	${ODIR}types.xml script/parse-xml.lua include/fundamental.lua \
+	$(ODIR)config.lua $(DEVMOD) $(IDIR)/spec.lua
+	$I
+	$H script/parse-xml.lua "${ODIR}" "$<" "$(ODIR)config.lua"
+
+ifeq ($(COREMODULE), )
+endif
+
+# Update the timestamp of parse-xml.lua whenever one of its parts changes.
+# This in turn forces rebuilding its output.
+script/parse-xml.lua: script/xml-types.lua script/xml-parser.lua \
+	script/xml-output.lua script/xml-const.lua
+	touch $@
+
+# XXX unused
+#${ODIR}_override.c: ${ODIR}override.luac ${ODIR}file2c
+#	$I
+#	$H ${ODIR}file2c override < $< > $@
+#
+
+# -- hash generation --
+
+$(ODIR)%.c: $(ODIR)%.txt $(DEVMOD)
+	$I
+	$H lua -lgnomedev -e 'gnomedev.generate_hash("$<", "$*", "$@")'
 
 # -- general rules --
 
-${ODIR}%-native.$(O): src/%.c
-	$I
-	$H ${HOSTCC} ${CFLAGS} -c -o $@ $<
-
-${ODIR}%.$(O): src/%.c
+${ODIR}%.$O: $(IDIR)/%.c
 	$I
 	$H ${CC} ${CFLAGS} -c -o $@ $<
 
-${ODIR}%.s: src/%.c
+$(ODIR)%.$O: $(ODIR)%.c
+	$I
+	$H $(CC) $(CFLAGS) -c -o $@ $<
+
+${ODIR}%.s: $(IDIR)/%.c
 	$I
 	$H ${CC} ${CFLAGS} -S -o $@ $<
 
-${ODIR}%.c: src/%.c
+${ODIR}%.c: $(IDIR)/%.c
 	$I
 	$H ${CC} ${CFLAGS} -E -o $@ $<
 
 # could use -s to remove debugging info
-${ODIR}%.luac: src/%.lua
+${ODIR}%.luac: $(IDIR)/%.lua
 	$I
 	$H luac -o $@ $<
-
-# -- special targets --
-
-clean:
-	$I
-	$H rm -f ${ODIR}${ODLL} ${ODIR}generate ${ODIR}_*.c ${ODIR}*.$(O)
-	$H rm -f ${ODIR}file2c ${ODIR}override.luac ${ODIR}hash-cmph-generate
-	$H rm -f ${ODIR}ffi-types
-
-mrproper: clean
-	$I
-	$H rm -f ${ODIR}gtkdata.* ${ODIR}hash-fch-* ${ODIR}config.* \
-		${ODIR}types.xml ${ODIR}ffi-ofs ${ODIR}link.[ch] \
-		${ODIR}luagtk_ffi.h ${ODIR}cmph_types.h \
-		${ODIR}test-*-ok ${ODIR}test-*${EXESUFFIX}
-install: all
-	# you need to be root for this!
-	mkdir -p $(INDIR1)
-	$(LIBINSTALL) ${ODIR}${ODLL} $(INDIR1)/${ODLL}
-	$(LIBFINAL) $(INDIR1)
-	mkdir -p $(INDIR2)/gtk
-	cp -a lib $(INDIR2)/gtk/
-
-# source tar file
-tar:
-	(cd ..; ln -s lua-gtk lua-gtk-${VERSION}; \
-	tar czvfh tar/lua-gtk-${VERSION}.tar.gz \
-		--exclude build --exclude CVS --exclude mingw \
-		--exclude tags --exclude ".*.swp" --exclude attic \
-		--exclude private --exclude win32 --exclude funclist \
-		lua-gtk-${VERSION}; \
-	rm lua-gtk-${VERSION})
-
-wc:
-	wc src/*.{c,h,lua} script/*.lua lib/*.lua
-
-size: $(addprefix ${ODIR}, ${OFILES})
-	size -t $^
-
-tags:
-	ctags src/*.[ch]
-
-tests:
-	tests/run-tests.sh
-
-diff:
-	cvs diff -u | diffstat
-
-# Requires an improved version of luadoc that can read C files
-doc:
-	$H luadoc -d build/reference lib src/*.c
-	( cd html_in; ../script/gen-html.lua )
-
-help:
-	@echo "Usage: make.sh [architecture] [target]"
-	@echo "  architecture:  optional, may be linux-i386, linux-amd64 or win32-i386"
-	@echo "  target: optional, default is all, also known:"
-	@echo "    help, doc, install, clean, mrproper and maybe more."
-
-funclist: all ${ODIR}gtkdata.funcs.txt
-	$H script/funclist.lua ${ODIR}gtkdata.funcs.txt > $@
-
-# -- dependencies --
-
-${ODIR}call.$O: ${ODIR}luagtk_ffi.h ${LH}
-${ODIR}callback.$O: ${LH}
-${ODIR}closure.$O: ${LH}
-${ODIR}channel.$O: ${LH}
-${ODIR}data.$O: ${LH} src/luagtk_hash.h
-${ODIR}debug.$O: ${LH}
-${ODIR}gtk2.$O: ${LH}
-${ODIR}boxed.$O: ${LH}
-${ODIR}gtkdata.structs.$O: $(LH) ${ODIR}gtkdata.structs.c
-${ODIR}gvalue.$O: ${LH}
-${ODIR}hash-cmph-generate.$O: $(LH) src/hash-cmph.h
-${ODIR}hash-functions.$O: $(LH) src/hash-cmph.h
-${ODIR}hash-cmph.$O: $(LH) src/hash-cmph.h
-${ODIR}hash-fch.$O: $(LH) src/hash-cmph.h
-${ODIR}hash-bdz.$O: $(LH) src/hash-cmph.h
-${ODIR}interface.$O: ${LH}
-${ODIR}override.$O: ${LH}
-${ODIR}types.$O: $(LH) ${ODIR}gtkdata.types.c ${ODIR}luagtk_ffi.h
-${ODIR}enum.$O: $(LH)
-${ODIR}voidptr.$O: $(LH)
-${ODIR}widget.$O: ${LH}
-${ODIR}widget_meta.$O: ${LH}
-${ODIR}widget_types.$O: ${LH}
-
 
