@@ -6,7 +6,7 @@
 # this library, see doc/INSTALL.
 #
 
-.PHONY: all tags doc clean
+.PHONY: all tags doc clean mrproper tests wc size diff tar
 submake = $(MAKE) -r --no-print-directory
 
 # first build the core module, the others depend on it.
@@ -47,6 +47,18 @@ tests:
 
 diff:
 	cvs diff -u | diffstat
+
+tar:
+	(TODAY=`date +%Y-%m-%d`; D=lua-gnome-$$TODAY; \
+	cd ..; \
+	ln -s lua-gtk $$D; \
+	tar czvf lua-gnome-$$TODAY.tar.gz \
+		$$D/Makefile $$D/configure $$D/doc $$D/examples $$D/include \
+		$$D/lib $$D/script $$D/src $$D/tests $$D/lua-5.1 \
+		--exclude-from "$$D/private/prune-list" \
+		--exclude CVS; \
+	rm $$D; \
+	)
 
 
 .DEFAULT:
