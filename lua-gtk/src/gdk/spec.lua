@@ -75,6 +75,7 @@ include_types = {
     "Window",
     "XExtData*",
 
+    -- types required by other modules
     "GdkAtom**",		-- gtk
     "GdkColor**",		-- gtk
     "GdkEventExpose*",		-- gtk
