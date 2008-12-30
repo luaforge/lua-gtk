@@ -64,9 +64,7 @@ static void get_bits_unaligned(lua_State *L, const unsigned char *ptr,
 	return;
     }
 
-
-    luaL_error(L, "%s access to attribute of size %d not supported",
-	msgprefix, bitlen);
+    LG_ERROR(10, "Access to attribute of size %d not supported.", bitlen);
 }
 #undef BITS_PER_INT
 
@@ -188,8 +186,8 @@ static int lua2ffi_uchar(struct argconv_t *ar)
 	    ar->arg->uc = (unsigned char) lua_tostring(L, ar->index)[0];
 	    break;
 	default:
-	    luaL_error(L, "%s can't convert Lua type %s to char",
-		msgprefix, lua_typename(L, ar->lua_type));
+	    return LG_ARGERROR(ar->func_arg_nr, 11, "Can't convert Lua type %s "
+		"to char", lua_typename(L, ar->lua_type));
     }
     return 1;
 }
@@ -209,29 +207,29 @@ static int lua2ffi_enum(struct argconv_t *ar)
 
 	    // for zero it is probably OK; like for gtk_table_attach, when
 	    // xoptions should be zero.
-	    if (ar->arg->l != 0)
-		call_info_msg(ar->ci, LUAGTK_WARNING,
-		    "Arg %d enum (type %s) given as number\n", ar->func_arg_nr,
-		    lg_get_type_name(ar->ts));
+	    if (ar->arg->l != 0) {
+		LG_MESSAGE(13, "Arg %d enum (type %s) given as number\n",
+		    ar->func_arg_nr, lg_get_type_name(ar->ts));
+		call_info_msg(L, ar->ci, LUAGTK_WARNING);
+	    }
 	    return 1;
 	
 	case LUA_TUSERDATA:;
 	    struct lg_enum_t *e = (struct lg_enum_t*) luaL_checkudata( L,
 		ar->index, ENUM_META);
 	    if (!lg_type_equal(L, ar->ts, e->ts)) {
-		call_info_msg(ar->ci, LUAGTK_WARNING,
-		    "Arg %d enum expects type %s, given %s\n", ar->func_arg_nr,
+		LG_MESSAGE(14, "Arg %d enum expects type %s, given %s\n",
+		    ar->func_arg_nr,
 		    lg_get_type_name(ar->ts),
 		    lg_get_type_name(e->ts));
+		call_info_msg(L, ar->ci, LUAGTK_WARNING);
 	    }
 	    ar->arg->l = e->value;
 	    return 1;
     }
 
-    luaL_error(L, "%s can't convert Lua type %s to enum",
-	msgprefix, lua_typename(L, ar->lua_type));
-
-    return 0;
+    return LG_ARGERROR(ar->func_arg_nr, 12, "Can't convert Lua type %s to enum",
+	lua_typename(L, ar->lua_type));
 }
 
 static int lua2ffi_longlong(struct argconv_t *ar)
@@ -272,13 +270,17 @@ static int lua2ffi_char_ptr(struct argconv_t *ar)
  */
 static int lua2ffi_ptr(struct argconv_t *ar)
 {
+    lua_State *L = ar->L;
+
     if (ar->lua_type == LUA_TNIL) {
 	ar->arg->p = NULL;
 	return 1;
     }
-    call_info_msg(ar->ci, LUAGTK_WARNING,
-	"Arg #%d type %s not supported, replaced by NULL\n",
+
+    LG_MESSAGE(15, "Arg #%d type %s not supported, replaced by NULL\n",
 	ar->func_arg_nr, FTYPE_NAME(ar->arg_type));
+    call_info_msg(L, ar->ci, LUAGTK_WARNING);
+
     ar->arg->p = NULL;
     return 0;
 }
@@ -381,11 +383,10 @@ static int lua2ffi_struct_ptr(struct argconv_t *ar)
 
 	// other Lua types can't possibly be a structure pointer.
 	default:
-	    luaL_error(L, "%s incompatible argument #%d for %s (given %s, "
-		"required %s)\n",
-		msgprefix, ar->func_arg_nr, ar->ci->fi->name,
-		lua_typename(L, ar->lua_type),
-		lg_get_type_name(ar->ts));
+	    LG_ARGERROR(ar->func_arg_nr, 23, "%s requires %s, given %s",
+		ar->ci->fi->name,
+		lg_get_type_name(ar->ts),
+		lua_typename(L, ar->lua_type));
     }
 
     return 0;
@@ -431,21 +432,25 @@ static int lua2ffi_func_ptr(struct argconv_t *ar)
  * A "struct**" is most likely an output parameter, but may be out/in.
  * Allocate memory for a pointer, and set it to the given value, which may
  * be nil.  When collecting results, the output value will be used.
+ *
+ * @param ar  Array with a description of the argument to convert
+ * @param type  0 for char**, 1 for struct**
  */
-static int _ptr_ptr_helper(struct argconv_t *ar, const char *what)
+static int _ptr_ptr_helper(struct argconv_t *ar, int type)
 {
     void *ptr = NULL;
     lua_State *L = ar->L;
     int is_output = 0;
 
     switch (ar->lua_type) {
-	case LUA_TSTRING:
-	    ptr = (void*) lua_tostring(L, ar->index);
-	    break;
-	
+
+	// what might that be good for?  Anyway only for struct**
 	case LUA_TUSERDATA:
-	    ptr = lua_touserdata(L, ar->index);
-	    break;
+	    if (type == 1) {
+		ptr = lua_touserdata(L, ar->index);
+		break;
+	    }
+	    goto err;
 
 	// this is most likely gnome.NIL
 	case LUA_TLIGHTUSERDATA:
@@ -458,9 +463,18 @@ static int _ptr_ptr_helper(struct argconv_t *ar, const char *what)
 	case LUA_TNIL:
 	    break;
 
+	case LUA_TSTRING:
+	    if (type == 0) {
+		ptr = (void*) lua_tostring(L, ar->index);
+		break;
+	    }
+	    /* fall through */
+	
+	err:
 	default:
-	    return luaL_error(L, "%s Lua type %s can't be used for %s",
-		msgprefix, lua_typename(L, ar->lua_type), what); 
+	    LG_ARGERROR(ar->func_arg_nr, 1, "Lua type %s can't be used for %s",
+		lua_typename(L, ar->lua_type),
+		type ? "struct**" : "char**"); 
     }
 
     void **p = (void**) call_info_alloc_item(ar->ci, sizeof(*p));
@@ -476,7 +490,7 @@ static int _ptr_ptr_helper(struct argconv_t *ar, const char *what)
 
 static int lua2ffi_struct_ptr_ptr(struct argconv_t *ar)
 {
-    return _ptr_ptr_helper(ar, "struct**");
+    return _ptr_ptr_helper(ar, 1);
 }
 
 
@@ -488,7 +502,7 @@ static int lua2ffi_struct_ptr_ptr(struct argconv_t *ar)
  */
 static int lua2ffi_char_ptr_ptr(struct argconv_t *ar)
 {
-    return _ptr_ptr_helper(ar, "char**");
+    return _ptr_ptr_helper(ar, 0);
 }
 
 
@@ -643,10 +657,10 @@ static int lua2ffi_vararg(struct argconv_t *ar)
 		break;
 
 	    default:
-		call_info_msg(ci, LUAGTK_WARNING,
-		    "Arg %d: Unhandled vararg type %s\n", arg_nr+1,
+		LG_MESSAGE(16, "Arg %d: Unhandled vararg type %s\n", arg_nr+1,
 		    lua_typename(L, type));
-	}
+		call_info_msg(L, ci, LUAGTK_WARNING);
+	    }
     }
 
     ar->func_arg_nr = arg_nr - 1;
@@ -1065,8 +1079,10 @@ static int ffi2lua_struct_ptr(struct argconv_t *ar)
 {
     // return value of the function, or arguments to a callback?
     if (ar->mode == ARGCONV_CALLBACK || ar->func_arg_nr == 0) {
+	/*
 	if (ar->arg_flags)
 	    printf("arg flags for ffi2lua_struct_ptr: %d\n", ar->arg_flags);
+	*/
 	lg_get_object(ar->L, ar->arg->p,
 	    _guess_type_idx(ar->L, ar->arg->p, ar->ts), _determine_flags(ar));
 	return 1;
@@ -1188,8 +1204,10 @@ static int ffi2lua_void_ptr(struct argconv_t *ar)
     // The return pointer wasn't nil, but get_object couldn't make
     // anything of it?
     if (ar->arg->p && runtime_flags & RUNTIME_WARN_RETURN_VALUE) {
-	call_info_msg(ar->ci, LUAGTK_WARNING,
-	    "Return value of arg %d (void*) discarded.\n", ar->func_arg_nr);
+	lua_State *L = ar->L;
+	LG_MESSAGE(17, "Return value of arg %d (void*) discarded.\n",
+	    ar->func_arg_nr);
+	call_info_msg(L, ar->ci, LUAGTK_WARNING);
     }
 
     return 1;
@@ -1470,8 +1488,7 @@ static int struct2lua_void_ptr(struct argconvs_t *ar)
 }
 
 /**
- * Handle reads of function pointers.
- * Currently this returns the function signature.
+ * Handle reads of function pointers: return a closure for this function.
  */
 static int struct2lua_func_ptr(struct argconvs_t *ar)
 {
@@ -1491,9 +1508,7 @@ static int struct2lua_func_ptr(struct argconvs_t *ar)
     fi.args_len = *sig;
     fi.args_info = sig + 1;
 
-    return lg_push_closure(ar->L, &fi);
-
-    // return function_signature(ar->L, &fi, 0);
+    return lg_push_closure(ar->L, &fi, 1);
 }
 
 // -------------------------------------------------------
@@ -1552,6 +1567,8 @@ static int lua2struct_enum(struct argconvs_t *ar)
     return 1;
 }
 
+int function_signature(lua_State *L, const struct func_info *fi, int align);
+
 /**
  * Set a function pointer, most likely in an Iface structure.  At the given
  * index, a closure must be found (or NIL).  Note that on-the-fly generation of
@@ -1562,23 +1579,58 @@ static int lua2struct_func_ptr(struct argconvs_t *ar)
     lua_State *L = ar->L;
     void *code;
     typespec_t ts;
+    int type = lua_type(L, ar->index);
 
-    switch (lua_type(L, ar->index)) {
+    // setup ts for the structure element to be set.
+    ts.module_idx = ar->ts.module_idx;
+    ts.type_idx = ar->se->type_idx;
+
+    switch (type) {
 	case LUA_TNIL:
 	code = NULL;
 	break;
 
+	// This might be a function wrapping a library function.  In this case,
+	// the library function could be used directly, no?
 	case LUA_TFUNCTION:
-	return luaL_error(L, "%s Only closures, not functions, can be "
-	    "stored in a structure's function pointer.  Use gtk.closure().",
-	    msgprefix);
-	
-	default:
+	if (!lua_iscfunction(L, ar->index))
+	    return LG_ERROR(5, "Lua functions not allowed, use a closure.");
 
-	ts.module_idx = ar->ts.module_idx;
-	ts.type_idx = ar->se->type_idx;
+	// the signature of the function to use
+	struct func_info *fi = lg_get_closure(L, ar->index);
+
+	// the signature of the field to set
+	struct func_info fi2;
+	fi2.args_info = lg_get_prototype(ts);
+	fi2.args_len = *fi2.args_info ++;
+	fi2.module_idx = ts.module_idx;
+	fi2.name = lg_get_struct_elem_name(ts.module_idx, ar->se);
+
+	// check fi->args_info, fi->args_len against ar->se->type_idx
+	function_signature(L, fi, 0);
+	const char *s = lua_tostring(L, -1);
+
+	function_signature(L, &fi2, 0);
+	const char *s2 = lua_tostring(L, -1);
+
+	if (fi->args_len != fi2.args_len
+	    || memcmp(fi->args_info, fi2.args_info, fi->args_len))
+	    return LG_ERROR(9, "Function signature mismatch: %s vs %s", s, s2);
+
+	lua_pop(L, 2);
+
+	code = fi->func;
+	break;
+	
+	// might be a proper closure.
+	case LUA_TUSERDATA:
 	code = lg_use_closure(L, ar->index, ts, 0,
 	    lg_get_struct_elem_name(ts.module_idx, ar->se));
+	break;
+
+	default:
+	return LG_ERROR(6, "Invalid type %s for function pointer.",
+	    lua_typename(L, type));
     }
 
     set_bits(ar->ptr, ar->se->bit_offset, ar->se->bit_length,
