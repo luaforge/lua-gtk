@@ -29,10 +29,6 @@ enum_values = {}    -- [name] = { val, context }
 globals = {}	    -- [name] = {...}
 filelist = {}	-- [id] = "full path"
 
--- M.funclist = funclist
--- M.typedefs = typedefs
--- M.enum_values = enum_values
--- M.globals = globals
 max_bit_offset = 0
 max_bit_length = 0
 
@@ -137,7 +133,7 @@ local function xml_struct_union(p, el, what)
 	members=members,    -- list (in order) of the IDs in fields
 	_type=what,
 	fields={}	    -- [ID] = { name, offset, ... }
-    } }
+    }, file_id=el.file }
 
     -- substructure of another structure?  If so, hook it in there
     if el.context and el.context ~= "_1" then
@@ -165,6 +161,14 @@ local xml_tags = {
     -- store functions
     Function = function(p, el)
 	if check_fields(el, "name", "returns", "file") then return end
+	if el.attributes and string.match(el.attributes, "visibility%(hidden%)") then
+	    curr_func = nil
+	    return
+	end
+	if config.lib[el.name] then
+	    curr_func = nil
+	    return
+	end
 	curr_func = { { el.returns, "retval", el.file } }
 	funclist[el.name] = curr_func
     end,
@@ -240,7 +244,7 @@ local xml_tags = {
     end,
 
     Variable = function(p, el)
-	if check_fields(el, "name") then return end
+	if check_fields(el, "name", "file") then return end
 	globals[el.name] = el
     end,
 
@@ -258,7 +262,8 @@ local xml_tags = {
 	    el.name = string.sub(el.name, 1, -3)
 	    -- print("rename", el.name)
 	end
-	typedefs[el.id] = { type="typedef", name=el.name, what=el.type }
+	typedefs[el.id] = { type="typedef", name=el.name, what=el.type,
+	    file_id=el.file }
     end,
 
     EnumValue = function(p, el)
@@ -270,7 +275,7 @@ local xml_tags = {
     Enumeration = function(p, el)
 	if check_fields(el, "id", "name", "size", "align") then return end
 	typedefs[el.id] = { type="enum", name=el.name, size=el.size,
-	    align=el.align }
+	    align=el.align, file_id=el.file }
 	curr_enum = el.id
     end,
 
@@ -285,10 +290,10 @@ local xml_tags = {
 	-- size is optional (for void)
 	if check_fields(el, "id", "name", "align") then return end
 	t = { type="fundamental", fname=el.name, size=el.size, align=el.align,
-	    fid=fid, pointer=0 }
+	    pointer=0 }
+	    -- useless element: fid=fid
 	types.register_fundamental(t)
 	typedefs[el.id] = t
-	-- local fid = types.register_fundamental(el.name, 0, el.size)
 	if not el.size and el.name ~= "void" then
 	    parse_error("fundamental type %s without size", el.name)
 	end
@@ -303,7 +308,8 @@ local xml_tags = {
 
     ArrayType = function(p, el)
 	if check_fields(el, "id", "min", "max", "align", "type") then return end
-	typedefs[el.id] = { type="array", min=el.min, max=el.max,
+	local max = tonumber(string.match(el.max, "^(%d+)")) or 0
+	typedefs[el.id] = { type="array", min=el.min, max=max,
 	    align=el.align, what=el.type }
     end,
 
@@ -312,7 +318,9 @@ local xml_tags = {
     ReferenceType = function(p, el)
     end,
 
-    -- associate names to the file IDs which are not used anyway.
+    -- Associate file names (including full path) to the file IDs.  This is
+    -- used later to filter out relevant defines, which are identified by
+    -- the path of the files.
     File = function(p, el)
 	filelist[el.id] = el.name
     end,
