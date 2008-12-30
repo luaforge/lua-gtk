@@ -46,12 +46,35 @@ defs.linux = {
     "#define G_STDIO_NO_WRAP_ON_UNIX",
 }
 
-include_types = {
+include_types = {		-- used in which other module:
     "GInitiallyUnowned",
-    -- "GParameter",
-    -- "GSList",
-    -- "gconstpointer",
-    -- "GCompareFunc",
+    "size_t",
+    "tm*",
+    "stat*",
+    "time_t",
+    "time_t*",
+    "timespec",
+    "FILE*",
+    "va_list",
+
+    "gint8*",			-- gdk
+    "guint**",			-- gdk
+    "const GTimeVal*",		-- gdk
+    "guchar**",			-- gdk
+    "gint**",			-- gdk
+    "guint32*",			-- gdk
+    "const gint",		-- gdk
+
+    "GMarkupParser*",		-- gtk
+    "gfloat*",			-- gtk
+    "GList**",			-- gtk
+    "guint16*",			-- gtk
+    "GOptionEntry*",		-- gtk
+    "const GParamSpec*"	,	-- gtk
+
+    "gint16",			-- gio
+
+    "GSList**",			-- gtkhtml
 }
 
 function_flags = {
@@ -255,6 +278,7 @@ linklist = {
     "g_type_value_table_peek",		-- used!
     "g_type_is_a",
     "g_value_init",
+    "g_utf8_skip",
 
     -- in channel.c
     "g_io_add_watch_full",
