@@ -31,7 +31,7 @@ function http_download()
 	.. "\nConnection: close\n\n")
 
     -- set up conversion to utf8
-    conv = gtk.g_iconv_open("UTF8", "latin1")
+    conv = glib.iconv_open("UTF8", "latin1")
 
     -- read the response in many small pieces, with small delays in between.
     s = ""
@@ -41,7 +41,7 @@ function http_download()
 	val, msg = gtk.socket_co.read_chars(gio, 50)
 	if not val then break end
 
-	rc, obuf, remainder = gtk.g_iconv(conv, remainder .. val)
+	rc, obuf, remainder = glib.iconv(conv, remainder .. val)
 	s = s .. obuf
 	buf:set_text(s, #s)
 
@@ -61,15 +61,15 @@ function background_task()
 	coroutine.yield("sleep", 100)
     end
     http_download()
-    coroutine.yield("sleep", 5000)
+    coroutine.yield("sleep", 1500)
     gtk.main_quit()
 end
 
 -- create a minimal GUI: a window with a label in it.
 function init_gui()
-    local w = gtk.window_new(gtk.GTK_WINDOW_TOPLEVEL)
+    local w = gtk.window_new(gtk.WINDOW_TOPLEVEL)
     w:set_title("HTTP GET Test")
-    w:connect('destroy', gtk.gtk_main_quit)
+    w:connect('destroy', gtk.main_quit)
     w:set_default_size(300, 300)
     local sw = gtk.scrolled_window_new(nil, nil)
     w:add(sw)
@@ -80,11 +80,13 @@ function init_gui()
 end
 
 -- return true if to continue calling this idle function; false otherwise.
-function idle(tbl)
-    print("idle", unpack(tbl))
+idle = gnome.closure(function(tbl)
+    print("idle", tbl[1])
     tbl[1] = tbl[1] + 1
-    return tbl[1] < 10
-end
+    if tbl[1] < 10 then return true end
+    tbl:destroy()
+    return false
+end)
 
 init_gui()
 gtk.watches.start_watch(background_task)
@@ -92,6 +94,9 @@ gtk.watches.start_watch(background_task)
 -- This function expects a "void*" argument, which will be passed to the
 -- callback.  lua-gtk allows nil, widgets and any other data type to be
 -- used.
-gtk.g_idle_add(idle, {1, 2, 3})
+glib.idle_add(idle, {1, 2, 3})
 gtk.main()
+
+collectgarbage "collect"
+assert(gnome.get_vwrapper_count() == 0)
 
