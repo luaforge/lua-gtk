@@ -85,8 +85,8 @@ function CALC.new()
     local c = { stack={} }
     setmetatable(c, CALC)
 
-    c.win = gtk.window_new(gtk.GTK_WINDOW_TOPLEVEL)
-    c.win:connect('destroy', function() gtk.main_quit() end)
+    c.win = gtk.window_new(gtk.WINDOW_TOPLEVEL)
+    c.win:connect('delete-event', gtk.main_quit)
     c.win:set_title('Calculator')
 
     tbl = gtk.table_new(6, 5, true)	-- rows, cols, homogenous
@@ -122,7 +122,7 @@ function CALC.new()
 	tbl:attach_defaults(btn, col, col + 1, row, row + 1)
 	btn:connect('clicked', CALC.btn_click, c, lbl)
 	if lbl == '=' then
-	    btn.flags = btn.flags + gtk.GTK_CAN_DEFAULT
+	    btn.flags = btn.flags + gtk.CAN_DEFAULT
 	    btn:grab_default()
 	end
 	col = col + 1

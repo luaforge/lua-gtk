@@ -6,13 +6,6 @@
 
 require "gtk"
 
-
--- Avoid main_quit complain about extra parameters.  This would happen if
--- you provide gtk.main_quit as handler for the clicked event.
-function quit()
-    gtk.main_quit()
-end
-
 --
 -- Destroy the button on click, and add a Quit button instead.
 -- Note that a Window can only contain one child widget; to have two or more
@@ -23,20 +16,20 @@ function make_quit_button_a(button)
     button = gtk.button_new_with_label("Quit")
     win:add(button)
     button:show()
-    button:connect('clicked', quit)
+    button:connect('clicked', gtk.main_quit)
 end
 
 -- Change the button on click; same effect as the above function.
 function make_quit_button_b(button)
     button:set_label("Quit")
-    button:connect('clicked', quit)
+    button:connect('clicked', gtk.main_quit)
 end
 
 
 -- Create the main window.
-win = gtk.window_new(gtk.GTK_WINDOW_TOPLEVEL)
+win = gtk.window_new(gtk.WINDOW_TOPLEVEL)
 win:set_title("Button Demo")
-win:connect('destroy', quit)
+win:connect('destroy', gtk.main_quit)
 win:show()
 
 -- a button that will destroy itself when clicked.
