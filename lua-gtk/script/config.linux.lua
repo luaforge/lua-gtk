@@ -55,7 +55,9 @@ cfg_m("INDIR1", "/usr/local/lib/lua/5.1")
 cfg_m("INDIR2", "/usr/local/share/lua/5.1")
 
 -- output file with ".so" extension
-cfg_m("ODLL", "gtk.so")
+cfg_m("O", "o")
+cfg_m("DLLEXT", ".so")
+-- cfg_m("ODLL", "gtk.so")
 
 -- need to generate "position independent code"
 cflags = cflags .. " -fpic"
@@ -68,7 +70,7 @@ end
 
 if use_gcov then
     cflags = cflags .. " -fprofile-arcs -ftest-coverage"
-    extra_lib = extra_lib .. " -fprofile-arcs"
+    lua_lib = lua_lib .. " -fprofile-arcs"
     summary("GCov code", "enabled")
 end
 
