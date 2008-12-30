@@ -16,7 +16,8 @@ module "gtk.socket_co"
 base.gtk.strict.init()
 
 gtk = base.gtk
-os = gtk.get_osname()
+glib = base.glib
+os = base.gnome.get_osname()
 
 ---
 -- A data source for upload which reads from a buffer in memory.
@@ -164,7 +165,7 @@ function connect(host, port, buffered)
     if not rc then
 	if msg ~= "timeout" then return rc, msg end
 	-- failed to connect; if timeout, then wait, otherwise return error
-	coroutine.yield("iowait", gio, gtk.G_IO_OUT)
+	coroutine.yield("iowait", gio, glib.IO_OUT)
 	if not rc then return rc, msg end
     end
 
@@ -185,9 +186,9 @@ function create_io_channel(sock, buffered)
     -- print("creating a GIOChannel for fd", fd)
 
     if os == "win32" then
-	gioc = gtk.g_io_channel_win32_new_socket(fd)
+	gioc = glib.io_channel_win32_new_socket(fd)
     else
-	gioc = gtk.g_io_channel_unix_new(fd)
+	gioc = glib.io_channel_unix_new(fd)
     end
 
     -- created with ref=1, and the assignment sets it to two.
@@ -252,7 +253,7 @@ function receive_line(ioc)
 	while true do
 	    rc, msg = ioc:read_chars(1024)
 	    if rc or msg ~= 'timeout' then break end
-	    rc, msg = coroutine.yield("iowait", ioc, gtk.G_IO_IN)
+	    rc, msg = coroutine.yield("iowait", ioc, glib.IO_IN)
 	end
 
 	if not rc then break end
@@ -293,7 +294,7 @@ function read_chars(ioc, length)
 	rc, msg = ioc:read_chars(length)
 	if rc or msg ~= 'timeout' then break end
 	-- print "read_chars: need to wait"
-	coroutine.yield("iowait", ioc, gtk.G_IO_IN)
+	coroutine.yield("iowait", ioc, glib.IO_IN)
     end
 
     return rc, msg
@@ -356,7 +357,7 @@ function write_chars(ioc, data, do_flush)
 	rc, msg, bytes_written = ioc:write_chars(data)
 	if rc or msg ~= "timeout" then break end
 	data = string.sub(data, bytes_written+1)
-	coroutine.yield("iowait", ioc, gtk.G_IO_OUT)
+	coroutine.yield("iowait", ioc, glib.IO_OUT)
     end
 
     -- on successful write, maybe force a flush.
@@ -397,8 +398,8 @@ function flush(ioc)
     while true do
 	rc, msg = ioc:flush()
 	if rc or msg ~= "timeout" then break end
-	print("YIELD in flush", ioc, gtk.G_IO_OUT)
-	local rc, msg = coroutine.yield("iowait", ioc, gtk.G_IO_OUT)
+	print("YIELD in flush", ioc, glib.IO_OUT)
+	local rc, msg = coroutine.yield("iowait", ioc, glib.IO_OUT)
     end
 
     return rc, msg

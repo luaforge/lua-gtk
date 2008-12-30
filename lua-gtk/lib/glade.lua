@@ -39,6 +39,8 @@ module "gtk.glade"
 base.gtk.strict.init()
 
 gtk = base.gtk
+glib = base.glib
+gdk = base.gdk
 
 if gtk.check_version(2, 12, 0) == nil then
     print "Warning: consider using GtkBuilder for Gtk 2.12 and later."
@@ -119,11 +121,19 @@ end
 local function parse_xy_options(s)
     local res, v = 0
 
-    if not s then return gtk.GTK_FILL + gtk.GTK_EXPAND end
+    if not s then return gtk.FILL + gtk.EXPAND end
 
     for v in string.gmatch(s, "([A-Z_]+)") do
-	if v:sub(1, 4) ~= "GTK_" then v = "GTK_" .. v end
-	res = res + gtk[string.upper(v)]
+	if v:sub(1, 4) == "GTK_" then
+	    v = v:sub(5)
+	    res = res + gtk[string.upper(v)]
+	elseif v:sub(1, 4) == "GDK_" then
+	    v = v:sub(5)
+	    res = res + gdk[string.upper(v)]
+	else
+	    -- default is in gtk
+	    res = res + gtk[string.upper(v)]
+	end
     end
 
     return res
@@ -379,8 +389,9 @@ end
 -- be set.
 --
 function GtkWindow(el)
-    el.p.type = el.p.type or "GTK_WINDOW_TOPLEVEL"
-    return gtk.window_new(gtk[el.p.type]), { type=1 }
+    local t = el.p.type or "WINDOW_TOPLEVEL"
+    t = string.gsub(t, "^GTK_", "")
+    return gtk.window_new(gtk[t]), { type=1 }
 end
 
 --
@@ -390,8 +401,8 @@ end
 function GtkMenuItem(el)
     local w
 
-    __type_nr = gtk.g_type_from_name(el.class)
-    w = gtk.g_object_newv(__type_nr, 0, nil)
+    __type_nr = glib.type_from_name(el.class)
+    w = glib.object_newv(__type_nr, 0, nil)
     if el.p.label then
 	local lbl = gtk.label_new(el.p.label)
 	lbl:set_property("use-underline", el.p.use_underline)
@@ -497,8 +508,8 @@ function make_widget(widgets, el, parent)
 	w, ignore_prop = handler(el)
     else
 	-- generic handler.  use a global here, to reduce stack size
-	__type_nr = gtk.g_type_from_name(el.class)
-	w = gtk.g_object_newv(__type_nr, 0, nil)
+	__type_nr = glib.type_from_name(el.class)
+	w = glib.object_newv(__type_nr, 0, nil)
 	ignore_prop = {}
     end
 

@@ -12,6 +12,7 @@ module "gtk.watches"
 base.gtk.strict.init()
 
 gtk = base.gtk
+glib = base.glib
 
 ---
 -- Watches.  These are used to run network communication in the background.
@@ -53,7 +54,7 @@ function _watch_func(thread, channel, cond, old_cond)
     if msg == "iowait" then
 
 	-- must also watch for IO Errors, otherwise endless loops may happen.
-	new_cond = new_cond + gtk.G_IO_ERR
+	new_cond = new_cond + glib.IO_ERR
 
 	-- keep same watch if waiting for the same thing.
 	if channel == new_channel and old_cond == new_cond then
@@ -61,14 +62,16 @@ function _watch_func(thread, channel, cond, old_cond)
 	end
 
 	-- add a new watch and discard the previous one
-	local id = gtk.g_io_add_watch(new_channel, new_cond, _watch_func_2,
-	    { thread, new_cond })
+	-- note: creates a void* wrapper for the table.
+	local id = glib.io_add_watch_full(new_channel, 3, new_cond,
+	    _watch_func_2_closure, { thread, new_cond },
+	    _watch_destroy)
 	return false
     end
 
     -- sleep a certain interval?  new_channel is the interval
     if msg == "sleep" then
-	gtk.g_timeout_add(new_channel, _watch_func_1, thread)
+	glib.timeout_add(new_channel, _watch_func_1_closure, thread)
 	return false
     end
 
@@ -76,15 +79,24 @@ function _watch_func(thread, channel, cond, old_cond)
     return false
 end
 
+_watch_destroy = base.gnome.closure(function(data)
+    data:destroy()
+end)
+
 -- prototype GSourceFunc(gpointer data)
-function _watch_func_1(thread)
-    return _watch_func(thread)
-end
+_watch_func_1_closure = base.gnome.closure(function(thread)
+    local rc = _watch_func(thread.value)
+    if not rc then
+	thread:destroy()
+    end
+    return rc
+end)
 
 -- prototype GIOFunc(GIOChannel, GIOCondition, gpointer)
-function _watch_func_2(channel, condition, data)
+-- don't call data:destroy; this is handled by _watch_destroy.
+_watch_func_2_closure = base.gnome.closure(function(channel, condition, data)
     return _watch_func(data[1], channel, condition, data[2])
-end
+end)
 
 function start_watch(thread, channel)
     if base.type(thread) ~= "thread" then
