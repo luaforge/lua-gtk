@@ -20,7 +20,7 @@ end
 
 function build_ui()
 	-- wait for user input so the memory can be examined
-	local win = gtk.window_new(gtk.GTK_WINDOW_TOPLEVEL)
+	local win = gtk.window_new(gtk.WINDOW_TOPLEVEL)
 	local btn = gtk.button_new_with_label("Close")
 	win:add(btn)
 	win:connect('destroy', function() gtk.main_quit() end)

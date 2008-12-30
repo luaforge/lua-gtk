@@ -8,11 +8,11 @@
 require "gtk"
 
 menu = gtk.menu_new()
-menuItem = gtk.image_menu_item_new_from_stock(gtk.GTK_STOCK_ABOUT, nil)
+menuItem = gtk.image_menu_item_new_from_stock(gtk.STOCK_ABOUT, nil)
 menuItem:connect('activate', gtk.main_quit)
 menu:append(menuItem)
 
-menuItem = gtk.image_menu_item_new_from_stock(gtk.GTK_STOCK_QUIT, nil)
+menuItem = gtk.image_menu_item_new_from_stock(gtk.STOCK_QUIT, nil)
 menuItem:connect('activate', gtk.main_quit)
 menu:append(menuItem)
 

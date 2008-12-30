@@ -19,7 +19,7 @@ function Mainwin.init()
 	local self = {}
 	setmetatable(self, Mainwin)
 	
-	self.w = gtk.window_new(gtk.GTK_WINDOW_TOPLEVEL)
+	self.w = gtk.window_new(gtk.WINDOW_TOPLEVEL)
 	local w = self.w
 	w:connect('delete-event', Mainwin.on_quit)
 	w:set_title('Notebook test')
