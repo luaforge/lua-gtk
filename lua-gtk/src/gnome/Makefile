@@ -1,7 +1,7 @@
 
 MODULE	:=gnome
 COREMODULE:=1
-SRC	:=init types boxed data enum voidptr call closure gvalue \
+SRC	:=init types boxed data enum voidptr call closure gvalue lang \
 	debug object object_types object_meta \
 	hash-lookup hash-functions hash-simple
 CLEAN	=*.$O file2c override.luac ffi-types test-* lg_ffi.h cmph_types.h
