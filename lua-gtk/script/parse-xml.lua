@@ -39,18 +39,26 @@ types = require "xml-types"
 output = require "xml-output"
 require "xml-const"
 
-
 typedefs_sorted = {}
 typedefs_name2id = {}
-config = {}		-- configuration of architecture, libraries
--- config_libs = nil	-- array of lib config data
-free_methods = {}	-- [name] = 0/1
-input_file_name = nil
-parse_errors = 0	-- count errors
+config = {}		-- configuration of architecture, module etc.
+parse_errors = 0	-- count errors (used in xml-parser.lua)
 verbose = 0		-- verbosity level
 good_files = {}		-- [file_id] = true for "interesting" include files
 logfile = nil
 non_native_includes = {}    -- [path] = libname
+function_list = {}
+build_errors = 0
+
+
+-- Print an error message and increase the error counter.
+function err(fmt, ...)
+    if select('#', ...) > 0 then
+	fmt = string.format(fmt, ...)
+    end
+    print(fmt)
+    build_errors = build_errors + 1
+end
 
 ---
 -- Unfortunately, sometimes ENUM fields in structures are not declared as such,
@@ -104,6 +112,7 @@ function promote_enum_typedefs()
 	end
     end
 end
+
 
 ---
 -- The structures named *Iface are required to be able to override interface
@@ -162,13 +171,12 @@ function load_other_lib_config()
 	
 end
 
+-- Make a table listing all include paths of the current module.
 function _get_include_paths()
     local tbl = {}
---    for _, cfg in ipairs(config_libs) do
-	for _, path in ipairs(config.lib.include_dirs or {}) do
-	    tbl[#tbl + 1] = "/" .. path .. "/"
-	end
---    end
+    for _, path in ipairs(config.lib.include_dirs or {}) do
+	tbl[#tbl + 1] = "/" .. path .. "/"
+    end
     return tbl
 end
 
@@ -191,8 +199,6 @@ function make_file_list()
     end
 end
 	
-
-function_list = {}
 
 ---
 -- Take a look at all relevant functions and the data types they reference.
@@ -280,6 +286,7 @@ end
 -- Given a type ID, check whether that type is native, or a fundamental type.
 --
 -- @param t  Typespec
+-- @return  false=not native, 1=native, 2=fundamental
 --
 function _is_native(t)
     if t.is_native ~= nil then return t.is_native end
@@ -306,18 +313,6 @@ function _is_native(t)
 	end
     end
 
---[[
-    elseif t.what then --  and not t.file_id then
-	-- typedefs that refer to other (base) types have "what" set.
-	is_native = _is_native(typedefs[t.what])
-	if t.file_id and is_native == 2 then is_native = 1 end
-    elseif good_files[t.file_id] then
-	is_native = 1
-    else
-	is_native = false
-    end
---]]
-
     t.is_native = is_native
     return is_native
 end
@@ -327,13 +322,10 @@ end
 function _analyze_struct(id, t)
     local st = t.struct
     local ignorelist = { constructor=true, union=true, struct=true }
-    local name, tp
 
     for _, member_name in ipairs(st.members) do
 	member = st.fields[member_name]
 	if member and not ignorelist[member.type] then
-	    -- tp = types.resolve_type(member.type, member.size)
-	    -- assert(tp.fid)
 	    types.mark_type_id_in_use(member.type,
 		string.format("%s.%s", t.name, member.name or member_name))
 	end
@@ -353,7 +345,6 @@ function analyze_globals()
     end
 end
 
-local next_synth_nr = 1
 
 ---
 -- Mark some types as used, or create them.  This is for such types that are
@@ -377,7 +368,7 @@ function mark_override()
 	if not t.full_name then
 	    types.resolve_type(id, nil, true)
 	    if not t.full_name then
-		print("COULD NOT RESOLVE TYPE", id, t.name, t.fname)
+		err("Could not resolve type %s %s %s", id, t.name, t.fname)
 	    end
 	end
 	if t.full_name then
@@ -386,6 +377,7 @@ function mark_override()
 		    print("mark_override", id, t.type, t.full_name)
 		end
 		types.mark_type_id_in_use(id)
+		t.is_native = true  -- all types in include_types are native.
 		ar[t.full_name] = nil
 	    elseif not name2id[t.full_name] then
 		name2id[t.full_name] = id
@@ -396,134 +388,53 @@ function mark_override()
     -- Try to synthetize a new pointer type for still undefined types.
     for full_name, v in pairs(ar) do
 	if not synthesize_type(full_name, name2id) then
-	    print("Can't synthesize type for " .. full_name)
+	    err("Type in include_types can't be synthesized: %s", full_name)
 	else
 	    ar[full_name] = nil
 	end
     end
-
-    -- what's left hasn't been found.
-    for full_name, v in pairs(ar) do
-	print("OVERRIDE NOT FOUND", full_name)
-    end
 end
 
 
+local next_synth_nr = 1
 
 ---
--- The given type doesn't exist.  Remove one level of indirection and check;
--- if found, create a pointer type.  If not, recurse.
+-- The requested type doesn't exist, so try to create it by deriving a new
+-- type from an existing type.  This includes removing "const" and
+-- indirections.
 --
 function synthesize_type(full_name, name2id)
+    local parent_name, parent_id, new_id, parent, t, new_item
 
-    if string.sub(full_name, -1) ~= "*" then
+    if string.sub(full_name, 1, 6) == "const " then
+	parent_name = string.sub(full_name, 7)
+	new_item = { type="qualifier", const=true }
+    elseif string.sub(full_name, -1) == "*" then
+	parent_name = string.sub(full_name, 1, -2)
+	new_item = { type="pointer" }
+    else
 	return false
     end
 
-    local parent_name = string.sub(full_name, 1, -2)
-    local parent_id = name2id[parent_name] or synthesize_type(parent_name,
-	name2id)
+    parent_id = name2id[parent_name] or synthesize_type(parent_name, name2id)
     if not parent_id then return false end
 
-    local new_id = "synth" .. next_synth_nr
+    new_id = "synth" .. next_synth_nr
     next_synth_nr = next_synth_nr + 1
-    local parent = typedefs[parent_id]
-    typedefs[new_id] = { type="pointer", what=parent_id,
-	is_native = parent.is_native }
-    local t = types.mark_type_id_in_use(new_id, nil)
+    parent = typedefs[parent_id]
+
+    new_item.what = parent_id
+    new_item.is_native = parent.is_native
+    typedefs[new_id] = new_item
+
+    t = types.mark_type_id_in_use(new_id, nil)
     if verbose > 1 then
 	print("mark override new", new_id, t.type, t.full_name, full_name)
     end
+
     return new_id
 end
 
-
---[[
-
----
--- Read a list of specs how to handle char* return values of functions.
--- XXX this should be removed eventually, and replaced by configuration
--- in the library's Lua config file.
---
-function get_extra_data()
-    local active = true
-    local arch, arch2, func, method, inverse
-
-    local f = io.open(config.srcdir .."/char_ptr_handling.txt")
-    if not f then
-	print "no char_ptr_handling.txt"
-	return
-    end
-
-    for line in f:lines() do
-
-	arch = string.match(line, "^arch (.*)$")
-	if arch then
-	    arch2 = string.match(arch, "^not (.*)$")
-	    inverse = false
-	    if arch2 then
-		inverse = true
-		arch = arch2
-	    end
-	    active = arch == "all" and true or string.match(config.arch_os,
-		arch)
-	    if inverse then active = not active end
-	end
-
-	if not arch and active then
-	    func, method = string.match(line, '^([^#,]*),(%d)$')
-	    if func and method then
-		_set_char_ptr_handling(func, tonumber(method))
-	    end
-	end
-    end
-
-    f:close()
-end
-
---]]
-
---[[
----
--- Set the free_method of a given function
---
-function _set_char_ptr_handling(funcname, method)
-
-    -- funcnames that include a dot are not simple functions, but refer to
-    -- an argument of a function, or a member of a structure.
-    local parent, item = string.match(funcname, "^([^.]+)%.(.*)$")
-    if parent and item then
-	free_methods[parent == "funcptr" and item or funcname] = method
-	return
-    end
-
-    local fi = xml.funclist[funcname]
-    if not fi then
-	print("Warning: undefined function in char_ptr_handling: " .. funcname)
-	return
-    end
-
-    assert(fi.free_method == nil, "Duplicate in char_ptr_handling.txt: "
-	.. funcname)
-    tp = types.resolve_type(fi[1][1])
-
-    -- must be a char*, i.e. with one level of indirection
-    assert(tp.fname == "char")
-    assert(tp.pointer == 1)
-
-    -- If a return type is "const char*", then this usually means "do not
-    -- free it".  Alas, this rule of thumb has exceptions.
-    if not (method == 0 and tp.const or method == 1 and not tp.const) then
-	print("Warning: inconsistency of free method of function " .. funcname)
-    end
-
-    fi.free_method = method
-end
---]]
-
-
-
-enums = {}
 
 ---
 -- Certain #defines from the Gtk/Gdk include files are relevant, but not
@@ -663,7 +574,6 @@ load_other_lib_config()
 -- read the XML data
 xml.parse_xml(arg[2])
 
--- get_extra_data()
 mark_ifaces_as_used()
 make_file_list()
 analyze_globals()
@@ -690,6 +600,10 @@ read_extra_headers()
 -- have a list of names of fundamental types they use.
 if config.is_core then
     types.register_all_fundamental_types()
+end
+
+if build_errors > 0 then
+    os.exit(1)
 end
 
 output.output_init()
