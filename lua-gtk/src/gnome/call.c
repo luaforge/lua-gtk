@@ -36,6 +36,10 @@ struct call_info_list {
 /* XXX for multithreading, this would have to be protected by a spinlock */
 static struct call_info *ci_pool = NULL;
 
+/* the currently running function; XXX not suitable for multithreading */
+/* required by init.c:lg_log_func. */
+struct call_info *ci_current = NULL;
+
 /**
  * Provide an unused call_info structure.  It may be taken from the pool, or
  * newly allocated.  In both cases, it is initialized to 0.
@@ -197,21 +201,18 @@ const static char *_call_info_messages[] = {
 };
 
 /**
- * Display a warning or an error about a function call.
+ * Display a warning or an error about a function call.  The message is
+ * on top of the Lua stack.
  *
  * @param level    Error level; 0=debug, 1=info, 2=warning, 3=error
  */
-void call_info_msg(struct call_info *ci, enum lg_msg_level level,
-    const char *format, ...)
+void call_info_msg(lua_State *L, struct call_info *ci, enum lg_msg_level level)
 {
     call_info_warn(ci);
     if (level > 3)
 	luaL_error(ci->L, "call_info_msg(): Invalid level %d\n", level);
-    printf("%s ", _call_info_messages[level]);
-    va_list ap;
-    va_start(ap, format);
-    vprintf(format, ap);
-    va_end(ap);
+    printf("%s %s\n", _call_info_messages[level], lua_tostring(L, -1));
+    lua_pop(L, 1);
 }
 
 
@@ -334,9 +335,9 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 
 	idx = ar.arg_type->ffi_type_idx;
 	if (idx == 0) {
-	    call_info_msg(ci, LUAGTK_ERROR,
-		"Argument %d (type %s) has no ffi type.\n",
+	    LG_MESSAGE(18, "Argument %d (type %s) has no ffi type.\n",
 		arg_nr, FTYPE_NAME(ar.arg_type));
+	    call_info_msg(L, ci, LUAGTK_ERROR);
 	    luaL_error(L, "call error\n");
 	}
 	ci->argtypes[arg_nr] = LUAGTK_FFI_TYPE(idx);
@@ -352,8 +353,8 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 	    // If the current (probably last) argument is vararg, this is OK,
 	    // because a vararg doesn't need any extra arguments.
 	    if (strcmp(FTYPE_NAME(ar.arg_type), "vararg")) {
-		call_info_msg(ci, LUAGTK_WARNING,
-		    "More arguments expected -> nil used\n");
+		LG_MESSAGE(19, "More arguments expected -> nil used\n");
+		call_info_msg(L, ci, LUAGTK_WARNING);
 	    }
 	    ar.lua_type = LUA_TNIL;
 	} else 
@@ -372,7 +373,8 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 
 	    // Shouldn't happen.  Can be fixed, but complain anyway
 	    if (lua_gettop(L) != ar.stack_curr_top) {
-		call_info_msg(ci, LUAGTK_DEBUG, "lua2ffi changed the stack\n");
+		LG_MESSAGE(20, "lua2ffi changed the stack\n");
+		call_info_msg(L, ci, LUAGTK_DEBUG);
 		lua_settop(L, ar.stack_curr_top);
 	    }
 
@@ -380,9 +382,9 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 	    // handling a vararg.
 	    arg_nr = ar.func_arg_nr;
 	} else {
-	    call_info_msg(ci, LUAGTK_WARNING,
-		"Argument %d (type %s) not handled\n", arg_nr,
+	    LG_MESSAGE(21, "Argument %d (type %s) not handled\n", arg_nr,
 		FTYPE_NAME(ar.arg_type));
+	    call_info_msg(L, ci, LUAGTK_WARNING);
 	    luaL_error(L, "call error\n");
 	    ci->args[arg_nr].ffi_arg.l = 0;
 	}
@@ -394,8 +396,8 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
     // Warn about unused arguments.
     int n = ar.stack_top - (index+arg_nr-1);
     if (n > 0) {
-	call_info_msg(ci, LUAGTK_WARNING,
-	    "%d superfluous argument%s\n", n, n==1?"":"s");
+	LG_MESSAGE(22, "%d superfluous argument%s\n", n, n==1?"":"s");
+	call_info_msg(L, ci, LUAGTK_WARNING);
     }
 
     return 1;
@@ -449,6 +451,9 @@ static int _call_return_values(lua_State *L, int index, struct call_info *ci)
 	} else if (ar.arg_type->indirections == 0) {
 	    // only pointers can be output types.
 	    continue;
+	    // XXX could automatically skip "const" items.  This doesn't
+	    // really help as output arguments are explicitely marked and
+	    // so these are automatically ignored. 
 	} else if (ci->args[arg_nr].is_output == 0) {
 	    // not marked as output during first argument scanning
 	    continue;
@@ -599,7 +604,10 @@ int lg_call(lua_State *L, struct func_info *fi, int index)
 	    // from here.  This doesn't exist yet.
 	    // XXX call_info_trace(ci);
 
+	    struct call_info *tmp = ci_current;
+	    ci_current = ci;
 	    ffi_call(&cif, fi->func, &ci->args[0].ffi_arg, ci->argvalues + 1);
+	    ci_current = tmp;
 
 	    /* evaluate the return values */
 	    rc = _call_return_values(L, index, ci);
