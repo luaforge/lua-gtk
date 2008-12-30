@@ -35,7 +35,7 @@ function download_callback(arg, ev, data1, data2, data3)
     if ev == 'done' then
 	download_running = 0
 	set_status("Done, got " .. #arg.sink_data .. " bytes.")
-	local buf, read, written, err = gtk.g_convert(arg.sink_data,
+	local buf, read, written, err = glib.convert(arg.sink_data,
 	    -1, "utf8", "latin1", nil, nil, nil)
 	if err then
 	    buf = err.message
@@ -82,7 +82,7 @@ end
 --
 function build_gui()
 
-    local w = gtk.window_new(gtk.GTK_WINDOW_TOPLEVEL)
+    local w = gtk.window_new(gtk.WINDOW_TOPLEVEL)
     w:set_title "HTTP Demo"
     w:set_default_size(500, 400)
     w:connect('destroy', function() gtk.main_quit() end)
@@ -97,7 +97,7 @@ function build_gui()
     local txt = gtk.text_view_new()
     txt:set_property('editable', false)
     txt:set_property('cursor-visible', false)
-    txt:set_property('wrap-mode', gtk.GTK_WRAP_WORD)
+    txt:set_property('wrap-mode', gtk.WRAP_WORD)
     sw:add(txt)
     result_buf = txt:get_buffer()
 
@@ -114,7 +114,7 @@ function build_gui()
     local btn = gtk.button_new_with_label("Start")
     btn:connect('clicked', function() start_download(entry) end)
     hbox:add(btn)
-    btn.flags = btn.flags + gtk.GTK_CAN_DEFAULT
+    btn.flags = btn.flags + gtk.CAN_DEFAULT
     btn:grab_default()
 
     btn = gtk.button_new_with_mnemonic("_Quit")

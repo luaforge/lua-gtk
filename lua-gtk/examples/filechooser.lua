@@ -6,9 +6,9 @@
 require "gtk"
 
 w = gtk.file_chooser_dialog_new("Open Files", nil,
-    gtk.GTK_FILE_CHOOSER_ACTION_OPEN,
-    gtk.GTK_STOCK_CANCEL, gtk.GTK_RESPONSE_CANCEL,
-    gtk.GTK_STOCK_OPEN, gtk.GTK_RESPONSE_ACCEPT,
+    gtk.FILE_CHOOSER_ACTION_OPEN,
+    gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+    gtk.STOCK_OPEN, gtk.RESPONSE_ACCEPT,
     nil)
 
 w:set_select_multiple(true)
@@ -16,12 +16,12 @@ w:set_select_multiple(true)
 while true do
     rc = w:run()
 
-    if rc == gtk.GTK_RESPONSE_CANCEL:tonumber() then
+    if rc == gtk.RESPONSE_CANCEL:tonumber() then
 	print "cancel"
 	break
     end
 
-    if rc == gtk.GTK_RESPONSE_ACCEPT:tonumber() then
+    if rc == gtk.RESPONSE_ACCEPT:tonumber() then
 	print "open"
 	list = w:get_filenames()
 	list_head = list
@@ -34,7 +34,7 @@ while true do
 	break
     end
 
-    if rc == gtk.GTK_RESPONSE_DELETE_EVENT:tonumber() then
+    if rc == gtk.RESPONSE_DELETE_EVENT:tonumber() then
 	print "closed"
 	break
     end

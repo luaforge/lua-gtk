@@ -17,6 +17,7 @@
 
 require "gtk"
 require "gtk.http_co"
+require "gtkhtml"
 
 rae_host = "buscon.rae.es"
 rae_path = "/draeI/SrvltGUIBusUsual?LEMA="
@@ -74,7 +75,7 @@ function start_download(entry)
     set_status("Fetching " .. s)
 
     download_running = 1
-    htmldoc = gtk.html_document_new()
+    htmldoc = gtkhtml.document_new()
     htmldoc:open_stream("text/html")
     htmlview:set_document(htmldoc)
     gtk.http_co.request_co{ host = rae_host, uri = rae_path .. s,
@@ -88,7 +89,7 @@ end
 --
 function build_gui()
 
-    local w = gtk.window_new(gtk.GTK_WINDOW_TOPLEVEL)
+    local w = gtk.window_new(gtk.WINDOW_TOPLEVEL)
     w:set_title "Diccionario de la Real Academia Española"
     w:set_default_size(500, 400)
     w:connect('delete-event', gtk.main_quit)
@@ -97,11 +98,12 @@ function build_gui()
     w:add(vbox)
 
     local sw = gtk.scrolled_window_new(nil, nil)
+    sw:set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
     vbox:pack_start(sw, true, true, 10)
 
     local txt
-    txt = gtk.html_view_new()
-    local doc = gtk.html_document_new()
+    txt = gtkhtml.view_new()
+    local doc = gtkhtml.document_new()
     txt:set_document(doc)
     htmlview = txt
     sw:add(txt)
@@ -118,7 +120,7 @@ function build_gui()
     local btn = gtk.button_new_with_label("Start")
     btn:connect('clicked', function() start_download(entry) end)
     hbox:add(btn)
-    btn.flags = btn.flags + gtk.GTK_CAN_DEFAULT
+    btn.flags = btn.flags + gtk.CAN_DEFAULT
     btn:grab_default()
 
     btn = gtk.button_new_with_mnemonic("_Quit")

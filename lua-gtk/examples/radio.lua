@@ -7,7 +7,7 @@ require "gtk"
 function build_gui()
     local w, vbox, grp, r, b
 
-    w = gtk.window_new(gtk.GTK_WINDOW_TOPLEVEL)
+    w = gtk.window_new(gtk.WINDOW_TOPLEVEL)
     w:connect('destroy', gtk.main_quit)
     vbox = gtk.vbox_new(true, 2)
     w:add(vbox)
@@ -27,7 +27,7 @@ function build_gui()
 
     -- Add a button that, when clicked, shows which radio button is selected,
     -- then exits.
-    b = gtk.button_new_from_stock(gtk.GTK_STOCK_OK)
+    b = gtk.button_new_from_stock(gtk.STOCK_OK)
     b:connect('clicked', function()
 	-- the custom function returns 0 if found, 1 otherwise.
 	item = grp:find_custom(nil, function(a, the_nil)
