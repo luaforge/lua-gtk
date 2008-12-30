@@ -1,11 +1,13 @@
 #! /usr/bin/env lua
 -- vim:sw=4:sts=4
+
 require "gtk"
+require "atk"
 
 -- Experiment with ATK.  Not yet useful
 
 function build_ui()
-    w = gtk.window_new(gtk.GTK_WINDOW_TOPLEVEL)
+    w = gtk.window_new(gtk.WINDOW_TOPLEVEL)
     w:connect('destroy', gtk.main_quit)
     w:set_title("ATK experiment")
     a = w:get_accessible()
