@@ -1,6 +1,8 @@
 #! /usr/bin/env lua
 -- vim:sw=4:sts=4
--- Simple Example for the Glade library.
+--
+-- Simple Example for the Glade library.  Note that you should use GtkBuilder
+-- instead.
 
 require "gtk"
 require "gtk.glade"
