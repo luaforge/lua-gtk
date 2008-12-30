@@ -21,24 +21,36 @@
 -- Debian: liblua5.1-bit0
 require "bit"
 
+-- The binding to the hash functions used in this package.  Compiled during
+-- building.
+require "gnomedev"
+
+require "lfs"
+
+-- locally defined
+require "script/util"
+
 -- add the directory where this Lua file is in to the package search path.
 package.path = package.path .. ";" .. string.gsub(arg[0], "%/[^/]+$", "/?.lua")
-require "common"
-
-char_ptr_second = nil
 
 xml = require "xml-parser"
 typedefs = xml.typedefs
 types = require "xml-types"
 output = require "xml-output"
+require "xml-const"
+
 
 typedefs_sorted = {}
 typedefs_name2id = {}
 config = {}		-- configuration of architecture, libraries
+-- config_libs = nil	-- array of lib config data
 free_methods = {}	-- [name] = 0/1
 input_file_name = nil
 parse_errors = 0	-- count errors
 verbose = 0		-- verbosity level
+good_files = {}		-- [file_id] = true for "interesting" include files
+logfile = nil
+non_native_includes = {}    -- [path] = libname
 
 ---
 -- Unfortunately, sometimes ENUM fields in structures are not declared as such,
@@ -48,8 +60,16 @@ verbose = 0		-- verbosity level
 function mark_all_enums_as_used()
     local fid, tp
     for id, t in pairs(typedefs) do
-	if t.type == "enum" and not t.in_use then
-	    types.mark_type_id_in_use(id, nil)
+	if t.type == "enum" then
+	    if not t.in_use then
+		if good_files[t.file_id] then
+		    types.mark_type_id_in_use(id, nil)
+		end
+	    else
+		if not good_files[t.file_id] then
+		    t.no_good = true
+		end
+	    end
 	end
     end
 end
@@ -66,7 +86,7 @@ function promote_enum_typedefs()
 
     -- find all enums
     for id, t in pairs(typedefs) do
-	if t.type == "enum" then
+	if t.type == "enum" and t.in_use then
 	    enum_list[id] = true
 	end
     end
@@ -87,48 +107,80 @@ end
 
 ---
 -- The structures named *Iface are required to be able to override interface
--- virtual functions.  They are not intended to be used directly by the user.
+-- virtual functions.  They are not intended to be used directly by the user,
+-- and therefore don't show up as function arguments.
+-- All of these structures are named _*Iface, and have a typedef with
+-- *Iface for them.  Actually, we need a pointer to that, which isn't defined.
 --
 function mark_ifaces_as_used()
+    local name2id = {}
     for type_id, t in pairs(typedefs) do
-	if t.type == "struct" and string.match(t.name, "Iface$") then
-	    types.mark_type_id_in_use(type_id)
+	if t.type == "typedef" and string.match(t.name, "Iface$") then
+	    -- types.mark_type_id_in_use(type_id)
+	    name2id[t.name] = type_id
+	    synthesize_type(t.name .. "*", name2id)
 	end
     end
 end
 
 
+---
+-- Read all config files for the libraries in the current setup.  Note
+-- that this usually is just one, and probably never is more than one.
+--
+function load_lib_config()
+    local cfg_file, cfg
 
-function_list = {}
+    -- config_libs = {}
+    cfg_file = string.format("%s/spec.lua", config.srcdir)
+    config.lib = load_spec(cfg_file)
+
+    if config.lib.native_types then
+	for k, v in pairs(config.lib.native_types) do
+	    config.native_types[k] = v
+	end
+    end
+end
+
+---
+-- Read all spec files of other modules and extract the include_dirs.  This
+-- is used to store for non-native types which module should handle it.
+--
+function load_other_lib_config()
+    local ifile
+
+    for libname in lfs.dir("src") do
+	ifile = "src/" .. libname .. "/spec.lua"
+	if string.sub(libname, 1, 1) ~= "."
+	    and lfs.attributes(ifile, "mode") == "file" then
+	    cfg = load_spec(ifile, true)
+	    for _, path in ipairs(cfg.include_dirs or {}) do
+		non_native_includes[path] = libname
+	    end
+	end
+    end
+	
+end
 
 function _get_include_paths()
-    local cfg_file, cfg, tbl
-
-    tbl = {}
-    for _, lib in ipairs(config.libs) do
-	cfg_file = string.format("libs/%s.lua", lib.name)
-	cfg = load_config(cfg_file)
-	for _, path in ipairs(cfg.include_dirs or {}) do
+    local tbl = {}
+--    for _, cfg in ipairs(config_libs) do
+	for _, path in ipairs(config.lib.include_dirs or {}) do
 	    tbl[#tbl + 1] = "/" .. path .. "/"
 	end
-    end
-
+--    end
     return tbl
 end
----
--- Take a look at all relevant functions and the data types they reference.
--- Mark all these data types as used.  Note that functions that only appear
--- in structures (i.e., function pointers) are not considered here.
---
--- XXX maybe instead of the function prefix, I should look at the include
--- file where it is defined.  not all functions follow the pattern with
--- a common prefix, e.g. getSystemId from libxml2.
---
-function analyze_functions()
-    local paths = _get_include_paths()
-    local good_files = {}	    -- [id] = true
 
-    -- determine which files are good
+
+---
+-- Look at all the file IDs and mark those files that are relevant for the
+-- current module.
+--
+function make_file_list()
+    local paths = _get_include_paths()
+    good_files = {}	    -- [id] = true
+
     for id, name in pairs(xml.filelist) do
 	for i, path in ipairs(paths) do
 	    if string.find(name, path, 1, true) then
@@ -137,6 +189,17 @@ function analyze_functions()
 	    end
 	end
     end
+end
+	
+
+function_list = {}
+
+---
+-- Take a look at all relevant functions and the data types they reference.
+-- Mark all these data types as used.  Note that functions prototypes that only
+-- appear in structures (i.e., function pointers) are not considered here.
+--
+function analyze_functions()
 
     -- Make a sorted list of functions to output.  Only use functions declared
     -- in one of the "good" files, and ignore those starting with "_", which
@@ -144,8 +207,22 @@ function analyze_functions()
     for k, v in pairs(xml.funclist) do
 	local found = false
 	if good_files[v[1][3]] and string.sub(k, 1, 1) ~= "_" then
-		function_list[#function_list + 1] = k
-		_function_analyze(k)
+	    function_list[#function_list + 1] = k
+	    _function_analyze(k)
+	end
+    end
+
+    -- If aliases are defined, add them too.  The "from" function must
+    -- exist, while the "to" function must not exist.  Note that the "from"
+    -- function remains available, and must remain, because the argument
+    -- list is defined there and not in the alias function entry.
+    if config.lib.aliases then
+	for to, from in pairs(config.lib.aliases) do
+	    assert(xml.funclist[from])
+	    assert(not xml.funclist[to])
+	    function_list[#function_list + 1] = to
+	    xml.funclist[to] = from
+	    _function_analyze(from)
 	end
     end
 
@@ -182,13 +259,71 @@ function analyze_structs()
 	    -- in_use: directly used; marked: indirectly used
 	    if t.in_use or t.marked then
 		_analyze_struct(id, t)
---	    else
---		print("SKIP", t.name)
 	    end
 	end
     end
 end
 
+---
+-- After finding all "native" types, those that refer to them are also
+-- marked as native.
+--
+function analyze_structs_native()
+    for id, t in pairs(typedefs) do
+	if t.in_use then
+	    _is_native(t)
+	end
+    end
+end
+
+---
+-- Given a type ID, check whether that type is native, or a fundamental type.
+--
+-- @param t  Typespec
+--
+function _is_native(t)
+    if t.is_native ~= nil then return t.is_native end
+    local is_native, t2
+
+    if t.type == 'fundamental' then
+	is_native = 2
+    elseif good_files[t.file_id] then
+	is_native = 1
+    elseif config.native_types[t.full_name] then
+	is_native = 1
+    else
+	-- follow pointers and qualifiers, then check that type.
+	t2 = t
+	while t2.type == 'pointer' or t2.type == 'qualifier' do
+	    t2 = typedefs[t2.what]
+	end
+	if t2.type == 'fundamental' then
+	    is_native = 2
+	elseif t2.type == 'func' then
+	    is_native = 1
+	else
+	    is_native = false
+	end
+    end
+
+--[[
+    elseif t.what then --  and not t.file_id then
+	-- typedefs that refer to other (base) types have "what" set.
+	is_native = _is_native(typedefs[t.what])
+	if t.file_id and is_native == 2 then is_native = 1 end
+    elseif good_files[t.file_id] then
+	is_native = 1
+    else
+	is_native = false
+    end
+--]]
+
+    t.is_native = is_native
+    return is_native
+end
+
+
+-- For each member of the structure, mark their type in use.
 function _analyze_struct(id, t)
     local st = t.struct
     local ignorelist = { constructor=true, union=true, struct=true }
@@ -207,11 +342,14 @@ end
 
 
 ---
--- Run through all globals and mark the types as used.
+-- Run through all useful globals and mark their types as used.
 --
 function analyze_globals()
     for name, var in pairs(xml.globals) do
-	types.mark_type_id_in_use(var.type, name)
+	var.is_native = good_files[var.file]
+	if var.is_native then
+	    types.mark_type_id_in_use(var.type, name)
+	end
     end
 end
 
@@ -229,12 +367,8 @@ function mark_override()
     local ar = {}
     local name2id = {}
 
-    -- get the list of types from the file
-    for line in io.lines("src/include_types.txt") do
-	line = string.gsub(line, "%s*#.*$", "")
-	if line ~= "" then
-	    ar[line] = true
-	end
+    for _, name in ipairs(config.lib.include_types or {}) do
+	ar[name] = true
     end
 
     -- Scan all typedefs, resolve their names.  Requested types that can be
@@ -294,65 +428,34 @@ function synthesize_type(full_name, name2id)
     local new_id = "synth" .. next_synth_nr
     next_synth_nr = next_synth_nr + 1
     local parent = typedefs[parent_id]
-    typedefs[new_id] = { type="pointer", what=parent_id, name=parent.name }
+    typedefs[new_id] = { type="pointer", what=parent_id,
+	is_native = parent.is_native }
     local t = types.mark_type_id_in_use(new_id, nil)
     if verbose > 1 then
-	print("mark override new", new_id, t.type, t.full_name)
+	print("mark override new", new_id, t.type, t.full_name, full_name)
     end
     return new_id
 end
 
 
----
--- The function returns char* or const char*.  Determine whether the returned
--- string should be g_free()d, which should coincide with the const attribute:
--- const strings are not freed, while non-const are.
---
--- Returns the FID (fundamental_id) to use.
---
-function _handle_char_ptr_returns(arg_list, tp, fname)
-
-    local method
-
-    -- this is what the API says; consts should not be freed.
-    local default_method = tp.const and 0 or 1
-
-    -- The free_method may have been defined by reading the
-    -- char_ptr_handling.txt file.
-    if arg_list.free_method then
-	method = arg_list.free_method
-    else
-
-	-- This might be a function argument or structure member, and therefore
-	-- should have an entry in this table:
-	method = free_methods[fname]
-
-	if not method then
-	    print(string.format("Warning: free method not defined for %s",
-		fname))
-	    method = default_method
-	end
-    end
-
-    -- Warn if API and my list differ.  Sometimes this is intentionally,
-    -- but then should be documented in char_ptr_handling.txt.
-    if method ~= default_method then
-	print("Warning: inconsistency of free method of function " .. fname)
-    end
-
-    return tp.fid + method
-
-end
-
+--[[
 
 ---
 -- Read a list of specs how to handle char* return values of functions.
+-- XXX this should be removed eventually, and replaced by configuration
+-- in the library's Lua config file.
 --
 function get_extra_data()
     local active = true
     local arch, arch2, func, method, inverse
 
-    for line in io.lines("src/char_ptr_handling.txt") do
+    local f = io.open(config.srcdir .."/char_ptr_handling.txt")
+    if not f then
+	print "no char_ptr_handling.txt"
+	return
+    end
+
+    for line in f:lines() do
 
 	arch = string.match(line, "^arch (.*)$")
 	if arch then
@@ -374,8 +477,13 @@ function get_extra_data()
 	    end
 	end
     end
+
+    f:close()
 end
 
+--]]
+
+--[[
 ---
 -- Set the free_method of a given function
 --
@@ -411,6 +519,7 @@ function _set_char_ptr_handling(funcname, method)
 
     fi.free_method = method
 end
+--]]
 
 
 
@@ -478,8 +587,8 @@ function parse_header_file(fname, nums)
 		"^#define ([A-Z0-9_]+)%s+_GDK_MAKE_ATOM%s*%((%d+)%)")
 	    if name and value then
 		assert(not enums[name])
-		local ctx = typedefs_name2id["GdkAtom*"]
-		assert(ctx, "Unknown type GdkAtom* in #define")
+		local ctx = typedefs_name2id["GdkAtom"]
+		assert(ctx, "Unknown type GdkAtom in #define")
 		enums[name] = { val=tonumber(value), context=ctx }
 	    end
 
@@ -495,23 +604,28 @@ end
 -- Show a numeric statistical information
 --
 function info_num(label, value)
-    print(string.format("  %-40s%d", label, value))
+    logfile:write(string.format("  %-40s%d\n", label, value))
 end
 
----
--- Read a Lua configuration file.  In case of error, aborts the application.
---
--- @param fname  The path and name of the file to load
--- @return  A table with the variables defined in that file.
---
-function load_config(fname)
-    local chunk, msg = loadfile(fname)
-    if not chunk then print(msg); os.exit(1) end
-    local tbl = {}
-    setfenv(chunk, tbl)
-    chunk()
-    return tbl
+-- read additional ENUMs from header files.  Do this after assign_type_idx,
+-- so that the __dummy entry isn't being output.
+function read_extra_headers()
+    for _, row in ipairs(config.lib.headers or {}) do
+	parse_header_file(row[1], row[2])
+    end
 end
+
+
+function write_summary()
+    logfile:write("Parsing Results for " .. arg[2] .. "\n\n")
+    xml.show_statistics()
+    types.show_statistics()
+    output.show_statistics()
+    enum_statistics()
+    logfile:close()
+    logfile = nil
+end
+
 
 
 -- MAIN --
@@ -533,22 +647,31 @@ if #arg ~= 3 then
     return
 end
 
+-- read config file for this build
 config = load_config(arg[3])
 assert(config.arch, "No architecture defined in config file")
 config.arch = string.lower(config.arch)
 config.arch_os = string.match(config.arch, "^[^-]+")
+config.native_types = {}
+
+logfile = assert(io.open(arg[1] .. "/parse-xml.log", "w"))
+
+-- read config file for the library in this module
+load_lib_config()
+load_other_lib_config()
 
 -- read the XML data
 xml.parse_xml(arg[2])
 
-get_extra_data()
+-- get_extra_data()
 mark_ifaces_as_used()
+make_file_list()
 analyze_globals()
-
 analyze_functions()
 mark_override()
 analyze_structs()
 mark_all_enums_as_used()
+analyze_structs_native()
 promote_enum_typedefs()
 
 -- before writing the structures, the functions must be looked at to
@@ -560,29 +683,25 @@ typedefs_sorted = types.assign_type_idx()
 -- can be registered.
 types.register_function_prototypes()
 
--- read additional ENUMs from header files.  Do this after assign_type_idx,
--- so that the __dummy entry isn't being output.
-path_gtk = "/usr/include/gtk-2.0"
-path_glib = "/usr/include/glib-2.0"
-parse_header_file(path_gtk .. "/gtk/gtkstock.h", false)
-parse_header_file(path_glib .. "/gobject/gtype.h", false)
-parse_header_file(path_gtk .. "/gdk/gdkkeysyms.h", true)
-parse_header_file(path_glib .. "/gio/gfileinfo.h", false)
-parse_header_file(path_glib .. "/gio/gvolumemonitor.h", false)
-parse_header_file(path_glib .. "/glib/gmain.h", true)
-parse_header_file(path_gtk .. "/gdk/gdkselection.h", false)
-parse_header_file(path_gtk .. "/gdk/gdktypes.h", false)
+read_extra_headers()
 
-output.output_types(arg[1] .. "/gtkdata.structs.c")
-output.output_enums(arg[1] .. "/gtkdata.enums.txt")
-output.output_functions(arg[1] .. "/gtkdata.funcs.txt")
-output.output_fundamental_types(arg[1] .. "/gtkdata.types.c")
-output.output_globals(arg[1] .. "/gtkdata.globals.c")
+-- The core library must provide support for all fundamental types, even though
+-- it doesn't use all of them.  The modules don't have type handling, just
+-- have a list of names of fundamental types they use.
+if config.is_core then
+    types.register_all_fundamental_types()
+end
 
-print("\n --- " ..arg[2] .. " Parsing Results ---\n")
-xml.show_statistics()
-types.show_statistics()
-output.show_statistics()
-enum_statistics()
-print ""
+output.output_init()
+output.output_types(arg[1] .. "/types.c")
+output.output_constants(arg[1] .. "/constants.txt")
+output.output_functions(arg[1] .. "/functions.txt")
+if config.is_core then
+    output.output_fundamental_types(arg[1] .. "/fundamentals.c")
+else
+    output.output_fundamental_hash(arg[1] .. "/fundamentals.c")
+end
+output.output_globals(arg[1] .. "/globals.c")
+output.output_code(arg[1] .. "/generated.c")
+write_summary(arg[1] .. "/parse.log")
 
