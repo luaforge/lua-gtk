@@ -123,6 +123,7 @@ end
 -- @param path  If given as an empty table, add all IDs seen while resolving,
 --   the given type_id first, fundamental type last.  Each indirection adds
 --   another entry.
+-- @param may_be_incomplete  True to avoid errors/warnings
 -- @return  An entry from typedefs, but with additional fields.
 --
 function resolve_type(type_id, path, may_be_incomplete)
@@ -143,10 +144,10 @@ function resolve_type(type_id, path, may_be_incomplete)
     t_top.pointer = 0 -- t_top.pointer or 0
     t_top.indir = 0
 
-    if size then
-	print("SIZE OVERRIDE", size)
-	t_top.size = size
-    end
+--    if size then
+--	print("SIZE OVERRIDE", size)
+--	t_top.size = size
+--    end
 
     local name = nil
 
@@ -261,7 +262,10 @@ function resolve_type(type_id, path, may_be_incomplete)
 
     if not t_top.size or t_top.size == 0 then
 	if may_be_incomplete then return end
-	print("ZERO SIZE", t_top.name, name, t_top.fname)
+	-- these two types have a zero size.
+	if t_top.fname ~= "void" and t_top.fname ~= "vararg" then
+	    print("ZERO SIZE", t_top.name, name, t_top.fname)
+	end
     end
 
     -- all types must eventually have a file_id except fundamental types
@@ -661,6 +665,9 @@ function assign_type_idx()
 		if t2.counter then
 		    t.counter = t.counter + t2.counter
 		end
+
+		-- if t2 is native, then t should be, too!
+		t.is_native = t.is_native or t2.is_native
 
 		typedefs[id2] = t
 	    else
