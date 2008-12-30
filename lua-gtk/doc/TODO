@@ -9,39 +9,73 @@
 		gtk.GTK_CAN_DEFAULT not found
 	mipsel: liblua5.1-bit0 not found
 
+	armel: 0.9 port works thanks to the access to such a box thanks to
+	Martin Guy.  The changes have to be ported forward to trunk.
+
+
+CURRENT
+=======
+
+ - make the configure/build process more robust
+
+ 	- check for gccxml (maybe only in the core module)
+	- modules may have additional flags to configure
+	- when changing config, recompile hash/hash-generate-cmph.  If a
+	  different cmph version is used, constants may change.
+	- don't generate unused .c files in build/gnome: types.c, globals.c.
+
+	- detect non-existant foreign (non-native) types at build time.  This
+	  requires the modules that should provide the type to be already
+	  built.
+
+ - check the required hash algorithm and method at module load time.  store
+   it alphanumerically in the module header.  used for:
+	- hashes of fundamental type names
+	- hashes of names of non-native types
+	- stored again for each hash table
+
+ - test build-time linking
+
+ - test the windows build some more
+
+ - remove overrides for return values and replace with argument flags
+   An additional mechanism would be required to replace the "FSO" overrides;
+   maybe keep them.
+
+ - wrapper for g_object_get not yet implemented, see src/glib/override.c.
+
 
 BUGS
 ====
 
-- regressions
-	message "No automatic guessing" for:
-		- MurrineStyle - GtkStyle
-		- GdkGCX11 - GdkGC
+- glib.printf("%f", 20.0) fails.
+
+- lua2ffi routines should be called with ar->index == ar->func_arg_nr.
+  This way, messages by luaL_checktype etc. would be correct, and
+  ar->func_arc_nr can be discarded.
 
 - g_assertion_message is used in GLib starting with 2.15 for the macro
   G_VALUE_COLLECT.  If lua-gtk is compiled for 2.15 or newer, this call
   will be there.  But when used with an older GLib version e.g. 2.14,
   this will fail.  A warning is shown at startup.
 
-- overrides don't do the trace output, which happens in luagtk_call.
-  How to do this??  This should happen automatically and not require some
-  boilerplate code for each override.  There are C and Lua overrides, about
-  30 in total.
-  Problem: the override is called without its name being accessible, right?
-  So the function would have to call ``show trace("my name")''
+- signals connected with GtkBuilder on menu items create a GtkAction object
+  which is not freed.  What about that?  See src/gtk/override.c:_connect_func.
+
+- overrides don't do the trace output, which happens in lg_call.
+
+  Solution 1: instead of calling luaL_register() on the override list in
+  src/gnome/data.c, add a new closure for each of the functions that
+  prints the trace (if enabled), and then calls the actual function.  It could
+  get the underlying function's signature?
+
+  Solution 2: explicitely call a tracing function from each override,
+  supplying the override name.  This is more work, makes overrides more
+  complicated, but may require less memory (no closures to create) and run
+  faster (C call instead of Lua call).
+
 
   GdkColor...
-
-- Arrays?  This is currently ignored.  It should add another level of
-  indirection, and possibly set a max. number of elements.  Basically arrays
-  could be nested, does this happen?
-  
-- Substructures and subunions are currently ignored.  Must be supported e.g.
-  for GdkEvent.  This has worked before?
-
-  The elements can be accessed, though, e.g.
-  dump_struct(gdkevent.grab_broken).  So, in reality, the data is all there.
-  Just drop the warning messages?
 
 - The size field for structure elements should not be set if the referenced
   type has this info.  Must be present for bitfields, but max. value should
@@ -50,7 +84,6 @@ BUGS
   Interestingly, sometimes the size is set for fundamental types (like struct,
   union) when this type has no fixed size.  This size should be zero!
 
-
 - maybe check the "const" flag sometimes at runtime for something?  disallow
   writing into such structures.
 
@@ -58,12 +91,6 @@ BUGS
 
 - GSList.  you have to call g_slist_free() yourself.  what about the
   items pointed to?  
-
-- review all the code for improvements and maybe some bugs
-
-- GdkAtom represented in the function list with one level of indirection too
-  many?  Like, GdkAtom* should be GdkAtom etc.  This is because GdkAtom is
-  defined to be a pointer to the opaque _GdkAtom structure.
 
 - check refcounting usage, memory leaks
 	- valgrind
@@ -81,10 +108,9 @@ BUGS
 - running Win executables with wine under Linux, and using glade.lua - font
   sizes are insanely large.
 
-- automatically create a closure when a function is given as an argument to
-  a Gtk function.  Make sure that it won't be GC'd until the function call
-  returns.  Useful for foreach() type of functions.
-  see src/types.c:lua2ffi_func_ptr
+ - memory corruption in examples/raedic.lua: query twice and then exit.
+   2008-08-26 doesn't seem to happen anymore.
+
 
 MISSING FEATURES
 ================
@@ -100,6 +126,7 @@ MISSING FEATURES
 	udns
 
 - handle data type float*, e.g. GtkCurve.ctlpoint
+
 - handle data type "signed char", e.g. GdkEventAny.send_event
 
 - wrapper for gtk_tree_model_get would be nice.
@@ -118,6 +145,11 @@ MISSING FEATURES
 - call tracing should show the actual values of the arguments; would require
   a new callback for each parameter type, some kind of tostring.
 
+  - implement this entirely in the debug.c file
+  - use the CONV_xxx constants, no extra data in type_info
+  - alternatively, show the Lua value directly, i.e. before type conversion.
+    this is probably not as useful.
+
 - try LuaJIT - should speed everything up.  at least check that it works with
   it because in a larger project, somebody might want to use it.
 
@@ -126,75 +158,41 @@ MISSING FEATURES
 IMPROVEMENTS
 ============
 
-- Cache the result of the lookup in luagtk_type_modify.  Allocate (type_count)
-  number of short integers to store the offsets into the sorted string table.
+ - reduce size:
+ 	Data			Old	New	Delta
+	----------------------------------------------
+	constants		39711	41190	+1479
+	functions		59975	58668	-1307
+	structs			98301	113742	+15441
+	 - type_list		16624	29432
+	 - elem_list
+	 - strings_types	25725	22192
+	types			1107	1868	+761
+	globals			1502	847	-655
+	----------------------------------------------
+	TOTAL					+15719
+
+ - optimize argument flags: separate into a TYPE part (e.g. ARRAY)
+   and FLAG part (e.g. ALLOCATED).  Are all of these flags required?
+
+- would it be possible to adjust the refcount of an object each time the
+  Lua proxy object is ref/unref'd?  This would reflect the refcount more
+  accurately.  NO: lua_pushvalue(L, i) just copies a pointer, doesn't call
+  anything.
+
+- add an argument flag that says "defaults to NIL if missing without error".
+  This would make the override for gtk_tree_model_get_value superfluous, and
+  maybe other overrides as well.
 
 - can src/boxed.c and src/voidptr.c be merged?  Both wrap a Lua value in a
   C structure.
 
-- order the lookup of dynamic libraries, e.g. by attaching a weight to
-  each lib in libs/*.lua.  This can reduce the number of DLLOOKUPs by placing
-  libgtk, libglib, libgobject first, and less frequently used libs later.
+- reduce the size of struct type_info to 6 bytes instead of 8: possible, would
+  save about 4 kB across all current modules - not worth it.
 
-- make it more modular?  I.e. support additional APIs through additional data
-  files or rather .so/.dll files.  E.g. GtkSpell, or move GtkHTML into a 
-  separate module.  Pure data file is not enough as overrides may be
-  required, i.e. code.  May need to load additional libraries.
-  
-  	- separate module to use the build infrastructure. create types.xml,
-	  filter out interesting symbols, enums, structures, build a hash
-	  table etc.  Can't just include all symbols, because that would
-	  overlap a lot with the base lib.
-
-	- what is the base lib?  for example, glib could be a separate
-	  module, gtk on top of that etc.  Build the base first, then
-	  the next level; same process, but omit all symbols already in the
-	  first library.
-
-	- results in multiple hash tables that have to be checked separately.
-	  couldn't they be combined?  probably not.  performance impact?
-	  probably small.
-	
-	- compile it in if so requested, this should be possible too.
-
-	-- specify additional modules; if built in, nothing happens.
-	require("gtk", "GtkSpell", "GtkHtml")
-	gtk.load("GtkSpell")
-	gtk.load("GtkHtml")
-
-  Advantages: Could be built and installed separately.  Might be required when
-  more and more libraries are added; either have everything as compile time
-  option, or build separately.
-
-  Disadvantages: code and build more complex, slower runtime (can't extend
-   the precomputed hash tables, must check multiple).
-
-
-- Current data sizes:
-
-Structure		curr	-html	old
----------------------------------------------
-type_list		13592	11616	5976
-elem_list		23784	19160	19064
-type_strings_types	21019	17372	32349 for all strings
-type_strings_elem	21876	18610	
-type_strings_proto	2035	1840
-_funcs_fch.g		2320	
-_funcs_data		21793	20412	32881
-_funcs_index		24191	22847	34269
-_enums_fch.g		1902	
-_enums_data		18567	14417	14417
-_enums_index		19359	14599	21897
-override_data		2689	2689	2987
-ffi_type_map		416	408	408
-----------------------------------------------
-		TOTALS	173543
-		SIZE		251845	265093
-
-
-_*_fch.g requires _*_fch.b * sizeof(short) bytes, I reckon.
-
-  - Add a debug function that shows these numbers
+- reduce the size of struct struct_elem - could be reduced to 6 byte (48 bit)
+  from the current 64 bit.  Total size currently 26496 bytes (3312 elements),
+  would shrink to 19872, saving about 6 kB. - not worth it.
 
   - Try to reduce
 	2. more efficient encoding of enum data?
@@ -248,6 +246,16 @@ _*_fch.g requires _*_fch.b * sizeof(short) bytes, I reckon.
 
 	6. remove the func_nnnn dummy type names and element names.  Use just
 	   "func" or so for all of them.
+
+- Fully support Arrays.  The information is already there, but I think
+  it is not possible to access the elements of an array with [].
+  
+- Substructures and subunions are currently ignored.  Must be supported e.g.
+  for GdkEvent.  This has worked before?
+
+  The elements can be accessed, though, e.g.
+  dump_struct(gdkevent.grab_broken).  So, in reality, the data is all there.
+  Just drop the warning messages?
 
 - use a better module definition, see
   http://lua-users.org/wiki/LuaDesignPatterns
@@ -341,8 +349,58 @@ DOCUMENTATION
 =============
 
   - write some more documentation (on the website), in addition to the
-    automatically generated documentation (luadoc)
+    automatically generated documentation (luadoc).  Interesting topics
 
   - update the website with current examples; e.g. glade.lua should not
     be used anymore, instead use GtkBuilder.
+
+  - assign more error numbers and document them in src/*/messages-en.html
+
+  - set up a website to translate messages
+
+
+
+TRANSLATION
+===========
+
+ - convert all messages to use one of the three translation macros.
+ 	luaL_error, luaL_argerror
+
+ - Lua code that looks through C source files and extracts messages; uploads
+   all these messages through a web interface to the translation website.
+   needs proper authorization!
+
+	- scan source files, extract messages and locations. (ok)
+	- login with challenge/response
+	- fetch existing messages: send a module name, retrieve a list of
+	  message IDs along with hashes of the message text and the
+	  locations. (WIP)
+	- upload all changed messages as well as vanished messages (serialized
+	  Lua table).  retrieve the answer (error messages etc.) and display
+	  them. (missing)
+	
+	- detect re-use of existing message numbers. (missing)
+		- a message already exists
+		- the message is different
+		- no known location matches the new location (with fuzz)
+
+ - help coders assign new message IDs.  On the website, display the next
+   free id. (ok)
+
+ - Descriptions can now only be entered on-line, no text file anymore. (missing)
+
+ - Code to dump the translations into Lua files, which are loaded at runtime on
+   demand.  This should work with a remote server and not access a database
+   directly. (missing)
+
+ - These translated files should be in CVS too to have them under version
+   control.  Now and then check in the changes.  This is a backup of the
+   in-database data.  Have code ready to load the DB from the dumped files;
+   these should therefore contain all the data (or all relevant data) of the db.
+
+ - Code to dump descriptions into .html.in files for documentation.  This
+   should work with a remote server and not access a database directly.
+   (missing)
+
+ - Web module to view descriptions of messages on-line. (missing)
 

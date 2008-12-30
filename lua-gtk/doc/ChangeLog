@@ -574,3 +574,264 @@ explicitely now via gtk.closure(func), which allows for correct memory
 management
 * new debug flag "closure" to debug closure allocation and freeing.
 
+2008-07-23
+* automatically create closures (again)
+* prevent automatic closures where they can't be used
+* documentation of closures
+* GtkBuilder: connect_objects are now supported
+* removal of the arbitrary limit of number of dynamic libraries
+* new function new_array to allocate an array of items
+* access array elements with object[i]
+* read/write fields of a boxed value directly.
+
+2008-07-25
+* refactoring to allow for multiple modules (WIP)
+
+2008-07-26
+* core library stripped from module specific data and code.  With
+optimizations, size is about 71 kB, and without around 95 kB.
+
+2008-08-01
+* core library (now "gnome") works, separately so far is glib (with gobject),
+gtk (with gdk).  WIP
+
+2008-08-12
+* ongoing remodeling of the library for better modularity, including the
+build system.  All tests now work again, all libraries are supported again.
+Changes up to now (undated):
+
+* channel.c belongs to a module for glib
+* gdk_color_copy (gtk.new for GdkColor) should be in a module
+* configure.lua split to allow usage for modules
+* link core lib only to required libraries (gobject, glib)
+* core only uses glib, gobject - not gtk (one exception)
+* char_ptr_handling.txt, include_types.txt split up into modules
+* GTK_IS_OBJECT used in src/widget_types.c!
+* configure "gtk" module
+* Makefiles reorganized to support "make -f src/MODULE/Makefile"
+* link.h mechanism works for modules
+* build for "gtk" module mostly complete
+* API structure defined for modules
+* loading of modules via require works
+* rename ffi_type_names to $(prefix)_type_names
+* only compile in ffi_type_map for the core module.
+* rename gtk to gnome
+* include glib, gobject functions in gnome module.
+* core module compiles in all types listed in src/fundamental.lua.
+* parse-xml reads extra include files again (libs/*.lua: headers)
+* widget_meta.c:260 - switching to the module that handles the type works. see
+also data.c:533.
+* gmodule now included in core module (glib)
+* put glib/gobject bindings into a separate module.  gnome will not contain
+any functions/structures/constants/overrides.
+* examples/window.lua works again
+* store elements of structures only when "is_native" is set.
+* examples/calculator.lua works again
+* order of inclusion of libraries doesn't matter anymore
+* calling of closures now possible
+* pretty printing of closures
+* gtk automatcally loads glib
+* examples/clock.lua works
+* tests/027-closure.lua works
+* pango module added
+* enumlist pruned to current module
+* tests/022-gslist.lua works
+* examples/editor.lua works
+* most examples work again
+* src/call.c:_call_return_values now works better (ar.ts.module_idx modified)
+* gdk_pango_layout_get_clip_region: provide alias pango_layout_get_clip_region
+* gdk_pango_layout_line_get_clip_region: similar
+* examples/pixmap.lua: works again
+* tests/005.lua - works
+* documentation html_in/voidptr.html updated
+* diagram voidptr1.dot created
+* support atk
+* support cairo
+* examples up to 030 working
+* documentation of debugging tools: html_in/debug.html
+* GdkAtom: must not free() it, force a special widget_type handler
+* generic argument flags; specify values in libs/*.lua; e.g. for
+gtk_get_clipboard
+* Makefile for modules simplified
+* hash lookup code now in gnome.so, not in each module
+* configure.lua for modules simplified
+* init.c for modules simplified (just a little)
+* src/include with file(s) that modules can use (*.h, configure.lua)
+* src/gnome with core library code and private includes
+* gtkdata.funcs.txt renamed to functions.txt
+* gtkdata.enums.txt renamed to constants.txt
+* all tests functioning again
+* various bug fixes
+* libxml2 works
+
+2008-08-12
+* fixed detection of fundamental types
+* implementation of hash-based type conversion
+* support for arrays (in struct type_info)
+* hash-based lookup of types; no sorted type list anymore.
+* hash algorithms and functions now have a single API, multiple of them can be
+compiled in
+* total size reduced from about 400 kB to 390 kB.
+
+2008-08-18
+* removed synthetic fundamental type "const char*" in favor of a regular const
+char type.
+* include_types.txt config files removed, replaced with a variable in the
+library's Lua config file.
+* removed ffi_type_map_t.flags, also from include/fundamental.lua and the
+corresponding code in script/xml-types.lua, script/xml-output.lua.
+* script/xml-types.lua: fixup_types now copies the is_native setting of the
+parent type.
+* off-by-one error fixed in src/gnome/data.c: _update_typemap_hash didn't add
+the last type to the typemap.
+* include only globals from "good" include files.
+* simplification of modules' init.c code.
+* size reduction by storing only the hash value of the fundamental names in
+the modules, instead of the complete names.
+
+2008-08-20
+* documentation of the architecture
+* attempts to reduce data size (structure sizes of type_info, struct_elem; not
+viable)
+* struct type_info remodeled to union type_info; room for module name for
+non-native types.
+* libs/MODULE.lua moved to src/MODULE/spec.lua
+* better error message when a module uses a cmph method that's not supported
+by the core module.
+* automatically load the responsible module when a type is not found.
+* string offsets in gtkdata.structs.c are now starting at 1; 0 is unused.
+this makes offset 0 mean "unset".
+
+2008-08-21
+* bugfix in src/glib/callback.c: missing call to g_value_unset()
+* bugfix for SEGV when using GtkTooltip, reported by Lucas Hermann Negri
+* widget_handler "gobject" moved into src/glib/init.c
+
+2008-08-25
+* script/xml-parser.lua: comment update regarding "File" entries
+* reorganization of html documentation (html_in -> doc/en, Makefiles)
+* replace almost all lua_topointer with lua_touserdata
+* boxed: lg_make_boxed_value uses a boxed value as-is if possible
+* boxed: memory leaks fixed
+* boxed: count currently allocated objects; return with gnome.box_debug()
+* binary and source release from current CVS code.
+* created a branch "rel-0-9" to continue maintenance of the old release.
+* removal of api.find_func_in_module
+* override for gtk_tree_model_get_value reinstated in a simpler version
+* fundamental type "float": ffi2lua function added
+* mechanism to add function aliases in spec.lua - aliases
+* aliases for gdk_drawable_draw_xxx to gdk_draw_xxx
+* mechanism to omit functions: spec.lua - ignore_functions
+* struct ffi_type_map_t: removed lua2ffi_idx, ffi2lua_idx, lua2struct_idx,
+struct2lua_idx; added just conv_idx and structconv_idx.  The structure is
+currently 34 bit long, which is padded to 64 bit again.  Added code complexity
+to check for NULL values in the jump tables -- not such a good idea after all?
+* debug.function_sig: output the correct number of "*" for indirections
+* layout improvements for documentation
+* new example in the documentation: raedic
+* colorization for example code
+* renamed gtkdata.structs.c to types.c, and gtkdata.types.c to fundamentals.c
+
+2008-08-26
+* fix for arg_count confusion (retval now included) in call.c
+* porting of weather example and cms-admin to API 1.0
+* int_ptr: if the user gives nil, no output is returned
+* struct_ptr_ptr, char_ptr_ptr: if the user gives nil, nil is passed.  use
+"true" to pass a pointer to a NULL pointer and treat it as output argument.
+* fix to freeing of char_ptr_ptr (was broken)
+
+2008-08-27
+* replaced lghash.so with gnomedev.so
+* only build dependency for modules is gnomedev.so
+* make doesn't print "Nothing to be done for `all'" anymore.
+* build process doesn't require the cmph binary anymore.
+
+2008-08-28
+* src/hash/hash-generate-simple.c redesigned, compiles again
+
+2008-09-01
+* simple hash reworked some more
+* all three hash methods (simple, fch, bdz) work properly
+
+2008-09-11
+* new script/show-sizes.lua to inform about .so sizes (linux only)
+
+2008-09-12
+* looked at glui, an older Lua/Gtk binding from late 2004 written by Steve
+Donovan.  It offers a set of hand-coded bindings for a few widgets of Gtk 1.2
+and is only known to work on Linux.
+* simple hash: save space by not storing duplicate values
+* cmph: use fixed 32 bit per bucket, and also combine duplicate values.
+
+2008-11-05
+* change in type_info_t.nn - instead of module_name_ofs have a flag
+name_is_module: saves space (now 13 bit padding), remove struct
+module_info.auto_depends.
+* functions are now considered native types
+* read func* from structures - create a closure to call the function
+
+2008-11-06
+* glib.object_get_class now works
+* can call function pointers in structures
+* conversion of remaining char_ptr_handling.txt into spec.lua:function_flags
+* simplification of script/configure.lua (removal of use_only_cflags,
+setup_library2).
+* all linklist.txt files are now converted into a section in spec.lua.
+* most configure.lua files deleted, as they did exactly the same simple calls.  Only the core module (gnome) still has a (large) configure.lua.
+* changed the TYPE_xxx constants to GENUS_xxx (in include/common.h).  After all
+they are stored in the field "union type_info.nn.genus" etc.
+* doc/en: documentation menu is now multi-level.  More documentation.
+* gnome: rename widget*.c to object*.c
+* gnome: rename luagtk_get_object to lg_get_object
+* gnome: refactoring of all luagtk_ prefixed functions and types to lg_, as
+this system is not limited to gtk anymore.
+
+2008-11-07
+* script/check-linklist.lua to aid weeding out unused entries in linklists
+* struct module_info is automatically generated by parse-xml.lua now.
+* can now access functions with their full name (i.e., without a prefix).
+required for gtkhtml.
+* more documentation
+* attempts to check into CVS; difficulties with branches and new/deleted files.
+
+2008-12-01
+* support "double*" input argument
+* error when other types than number or userdata are given for an enum
+
+2008-12-02
+* fix GValue related bugs exposed by test 021-gvalue.lua
+* more documentation on function calling
+* use gnome.NIL instead of a boolean value as placeholder argument for ptr_ptr
+arguments.
+
+2008-12-14
+* more documentation
+* gnome.function_sig now accepts a closure (in addition to module/funcname)
+* some more files checked into CVS
+
+2008-12-19
+* more files checked into CVS
+* glib: lots of function_flags added
+
+2008-12-26
+* fix to gnome.destroy() - now works properly
+* new documentation on errors with unique IDs in doc/en/errors.html
+* all *Iface structures are now included as "struct*" without the _ prefix
+* can now use library functions directly to set function pointers in structures in addition to closures.
+
+2008-12-28
+* script/extract-messages.lua finds all usages of message IDs, and generates the html.in files (per module)
+* existing messages converted to this input format
+* src/gnome/object_meta.c: use lg_push_closure to create closures for functions instead of l_call_func.
+* macros LG_ERROR and LG_ARGERROR, LG_MESSAGE with translatable messages
+* new source file src/gnome/lang.c that translates messages using a Lua data file
+* a few messages marked for translation, descriptions entered
+* new module "lgtranslate" for my Lua web framework, with sql tables for messages, descriptions, translations, reviews, locations.
+* script/upload-messages.lua is an adaption of extract-messages.lua to scan the C source and upload new/changed messages to the web server.
+
+
+2008-12-30
+* some types added to the include_types array various spec files, mainly glib.
+* some fundamental types added to glib, like FILE, size_t, time_t.  Other modules may still complain during building but these types are now available.
+* all of the files now checked into CVS.
+
