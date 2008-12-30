@@ -1,6 +1,6 @@
 #! /usr/bin/env lua
-require "gtk"
+require "gdk"
 
-c = gtk.new "GdkColor"
-gtk.dump_struct(c)
+c = gdk.new "Color"
+gnome.dump_struct(c)
 

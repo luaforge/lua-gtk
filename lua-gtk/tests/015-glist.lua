@@ -1,18 +1,18 @@
 #! /usr/bin/env lua
-require "gtk"
+require "glib"
 
 -- Helper to show the elements of a list.  It uses the foreach function, which
 -- requires callbacks from C to Lua, which requires closures; this is actually
 -- tricky, but works :)
 function list2string(ls)
    local t = {}
-   ls:foreach(gtk.closure(function(x) t[#t + 1] = tostring(x.value) end), nil)
+   ls:foreach(gnome.closure(function(x) t[#t + 1] = tostring(x.value) end), nil)
    return table.concat(t, ' ')
 end
 
 
 -- create a new g_list with one element
-ls = gtk.g_list_append(nil, 10)
+ls = glib.list_append(nil, 10)
 assert(ls:length() == 1)
 
 -- append returns the extended list, but (looking at the C source for
@@ -40,7 +40,7 @@ ls:append(3)
 ls:append(94)
 
 -- sort using a callback (in a closure)
-ls = ls:sort(gtk.closure(function(a, b) return a.value - b.value end))
+ls = ls:sort(gnome.closure(function(a, b) return a.value - b.value end))
 assert(list2string(ls) == "3 10 15 30 94")
 
 

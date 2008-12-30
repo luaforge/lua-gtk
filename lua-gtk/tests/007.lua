@@ -3,12 +3,12 @@
 -- Test GError handling
 --
 
-require "gtk"
+require "glib"
 
-s, err = gtk.g_file_read_link("/some/invalid/path", nil)
+s, err = glib.file_read_link("/some/invalid/path", gnome.NIL)
 
 assert(err)
-assert(err.domain == gtk.g_file_error_quark())
-assert(err.code == gtk.G_FILE_ERROR_NOENT:tonumber())
+assert(err.domain == glib.file_error_quark())
+assert(err.code == glib.FILE_ERROR_NOENT:tonumber())
 assert(err.message == "Failed to read the symbolic link '/some/invalid/path': No such file or directory")
 

@@ -2,7 +2,6 @@
 -- vim:sw=4:sts=4
 
 require "gtk"
-gtk.set_debug_flags()
 
 e = gtk.text_buffer_new(nil)
 
@@ -12,7 +11,7 @@ m2 = e:get_insert()
 m3 = e:get_insert()
 
 -- no problem
-iter = gtk.new "GtkTextIter"
+iter = gtk.new "TextIter"
 e:get_start_iter(iter)
 
 -- this used to cause a segfault, but is fixed as of 2008-07-16

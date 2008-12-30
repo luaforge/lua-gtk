@@ -4,7 +4,7 @@
 require "gtk"
 
 w = gtk.combo_box_new()
-ls = gtk.list_store_new(2, gtk.G_TYPE_INT, gtk.G_TYPE_STRING)
+ls = gtk.list_store_new(2, glib.TYPE_INT, glib.TYPE_STRING)
 w:set_model(ls)
 
 -- Creates an alias, because this function returns GtkTreeModel for the

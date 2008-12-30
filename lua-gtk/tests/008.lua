@@ -5,8 +5,8 @@
 
 require "gtk"
 
-x = gtk.new "GtkTreeIter"
-y = gtk.new "GtkTreeIter"
+x = gtk.new "TreeIter"
+y = gtk.new "TreeIter"
 
 -- try to set an existing field of the object
 x.stamp = 99

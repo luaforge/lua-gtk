@@ -1,7 +1,7 @@
 #! /usr/bin/env lua
-require "gtk"
+require "cairo"
 
-cs = gtk.cairo_image_surface_create (gtk.CAIRO_FORMAT_RGB24, 100, 100)
+cs = cairo.image_surface_create (cairo.FORMAT_RGB24, 100, 100)
 assert(cs)
 
 t = cs:get_type()
