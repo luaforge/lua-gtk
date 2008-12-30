@@ -27,7 +27,7 @@ setfenv(1, M)
 max_func_args = 0
 
 -- get the list of supported fundamental data types (fundamental_map).
-require "src/fundamental"
+require "include/fundamental"
 
 -- List of fundamental types existing.  The fid (fundamental id) is an index
 -- into this table; the first entry starts at index 1.  Append as many "*" to
@@ -58,7 +58,7 @@ local funclist2 = {}
 -- add it.  Make sure that t.fid is set.
 --
 function register_fundamental(t)
-    local fid, name
+    local fid, name, size
 
     if t.fid then return end
 
@@ -89,30 +89,22 @@ function register_fundamental(t)
     fid = ffi_type_name2id[name]
     if fid then t.fid = fid; return end
 
-    -- register new fundamental type
+    -- size is meaningless for "struct"
+    size = t.size or 0
+    if name == "struct" then size = 0 end
+
+    -- register new fundamental type.  struct type_info currently has 6
+    -- bits for the fundamental ID.
     fid = #ffi_type_map + 1
-    assert(fid < 100, "Too many fundamental types!")
+    assert(fid < 64, "Too many fundamental types!")
 
     ffi_type_map[fid] = {
 	name = name,
 	pointer = t.pointer,
-	bit_len = t.size or 0,
+	bit_len = size,
 	basename = t.fname,
     }
     ffi_type_name2id[name] = fid
-
-    -- Special case for char*: add another entry for const char*, which
-    -- must directly follow the regular char* entry.
-    if name == "char*" then
-	ffi_type_map[fid + 1] = {
-	    name = "const char*",
-	    pointer = t.pointer,
-	    bit_len = t.size or 0,
-	    basename = t.fname,
-	}
-	main.char_ptr_second = fid + 1
-    end
-
     t.fid = fid
 end
 
@@ -136,9 +128,10 @@ end
 function resolve_type(type_id, path, may_be_incomplete)
     if type_id == nil then return {} end
 
-    local t, t_top
+    local t, t_top, top_type_id
 
     -- first typedef
+    top_type_id = type_id
     t = typedefs[type_id]
     assert(t)
 
@@ -148,6 +141,7 @@ function resolve_type(type_id, path, may_be_incomplete)
     -- the typedef to return eventually.
     t_top = t
     t_top.pointer = 0 -- t_top.pointer or 0
+    t_top.indir = 0
 
     if size then
 	print("SIZE OVERRIDE", size)
@@ -157,9 +151,9 @@ function resolve_type(type_id, path, may_be_incomplete)
     local name = nil
 
     while t do
-
-	-- retain the most specific name (the first one encountered)
+	-- retain the most specific name and file_id (the first one encountered)
 	t_top.fname = t_top.fname or t.fname
+	t_top.file_id = t_top.file_id or t.file_id
 	name = name or t.name
 
 	-- pointer to something
@@ -167,13 +161,21 @@ function resolve_type(type_id, path, may_be_incomplete)
 	    if t.size and t.size ~= 0 then
 		t_top.size = t.size
 	    end
+	    -- count indirections only until the name is found.  A "gpointer"
+	    -- has a pointer count of 1, but indir count of zero, and
+	    -- is therefore shown as "gpointer" and not "gpointer*".
+	    if not name then
+		t_top.indir = t_top.indir + 1
+	    end
 	    if path then path[#path + 1] = type_id end
 	    t_top.pointer = t_top.pointer + 1
 	    -- t.align not used
 
-	-- a typedef, i.e. an alias
-	elseif t.type == "typedef" or t.type == "qualifier" then
-	    -- copy qualifiers; they add up if multiple are used
+	-- a typedef is just an alias, no further action required
+	elseif t.type == "typedef" then
+
+	-- copy qualifiers; they add up if multiple are used
+	elseif t.type == "qualifier" then
 	    if t.const then t_top.const = true end
 	    if t.volatile then t_top.volatile = true end
 	    if t.restrict then t_top.restrict = true end
@@ -184,9 +186,6 @@ function resolve_type(type_id, path, may_be_incomplete)
 	    -- if t.size then t_top.bit_len = t.size end
 	    t_top.fname = t.type
 	    t_top.detail = t
---	    if t.name == "_cairo" then
---		name = "cairo"
---	    end
 	    break
 
 	-- fundamental type.
@@ -199,6 +198,7 @@ function resolve_type(type_id, path, may_be_incomplete)
 	elseif t.type == "func" then
 	    t_top.fname = "func"
 	    t_top.detail = t
+	    t_top.is_function = true
 	    break
 
 	-- an enum
@@ -215,7 +215,9 @@ function resolve_type(type_id, path, may_be_incomplete)
 	elseif t.type == "array" then
 	    if t.size and t.size ~= 0 then t_top.size = t.size end
 	    t_top.array = t_top.array or {}
-	    t_top.array[#t_top.array + 1] = "[" .. t.max .. "]"
+	    assert(t.min == "0")
+	    t_top.array[#t_top.array + 1] = t.max or ""
+	    -- "[" .. (t.max or "") .. "]"
 
 	-- unknown type
 	else
@@ -244,15 +246,30 @@ function resolve_type(type_id, path, may_be_incomplete)
     t_top.extended_name = name or t_top.fname
 
     -- compute a full name for the type including qualifiers and pointers
+    local ar_string = ""
+    if t_top.array then
+	for _, dim in ipairs(t_top.array) do
+	    ar_string = ar_string .. "[" .. tostring(dim) .. "]"
+	end
+    end
+	
     t_top.full_name = string.format("%s%s%s%s",
 	t_top.const and "const " or "",
 	name or t_top.fname,
-	string.rep("*", t_top.pointer),
-	t_top.array and table.concat(t_top.array, "") or "")
+	string.rep("*", t_top.indir),
+	ar_string)
 
     if not t_top.size or t_top.size == 0 then
 	if may_be_incomplete then return end
 	print("ZERO SIZE", t_top.name, name, t_top.fname)
+    end
+
+    -- all types must eventually have a file_id except fundamental types
+    -- and function types (which are often declared in a structure and have
+    -- no file info)
+    if not t_top.file_id and t.type ~= "fundamental" and
+	t.type ~= "func" then
+	print("NO FILE_ID FOR TYPE", top_type_id, t_top.type, t.type)
     end
 
     -- make sure the fundamental type is registered.
@@ -279,14 +296,14 @@ local ignore_types = { ["complex float"]=true, ["complex double"]=true,
 function fundamental_to_ffi(ft)
     local v = fundamental_map[ft.basename]
 
-    if v and v[3 + ft.pointer] then
-	return { ft.pointer == 0 and v[1] or "pointer", v[2],
-	    unpack(v[3 + ft.pointer]) }
+    if v and v[2 + ft.pointer] then
+	return { ft.pointer == 0 and v[1] or "pointer",	-- ffi type
+	    unpack(v[2 + ft.pointer]) }
     end
 
     -- pointer types have this default entry
     if ft.pointer > 0 then
-	return { "pointer", 0, "ptr", nil, nil, nil }
+	return { "pointer", "ptr", "ptr", nil, nil }
     end
 
     if not ignore_types[ft.name] then
@@ -386,31 +403,69 @@ end
 -- binary string.  Format of each argument:
 --
 --   0ttt tttt
---	for type numbers up to 2^7-1
+--	for type numbers up to 0x007f
 --
 --   1ttt tttt  tttt tttt
---	for type numbers up to 2^15-1 (high bits first)
+--	for type numbers up to 0x8ffe (high bits first)
+--
+--   If a type number is 0 (which is unused), then a flags byte follows that
+--   applies to the following argument.
+--
+--   The reserved type number 0x8fff means that this is not a real function,
+--   but an alias.  The name of the real function follows.
 --
 function function_arglist(arg_list, fname)
-    local t, val, s, type_id, extra, id
+    local t, val, s, type_id, extra, id, flags
 
     s = ""
+    t = config.lib.function_flags or {}
+    flags = t[fname] or {}
+    if type(flags) ~= "table" then
+	flags = { flags }
+    end
+
+    if type(arg_list) == "string" then
+	s = string.char(0xff) .. string.char(0xff) .. arg_list .. string.char(0)
+	return s
+    end
+
     for i, arg_info in ipairs(arg_list) do
 	type_id = arg_info[1]
 	t = resolve_type(type_id)
-	val = t.type_idx
-	assert(val, "No type_idx for " .. type_id .. " = " .. t.full_name)
 	extra = ""
 
-	-- gchar* and const gchar* return values
--- XXX temporarily out of order
---	if i == 1 and tp.fname == "char" and tp.pointer == 1 then
---	    print("arglist", tp.full_name)
---	    val = _handle_char_ptr_returns(arg_list, tp, fname)
---	end
+	-- If flags are set on the argument, encode that first.  The char*
+	-- return specification is used otherwise (to enforce const/non-const)
+	-- and is not encoded as an argument flag.
+	if flags[i] then
+	    local v = flags[i]
+	    if type(v) == "string" then
+		v = assert(config.lib.flag_table[v])
+		v = bit.bor(v, 0x80)
+		s = s .. string.char(0) .. string.char(v)
+		extension_bytes = extension_bytes + 2
+	    else
+		-- Only flags in the first 8 bits can be stored.  This
+		-- skips 
+		v = bit.band(v, 0xff)
+		if v ~= 0 then
+		    s = s .. string.char(0) .. string.char(v)
+		    extension_bytes = extension_bytes + 2
+		end
+	    end
+	end
+
+	-- When a function returns a string, the caller must free it, unless
+	-- it is a const string.  This policy is followed quite consequently
+	-- with few exceptions.
+	if i == 1 and t.fname == "char" and t.pointer == 1 then
+	    t = _handle_char_ptr_returns(arg_info, t, fname)
+	end
 
 	-- if val is 128 or more, a second type byte is required.
 	-- the algorithm could be extended to cover even more bits
+	val = t.type_idx
+	assert(val, "No type_idx for " .. type_id .. " = " .. t.full_name)
 	if bit.band(val, 0xffff8000) ~= 0 then
 	    error("Type index too high: " .. tostring(val))
 	end
@@ -432,6 +487,41 @@ function function_arglist(arg_list, fname)
 
     return s
 end
+
+---
+-- The function returns char* or const char*.  Determine whether the returned
+-- string should be g_free()d, which should coincide with the const attribute:
+-- const strings are not freed, while non-const are.
+--
+-- @param arg_info  An array { return type }
+-- @param t  The typedef of the return value, corresponds to arg_info[1]
+-- @param fname  Name of the function
+-- @return  The typedef of the return value (equal to "t" or modified)
+--
+function _handle_char_ptr_returns(arg_info, t, fname)
+    local ff, flags, name
+
+    -- is there an entry in function flags for this?
+    flags = config.lib.function_flags or {}
+    ff = flags[fname]
+    if not ff then return t end
+
+    -- flags for the return value
+    flags = type(ff) == 'table' and ff[1] or ff
+
+    if bit.band(flags, function_flag_map.CHAR_PTR) > 0 then
+	-- should be non-const
+	if not t.const then return t end
+	name = string.gsub(t.full_name, "^const ", "")
+    elseif bit.band(flags, function_flag_map.CONST_CHAR_PTR) > 0 then
+	if t.const then return t end
+	name = "const " .. t.full_name
+    end
+
+    print("char/const char* return value MISMATCH for", fname, name)
+    return assert(resolve_type(typedefs_name2id[name]))
+end
+
 
 
 ---
@@ -508,12 +598,6 @@ function register_function_prototypes()
     assert(cnt == 0)
 end
 
----
--- Given a type name (like GdkWindow*), find the appropriate ID and retrieve
--- the entry in typedefs.
---
-local function find_type_by_name(name)
-end
 
 ---
 -- If foo** exists, make sure that foo* also exists.  This is required because
@@ -521,7 +605,7 @@ end
 -- and the resulting type is searched for.  This type might not be in use
 -- otherwise.
 local function fixup_types()
-    local id, t, name2, path
+    local id, t, t_parent, name2, path
     local keys, name2id = typedefs_sorted, typedefs_name2id
 
     for i, name in ipairs(keys) do
@@ -534,8 +618,10 @@ local function fixup_types()
 		assert(path[1] == id)
 		assert(path[2])
 		t = resolve_type(path[2])
+		t_parent = typedefs[id]
+		t.is_native = t_parent.is_native
 		if verbose > 1 then
-		    print("adding", t.full_name)
+		    print("fixup_types: adding type", t.full_name)
 		end
 		name2id[t.full_name] = path[2]
 		keys[#keys + 1] = t.full_name
@@ -625,6 +711,21 @@ function show_statistics()
     info_num("Type extension bytes in prototypes", extension_bytes)
     info_num("Max. number of function args", max_func_args)
     info_num("Number of fundamental types", #ffi_type_map)
+end
+
+---
+-- The main module (gnome) must provide handlers for all known types.  This
+-- module itself doesn't need all of them, but others do.
+--
+function register_all_fundamental_types()
+
+    for basename, ar in pairs(fundamental_map) do
+	for i = 2, #ar do
+	    t = { type="fundamental", fname=basename, size=0, align=0,
+		pointer=i - 2 }
+	    register_fundamental(t)
+	end
+    end
 end
 
 return M
