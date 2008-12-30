@@ -1,0 +1,10 @@
+#! /bin/sh
+# Configure all modules of LuaGnome.
+# Pass extra arguments to all modules.
+
+for i in src/*/spec.lua; do
+	script/configure.lua "$@" $i || break
+done
+
+echo 'Type "make" to build all modules.'
+
