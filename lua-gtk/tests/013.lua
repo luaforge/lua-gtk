@@ -6,18 +6,19 @@ ok = false
 
 -- let it be called 10 times, then cause the main loop to exit.
 function my_idle(data)
-    -- print("my_idle called", data[1])
     n = data[1] + 1
     if n < 10 then
 	data[1] = n
 	return true
     end
+    data:destroy()
     gtk.main_quit()
     ok = true
     return false
 end
 
-gtk.g_idle_add(my_idle, {0})
+cl = gnome.closure(my_idle)
+glib.idle_add(cl, {0})
 gtk.main()
 
 assert(ok)
