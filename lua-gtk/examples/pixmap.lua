@@ -2,12 +2,15 @@
 -- vim:sw=4:sts=4
 
 require "gtk"
+require "pango"
+
+gnome.set_debug_flags "memory"
 
 win_count = 0
 
 function mywin_new(msg)
     local self = { pixmap=nil, msg=msg }
-    self.win = gtk.window_new(gtk.GTK_WINDOW_TOPLEVEL)
+    self.win = gtk.window_new(gtk.WINDOW_TOPLEVEL)
     self.win:connect('destroy', on_destroy, self)
     self.win:set_title('Pixmap Test')
     local da = gtk.drawing_area_new()
@@ -32,11 +35,21 @@ end
 --
 function on_configure(da, ev, ifo)
     local window = ifo.win.window
+    -- print("WINDOW", window)
+    -- gnome.breakfunc()
     local width, height = window:get_size(0, 0)
+    -- print("WIDTH, HEIGHT", width, height)
+    assert(width)
+    assert(height)
+
+    if ifo.pixmap then
+	-- mostly seems to work.  maybe check some more
+	gnome.destroy(ifo.pixmap)
+    end
 
     -- allocates memory in X server... default drawable, width, height, depth
     -- loses the reference to the previous pixmap, if any.
-    ifo.pixmap = gtk.gdk_pixmap_new(window, width, height, -1)
+    ifo.pixmap = gdk.pixmap_new(window, width, height, -1)
 
     local style = ifo.win:get_style()
     local white_gc = style.white_gc
@@ -58,7 +71,7 @@ function on_configure(da, ev, ifo)
 
     -- get size of message
     local region = layout:get_clip_region(0, 0, {0, string.len(message)}, 1)
-    local rect = gtk.new("GdkRectangle")
+    local rect = gdk.new "Rectangle"
     region:get_clipbox(rect)
     if rect.width > 0 then
 	ifo.pixmap:draw_layout(black_gc, width - 15 - rect.width,
@@ -67,8 +80,8 @@ function on_configure(da, ev, ifo)
 
     -- Make sure that the unreferenced pixmap is freed NOW and not eventually,
     -- because this can eat up loads of memory of the X server.
-    collectgarbage()
-    collectgarbage()
+    -- collectgarbage()
+    -- collectgarbage()
 
     return true
 end
@@ -86,11 +99,11 @@ function on_expose(da, ev, ifo)
     local window = da.window
     local style = ifo.win:get_style()
     local white_gc = style.white_gc
-    gtk.gdk_draw_drawable(window, white_gc, ifo.pixmap, x, y, x, y, w, h)
+    gdk.draw_drawable(window, white_gc, ifo.pixmap, x, y, x, y, w, h)
     return false
 end
 
--- gtk.set_debug_flags("memory")
+-- gnome.set_debug_flags("memory")
 mywin1 = mywin_new("One")
 mywin2 = mywin_new("Two")
 gtk.main()
@@ -102,8 +115,8 @@ if false then
     collectgarbage("collect")
     collectgarbage("collect")
     collectgarbage("collect")
-    gtk.dump_memory()
+    gnome.dump_memory()
 end
 
-gtk.g_mem_profile()
+glib.mem_profile()
 
