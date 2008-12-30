@@ -9,12 +9,12 @@
 -- Kolodziejczyk, similar to the API presented by PyGTK.
 --
 
-require 'gtk'
+require "gtk"
 
 function create_window()
-    local w = gtk.window_new(gtk.GTK_WINDOW_TOPLEVEL)
+    local w = gtk.window_new(gtk.WINDOW_TOPLEVEL)
     w:show()
-    -- local xid = gtk.gdk_x11_drawable_get_xid(w.window)
+    -- local xid = gdk.x11_drawable_get_xid(w.window)
     local xid = w.window.xid
     local lbl = gtk.label_new("This window's XID is " .. xid)
     w:add(lbl)
@@ -26,10 +26,12 @@ end
 -- Install a new metatable for GdkWindow.  The first function called is used
 -- just to obtain an arbitrary GdkWindow to modify its metatable.
 function add_window_metatable()
-    local __MT = getmetatable(gtk.gdk_get_default_root_window())
+    local w = gdk.get_default_root_window()
+    print(w)
+    local __MT = getmetatable(gdk.get_default_root_window())
     local oldindex = __MT.__index
     __MT.__index = function(w, k)
-	if k == 'xid' then return gtk.gdk_x11_drawable_get_xid(w) end
+	if k == 'xid' then return gdk.x11_drawable_get_xid(w) end
 	return oldindex(k, v)
     end
 end

@@ -9,9 +9,9 @@ function Mainwin.new()
 	local self = {}
 	setmetatable(self, Mainwin)
 
-	self.w = gtk.window_new(gtk.GTK_WINDOW_TOPLEVEL)
+	self.w = gtk.window_new(gtk.WINDOW_TOPLEVEL)
 	self.w:set_title("Toolbar Demo")
-	self.w:connect('destroy', function() gtk.main_quit() end)
+	self.w:connect('destroy', gtk.main_quit)
 	self.w:set_default_size(450, 400)
 
 	local vbox = gtk.vbox_new(false, 0)
@@ -62,14 +62,16 @@ end
 --
 -- insert a word at cursor position
 function Mainwin:on_tool_close(mainwin)
-	mainwin.buffer:insert_at_cursor("close\n")
+	local s = "close\n"
+	mainwin.buffer:insert_at_cursor(s, #s)
 end
 
 -- append something
 function Mainwin:on_tool_back(mainwin)
-	local iter = gtk.new("GtkTextIter")
+	local iter = gtk.new "TextIter"
 	mainwin.buffer:get_end_iter(iter)
-	mainwin.buffer:insert(iter, "back\n")
+	local s = "back\n"
+	mainwin.buffer:insert(iter, s, #s)
 end
 
 function Mainwin:on_tool_forward()
