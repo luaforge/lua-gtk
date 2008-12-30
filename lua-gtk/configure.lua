@@ -1,17 +1,18 @@
 #! /usr/bin/env lua
 -- vim:sw=4:sts=4
 --
--- Configure script for lua-gtk
+-- Configure script for the core library and modules.  It is to be called
+-- with a "spec.lua" file argument, and accepts optional flags.
+--
+-- Copyright (C) 2008 Wolfgang Oertl
 --
 
 require "lfs"
+require "script.util"
 
 -- default settings
 
-luagtk_version = "0.9"
 show_summary = true
-hash_func = "hsieh"
-debug_funcs = true	    -- include some debugging functions
 use_debug = false	    -- compile with "-g"
 use_gcov = false	    -- compile with coverage code
 use_cmph = true
@@ -23,14 +24,15 @@ verbose = false
 
 -- List of Debian supported CPUs
 arch_cpus = { "alpha", "amd64", "arm", "arml", "armel", "hppa", "i386", "ia64",
-    "mk68k", "mips", "mipsel powerpc", "s390", "sparc" }
+    "mk68k", "mips", "mipsel", "powerpc", "s390", "sparc" }
 
 
 -- Globals
 
+spec = nil		    -- parsed contents of the module's spec file
 err = 0			    -- global error counter
-cflags = "-Wall -I src"	    -- cflags setting for the Makefile
-without = {}		    -- list of libraries to exclude
+cflags = "-Wall -I include" -- cflags setting for the Makefile
+-- without = {}		    -- list of libraries to exclude
 programs = {}		    -- key=program name, value=full path or false
 arch = nil		    -- architecture to configure for
 config_script = nil	    -- architecture specific config file to include
@@ -41,7 +43,7 @@ pkgs_cflags = {}	    -- list of packages to get --cflags for
 cross_run = nil
 libraries = {}		    -- list of libraries to load at runtime
 exe_suffix = ""		    -- suffix for executables (cross compiled)
-extra_lib = ""
+lua_lib = ""
 
 ---
 -- Output one line of summary
@@ -68,8 +70,9 @@ end
 -- List of libraries for help
 function _get_lib_list()
     local ar = {}
-    for name in lfs.dir("libs") do
-	if string.sub(name, 1, 1) ~= "." then
+    for name in lfs.dir("src") do
+	if string.sub(name, 1, 1) ~= "." and not string.find(name, "%.")
+	    and name ~= "CVS" and name ~= "hash" then
 	    ar[#ar + 1] = string.match(name, "^[^.]+")
 	end
     end
@@ -93,7 +96,6 @@ Configure lua-gtk for compilation.
   --disable-debug    Omit debugging functions like dump_struct
   --disable-dynlink  Build time instead of runtime linking
   --disable-cmph     Don't use cmph even if it is available
-  --without LIBRARY  No support for LIBRARY, even if present
   --with-cmph DIR    Use cmph source tree at the given location
   --host [ARCH]      Cross compile to another architecture, see below
 
@@ -120,11 +122,6 @@ option_handlers = {
     ["disable-cmph"] = function() use_cmph=false end,
     ["enable-gcov"] = function() use_gcov = true end,
     ["disable-gcov"] = function() use_gcov = false end,
-    without = function(i)
-	assert(arg[i], "Provide a library name after --without")
-	without[arg[i]] = true
-	return 1
-    end,
     ["with-cmph"] = function(i)
 	assert(arg[i], "Provide a path for --with-cmph")
 	use_cmph=true
@@ -358,34 +355,33 @@ function cfg_err(fmt, ...)
     err = err + 1
 end
 
-function general_setup()
-    odir = "build/" .. arch .. "/"
+function general_setup(libname)
+    local odir1 = "build/" .. arch .. "/"
+
     err = 0
     if not is_dir("build") then
 	assert(lfs.mkdir("build"))
     end
-    if not is_dir(odir) then
-	assert(lfs.mkdir(odir))
+    if not is_dir(odir1) then
+	assert(lfs.mkdir(odir1))
+    end
+
+    if libname then
+	odir = odir1 .. libname .. "/"
+	if not is_dir(odir) then
+	    assert(lfs.mkdir(odir))
+	end
+    else
+	odir = odir1
     end
 
     cfg_m("ARCH", arch)
-    cfg_m("VERSION", luagtk_version)
     cfg_m("ODIR", odir)
-
-    cfg_h("#define LUAGTK_VERSION \"%s\"", luagtk_version)
     cfg_h("#define LUAGTK_%s_%s", arch_os, arch_cpu)
     cfg_h("#define LUAGTK_%s", arch_os)
     cfg_h("#define LUAGTK_%s", arch_cpu)
     cfg_h("#define LUAGTK_ARCH_OS \"%s\"", arch_os)
     cfg_h("#define LUAGTK_ARCH_CPU \"%s\"", arch_cpu)
-    cfg_h("#define HASHFUNC hash_%s", hash_func)
-    cfg_m("HASHF", hash_func)
-    cfg_m("HASH", "hash-$(HASHF)")
-    if debug_funcs then
-	cfg_h("#define LUAGTK_DEBUG_FUNCS")
-    end
-    summary("Debugging functions", debug_funcs and "enabled" or "disabled")
-
 
     local name = "script/Makefile." .. arch_os
     if is_file(name) then
@@ -405,16 +401,14 @@ function write_config()
     local flags = pkg_config("--cflags", unpack(pkgs_cflags))
     cfg_m("CFLAGS", cflags .. " " .. flags)
     if use_liblist then
-	cfg_h("#define LUAGTK_LIBRARIES " .. table.concat(libraries) .. ";")
-	cfg_h("#define LUAGTK_LIBRARY_CNT " .. #libraries)
+	cfg_l('libraries = { %s }', table.concat(libraries, "," ))
     end
-    if extra_lib ~= "" then
-	cfg_m("EXTRA_LIB", extra_lib)
+    if lua_lib ~= "" then
+	cfg_m("LUA_LIB", lua_lib)
     end
     write_config_file(odir .. "config.h", cfg.h)
     write_config_file(odir .. "config.make", cfg.m)
     write_config_file(odir .. "config.lua", cfg.l)
-    write_config_file("build/make.state", { arch })
 end
 
 function write_config_file(ofile, ar)
@@ -466,33 +460,10 @@ end
 
 
 function do_show_summary()
-    summary("LibFFI closure calling", libffi_call)
-    print("\nlua-gtk configured successfully.  Settings:\n")
+    print(string.format("\nLuaGnome module %s configured successfully.  "
+	.. "Settings:\n", spec.basename))
     print(table.concat(summary_ar, "\n"))
-    print("\nType make to build.\n")
-end
-
-
----
--- For each library to include, check for headers and such
---
-function setup_libraries()
-    local base, cfg
-
-    cfg_l "libs = {"
-    for name in lfs.dir("libs") do
-	base = string.match(name, "^(%w+)%.lua$")
-	if base then
-	    cfg = {}
-	    chunk = assert(loadfile("libs/" .. name))
-	    setfenv(chunk, cfg)
-	    chunk()
-	    cfg.disabled = without[base] and true or false
-	    cfg.basename = base
-	    setup_library(cfg)
-	end
-    end
-    cfg_l "}"
+    print(string.format("\nType \"make %s\" to build.\n", spec.basename))
 end
 
 
@@ -500,14 +471,7 @@ end
 -- Check one library
 -- @param cfg  The configuration from the library's config file
 --
-function setup_library(cfg)
-
-    if cfg.disabled then
-	if cfg.required then
-	    return cfg_err("You disabled the required library %s", cfg.name)
-	end
-	return
-    end
+function _setup_library(cfg)
 
     if not pkg_config_exists(cfg.pkg_config_name) then
 	if cfg.required then
@@ -518,19 +482,18 @@ function setup_library(cfg)
     end
 
     local libversion = pkg_config("--modversion", cfg.pkg_config_name)
-    if cfg.use_cflags then
-	pkgs_cflags[#pkgs_cflags + 1] = cfg.pkg_config_name
-    end
-    cfg_l("  { name=\"%s\" },", cfg.basename)
+    pkgs_cflags[#pkgs_cflags + 1] = cfg.pkg_config_name
 
-    -- add libs to library list for LUAGTK_LIBRARIES
+    -- add libs to library list
     if use_liblist and cfg.libraries and cfg.libraries[arch_os] then
 	for _, name in ipairs(cfg.libraries[arch_os]) do
-	    libraries[#libraries + 1] = string.format('"%s\\000"\\\n', name)
+	    libraries[#libraries + 1] = string.format('"%s"', name)
+		-- string.format('"%s\\000"\\\n', name)
 	end
     end
 
     summary(cfg.name, libversion)
+    return cfg
 end
 
 
@@ -546,89 +509,6 @@ function find_file(name, ...)
     end
 end
 
-
----
--- Determine whether to use cmph, where it is installed, what algorithm
--- to use, what the compilation flags are.
---
-function setup_cmph()
-    local version, f, _
-
-
-    if not use_cmph then
-	version = "disabled"
-    elseif cmph_dir then
-	cmph_bin = find_file("cmph", cmph_dir, cmph_dir .. "/src",
-	    cmph_dir .. "/bin")
-	_, cmph_incdir = find_file("cmph_types.h", cmph_dir,
-	    cmph_dir .. "/include", cmph_dir .. "/src")
-	cmph_libs = find_file("libcmph.a", cmph_dir, cmph_dir .. "/lib",
-	    cmph_dir .. "/src/.libs")
-
-	if cmph_bin and cmph_incdir and cmph_libs then
-	    have_cmph = true
-	    cmph_cflags = "-I " .. cmph_incdir
-	    cmph_version = run("*l", cmph_bin, "-V")
-	    cmph_libs = cmph_libs .. " -lm"
-	else
-	    cfg_err("Cmph directory found, but it is not complete.")
-	end
-	version = cmph_version
-    elseif pkg_config_exists "cmph" then
-	have_cmph = true
-	version, cmph_libs, cmph_cflags = pkg_config("--modversion",
-	    "--libs", "--cflags", "cmph")
-	cmph_cflags = cmph_cflags or ""
-	cmph_bin = "cmph"
-
-	if string.match(cmph_cflags, "^%s*$") then cmph_cflags = "" end
-
-	-- if cmph_cflags is empty, then the includes are in the default
-	-- include path, which is not necessarily used, e.g. for MingW or
-	-- when cross compiling.  Therefore copy the required include file.
-	if cmph_cflags == "" then
-	    f = find_file("cmph_types.h", "/usr/include", "/usr/local/include")
-	    if f then
-		os.execute(string.format("cp %s %s", f, odir))
-	    end
-	end
-
-	-- What about the private include files?
-	_, dir = find_file("cmph_structs.h", "/usr/local/include/cmph/private",
-	    "/usr/include/cmph/private")
-	if dir then
-	    cmph_cflags = cmph_cflags .. " -I " .. dir
-	    cmph_incdir = dir
-	end
-    else
-	version = "not available"
-    end
-
-    if have_cmph then
-	local s = run("*l", cmph_bin, "-a bdz 2>&1")
-	if string.match(s, "Invalid") then
-	    cmph_algo = "fch"
-	    cmph_bin = cmph_bin .. " -c 2.0"
-	else
-	    cmph_algo = "bdz"
-	end
-
-	cfg_m("HAVE_CMPH", 1)
-	cfg_m("CMPH_ALGO", cmph_algo)
-	cfg_m("CMPH_CFLAGS", cmph_cflags)
-	cfg_m("CMPH_BIN", cmph_bin)
-	cfg_m("CMPH_LIBS", cmph_libs)
-
-	cfg_h("#define CMPH_ALGORITHM %s_search", cmph_algo)
-	cfg_h("#define CMPH_USE_%s", cmph_algo)
-    end
-
-    summary("Cmph Library", version)
-    if have_cmph then
-	summary("Cmph Lib", cmph_libs)
-	summary("Cmph Algorithm", cmph_algo)
-    end
-end
 
 
 ---
@@ -700,58 +580,6 @@ end
 
 
 ---
--- Determine correct libffi usage
--- The libffi_* variables are set by the arch specific config file.
---
-function setup_ffi()
-    local rc, cmd, cmd2, cmd3
-
-    if not libffi_lib then return end
-
-    summary("LibFFI", libffi_lib)
-
-    cfg_m("LIBFFI_LIB", libffi_lib)
-    cmd = string.format("%s -o %s/test-ffi%s -I %s %s src/test-ffi.c %s",
-	cc, odir, exe_suffix, odir, libffi_inc, libffi_lib)
-
-    -- try calling the code, which is the logical API
-    cmd2 = cmd .. " -D LUAGTK_FFI_CODE"
-    if verbose then print(cmd2) end
-    rc = os.execute(cmd2)
-    if rc ~= 0 then
-	return cfg_err("Failed to compile test-ffi (code)")
-    end
-
-    cmd3 = string.format("%s%s/test-ffi%s",
-	cross_run and (cross_run .. " ") or "", odir, exe_suffix)
-    if verbose then print(cmd3) end
-    rc = os.execute(cmd3)
-    if rc == 0 then
-	libffi_call = "code"
-	cfg_h("#define LUAGTK_FFI_CODE")
-	return
-    end
-
-    -- now try calling the closure.
-    cmd2 = cmd .. " -D LUAGTK_FFI_CLOSURE"
-    if verbose then print(cmd2) end
-    rc = os.execute(cmd2)
-    if rc ~= 0 then
-	return cfg_err("Failed to compile test-ffi (closure)")
-    end
-
-    rc = os.execute(cmd3)
-    if rc == 0 then
-	libffi_call = "closure"
-	cfg_h("#define LUAGTK_FFI_CLOSURE")
-	return
-    end
-
-    cfg_err("Libffi closure calling failed.")
-end
-
-
----
 -- Load and run the architecture specific config file.  It should do the
 -- following settings:
 --  libffi_*
@@ -766,30 +594,80 @@ function load_arch_config()
 	cfg_m("GTK_LIBS", gtk_libs)
     else
 	cfg_h("#define RUNTIME_LINKING")
+	cfg_l('runtime_linking = true')
     end
 
     summary("Runtime linking", use_dynlink and "enabled" or "disabled")
 end
 
 
--- MAIN --
-    
-parse_cmdline()
-summary("Version", luagtk_version)
-summary("Lua Version", _VERSION)
-detect_architecture()
-arch = arch or host_arch
-check_architecture()
-general_setup()
-setup_lua()
-setup_cmph()
-load_arch_config()
-setup_compilation()
-setup_ffi()
-setup_libraries()
-if err == 0 then
+function configure_done()
+    if err > 0 then os.exit(1) end
     write_config()
     if show_summary then do_show_summary() end
 end
 
+---
+-- Configure settings required for both the core module and library modules.
+-- Modules can provide additional flags, so read the spec file first, and then
+-- look at the other arguments.
+--
+function configure_main()
+    local module_name, s
+
+    if #arg == 0 then
+	print("configure: missing spec.lua file")
+	os.exit(1)
+    end
+
+    module_name = table.remove(arg)
+    s = string.match(module_name, "([^/]+)/spec.lua$")
+    module_name = s or module_name
+
+    spec = load_spec(string.format("src/%s/spec.lua", module_name))
+    spec.basename = module_name
+
+    -- complex modules (i.e. the core module) may provide a configure script.
+    s = string.format("src/%s/configure.lua", module_name)
+    if lfs.attributes(s, "mode") then
+	load_config(s, _G)
+	return main()
+    end
+
+    configure_base(spec)
+    configure_done()
+end
+
+function configure_base()
+    local modname, tmp
+
+    modname = spec.basename
+    parse_cmdline()
+
+    summary("Lua Version", _VERSION)
+    cfg_l("prefix = \"%s_\"", modname)
+    cfg_l("srcdir = \"src/%s\"", modname)
+    detect_architecture()
+    arch = arch or host_arch
+    check_architecture()
+    general_setup(modname)
+    setup_lua()
+    load_arch_config()
+    setup_compilation()
+    cfg_l('module = "%s"', modname)
+    _setup_library(spec)
+
+    -- don't add libraries from additional module specs, only cflags
+    tmp = use_liblist
+    use_liblist = false
+    for _, modname in ipairs(spec.moddep or {}) do
+	s = load_spec(string.format("src/%s/spec.lua", modname))
+	s.basename = modname
+	_setup_library(s)
+    end
+    use_liblist = tmp
+
+end
+
+configure_main()
 
