@@ -35,6 +35,7 @@ extern char *lib_name;
 
 extern int module_count;
 extern struct module_info **modules;
+extern const char *thismodulename;
 
 // structure to store values that were converted from Lua to C (i.e. FFI)
 union gtk_arg_types {
@@ -297,8 +298,8 @@ int lg_object_newindex(lua_State *L);
 
 // in init.c
 extern const char msgprefix[];
-int lg_push_closure(lua_State *L, struct func_info *fi);
-int lg_argerror(lua_State *L, int narg, const char *format, ...);
+int lg_push_closure(lua_State *L, const struct func_info *fi, int alloc_fi);
+// int lg_argerror(lua_State *L, int narg, const char *format, ...);
 struct func_info *lg_get_closure(lua_State *L, int index);
 
 // in boxed.c
@@ -315,8 +316,7 @@ int lg_call(lua_State *L, struct func_info *fi, int index);
 int lg_call_byname(lua_State *L, cmi mi, const char *func_name);
 int lg_call_function(lua_State *L, const char *mod_name, const char *func_name);
 void call_info_warn(struct call_info *ci);
-void call_info_msg(struct call_info *ci, enum lg_msg_level level,
-    const char *format, ...);
+void call_info_msg(lua_State *L, struct call_info *ci, enum lg_msg_level level);
 struct call_info *call_info_alloc();
 void *call_info_alloc_item(struct call_info *ci, int size);
 void call_info_check_argcount(struct call_info *ci, int n);
