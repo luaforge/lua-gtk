@@ -1,0 +1,40 @@
+/* vim:sw=4:sts=4
+ */
+
+body { color:#000; background:#fff; }
+
+#header { width:100%;
+    text-align:center;  
+    border-top:solid #aaa 1px;
+    border-bottom:solid #aaa 1px;
+}
+
+#header p { margin-left:0; }
+
+#sidemenu { background:#ff8; float:left; width:200px; margin-top:10px; }
+#sidemenu ul { list-style-type:none; padding-left:2ex; }
+#sidemenu li { padding-bottom:1ex; }
+
+#content { text-align:justify; }
+#content.right { position:absolute; left:220px; top:230px; right:20px;
+    bottom:10px; }
+#content.center { width:600px; margin:0 auto; }
+
+
+p { margin-left:3ex; }
+
+img.screenshot { margin-left:50px; }
+
+/* code samples */
+div.code { background-color:#ffc; white-space:pre; padding-left:3ex;
+  padding-bottom:2ex; }
+code b.kw { color:#a52a2a; }	/* keyword */
+code b.lb { color:#008b8b; font-weight:normal; }	/* library */
+code b.st { color:#ff01ff; font-weight:normal; }	/* string */
+code b.co { color:#00f; font-weight:normal; }		/* comment */
+code b.gn { color:#f00; font-weight:normal; }		/* gnome */
+
+dl { margin-left:5ex; }
+dt { font-weight:bold; }
+dd { margin-bottom:1ex; }
+
