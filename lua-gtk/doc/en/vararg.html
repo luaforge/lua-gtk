@@ -1,22 +1,19 @@
-<%= html_header("Reference") %>
 
 <style type="text/css">
 table { border:solid 1px; border-collapse:collapse; width:80%; margin:0 auto; }
 td, th { border-bottom: solid 1px; }
 </style>
 
-<h2>Variable argument list (vararg)</h2>
-
 <p>
 It is possible to call library functions with a variable length argument
 list.  In this case, the function has to determine somehow how many arguments
 are given; usually this involves looking for NULL or -1 as the terminating
 argument, or by providing a number of arguments.  If you fail to do this
-correctly, a crash can ensue.
+correctly, a crash can (and probably will) ensue.
 </p>
 
 <p>
-LuaGtk has to convert each Lua Value you provide to a C value.  Following
+LuaGnome has to convert each Lua Value you provide to a C value.  Following
 conversions are done in the function src/types.c:lua2ffi_vararg():
 </p>
 
@@ -30,13 +27,13 @@ conversions are done in the function src/types.c:lua2ffi_vararg():
  <tr><td>userdata</td><td>A userdata can be one of the following: <ul>
   <li>ENUM or FLAGS: converted to unsigned int</li>
   <li>void wrapper: converted to pointer</li>
-  <li>boxed value: must be "gdouble", converted to double</li>
+  <li>boxed value: depends on the type stored in the boxed value</li>
   <li>widget: converted to pointer</li>
  </ul></td></tr>
  <tr><td>table</td><td>The table should have a field "_type" set to the desired
   type: <ul>
-   <li>string: conversion to char**</li>
-   <li>boxed: conversion to a <a href="boxed.html">boxed value</a></li>
+   <li>"string": conversion to char**</li>
+   <li>"boxed": conversion to a <a href="boxed.html">boxed value</a></li>
   </td></tr>
 </table>
 
@@ -44,5 +41,4 @@ conversions are done in the function src/types.c:lua2ffi_vararg():
 Unhandled Lua types: function and thread.  I haven't yet seen the need to
 support those two.
 </p>
-
 
