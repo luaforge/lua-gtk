@@ -1,0 +1,98 @@
+
+<p>
+It is sometimes useful to pass an arbitrary Lua value to a library function,
+which then stores it and can return it later.  GObject provides the type
+<a href="http://library.gnome.org/devel/gobject/stable/gobject-Boxed-Types.html">GBoxed</a>,
+which is a generic wrapper for arbitrary C structures.  LuaGnome defines a new
+boxed type that has a reference to a Lua type, and can therefore store one
+Lua value each.
+</p>
+
+<p>
+This is useful for example to store a table in one column of a GtkTreeStore,
+most likely in column 0.  This is an example how to do it:
+</p>
+
+<%= inline_code [[
+store = gtk.list_store_new(2, gnome.boxed_type, glib.TYPE_STRING)
+iter = gtk.new "TreeIter"
+row1 = { id=5, name="Row One", value=20 }
+row2 = { id=6, name="Row Two", value=25, _type="boxed" }
+
+store:insert_with_values(nil, 0,
+   0, gnome.box(row),
+   1, row.name,
+   -1)
+
+store:insert_with_values(iter, 0,
+   0, row2,
+   1, row2.name,
+   -1)
+]] %>
+
+<p>
+In this example, a GtkListStore is created with two columns: one to hold a
+boxed type, another with a string.  Two variants are shown how to tell LuaGnome
+that the vararg argument should be a boxed value: either you call the function
+<tt>gnome.box</tt>, or you provide a table that has the field _type set to
+"boxed".
+</p>
+
+<p>
+To access these values again, do the following:
+</p>
+
+<%= inline_code [[
+row = store:get_value(iter, 0)
+print(row.name)
+]] %>
+
+<p>
+When a function returns a GValue that contains such a boxed value, it is
+automatically "extracted" and the wrapped value is returned.  See
+src/gnome/gvalue.c:lg_lua_to_gvalue().
+</p>
+
+<p>
+When you have a boxed value, e.g. created by <tt>gnome.box</tt>, you can
+still access its fields directly (assuming that it is a table or something
+with an appropriate metatable).  There is one exception: when you access
+the field "value" (only for reading), the wrapped Lua value is returned
+instead.
+</p>
+
+
+<%= inline_code [[
+val = gnome.box { a=10, b=20, c=30 }
+assert(val.a == 10)
+assert(val.b == 20)
+assert(val.value.c == 30)
+val.d = 40
+assert(val.d == 40)
+]] %>
+
+<h3>Type Casting</h3>
+
+<p>
+When you box a value, and then access it (or a library accesses it), the type
+of the value is determined automatically from the Lua type.  In some cases
+this automatic detection doesn't work, for example if you provide an integer,
+but the library expects a double.
+</p>
+
+<p>
+In this case, provide a second argument to the function <tt>gnome.box</tt>,
+specifying the desired type.  Example:
+</p>
+
+<%= inline_code [[
+glib.printf("%f\n", gnome.box(20, "double"))
+]] %>
+
+<h3>Function reference</h3>
+
+<dl>
+ <dt>gnome.box(value [, type])</dt><dd>Explicitely create a boxed value of
+  the given Lua value, and return the GBoxed value.  </dd>
+</dl>
+
