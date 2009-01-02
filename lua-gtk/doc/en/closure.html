@@ -1,0 +1,100 @@
+
+<h3>Technical Background</h3>
+
+<p>
+A closure is, simply put, a prepared function call.  It therefore
+specifies which function to call as well as some of the arguments to call
+it with.
+</p>
+
+<p>
+More specifically, a closure in this context is a function directly callable
+from C, i.e. from a library, which in turn calls a Lua function that you
+provide. For example, <tt>g_tree_foreach</tt> expects a <tt>GTraverseFunc</tt>,
+which it calls for each node in the list.
+</p>
+
+<p>
+LuaGnome can create such a closure automatically or explicitely, and you must
+use the correct of these two mechanisms in order to avoid problems.  Such
+a closure prepares the call to your Lua function, calls it, and returns its
+return value (if any) to the closure's caller.
+</p>
+
+<p>
+<b>Note:</b> Another mechanism that allows a library to call a Lua function
+is to install signal handlers.  This is handled by the connect function and
+does not use the closures described here.
+</p>
+
+
+
+<h3>Automatic Closures</h3>
+
+<p>
+Such closures are create automatically, i.e. you provide a Lua function as
+an argument to a library function.  The closure is created, used as the
+argument, and dereferenced after the library function returns.  A simple
+example is this:
+</p>
+
+<%= inline_code [[sel = tree_view:get_selection()
+sel:selected_foreach(function(model, path, iter, data)
+    print(model:get_value(iter, 0))
+end, nil)]] %>
+
+<p>
+In the above code snippet, the <tt>gtk_tree_selection_selected_foreach</tt>
+function calls the given function once for each selected row.
+Before LuaGnome calls the <tt>..._foreach</tt> function, a closure is
+created for the given function, and after the call returns, it is
+dereferenced and will eventually be garbage collected.
+</p>
+
+<h3>Explicit Closures</h3>
+
+<p>
+If the function can be called later, the closure must not be freed.  To
+ensure that, you have to create a closure manually, store it in a variable,
+and not unset the variable until the closure is no longer needed.
+</p>
+
+<%= inline_code [[
+function compare_func(a, b)
+    a = a.value
+    b = b.value
+    if a == b then return 0 end
+    return a &lt; b and -1 or 1
+end
+
+-- WRONG
+t = glib.tree_new(compare_func)
+
+-- CORRECT
+compare_func_closure = gnome.closure(compare_func)
+t = glib.tree_new(compare_func_closure)
+]] %>
+
+<p>
+As you can see, a g_tree requires a comparison function, to order all nodes.
+It will call this function (at least) every time you insert more data.
+Therefore, it won't do to provide a Lua function, because the closure
+created for it will be freed (or could, as soon as garbage collection runs)
+too soon.  To keep such closures around, you could store them in the
+object itself:
+</p>
+
+<%= inline_code [[
+local closure = gnome.closure(compare_func)
+t = glib.tree_new(closure)
+t._compare_closure = closure
+]] %>
+
+<p>
+This way, you won't have to worry about keeping the closure variable
+around.  <b>Note:</b> unless you configured LuaGnome with --disable-debug,
+it tries hard to detect cases when an automatic closure is given but won't
+work.  You'll receive a runtime error.  Explicit closures are always safe
+to use but require more coding.
+</p>
+
