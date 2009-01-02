@@ -1,0 +1,14 @@
+
+// Logical content of entries in gnome.typemap.
+
+digraph typemap {
+  graph [ rankdir=LR ];
+  node [ fontsize=10, shape=box, fontname=vera ];
+  edge [ fontsize=9, fontname=vera ];
+
+  key [ label="Key (Hash Value)" ];
+  value [ shape=record, label="module index|type index" ];
+
+  key -> value;
+}
+
