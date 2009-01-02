@@ -1,0 +1,24 @@
+
+<p>
+This program uses the Glade library to build a GUI from an XML file that
+has been created using glade-3.  The "Start" button starts retrieving the
+URL; the response body is shown in the textarea upon completion.
+</p>
+
+<img class="screenshot" width=610 height=375 src="img/request2.png"
+  alt="Request2 Screenshot" />
+
+<p>
+The function to build the GUI is shown below.  As you can see, it derives
+the name of the glade file from the name of the Lua file (including the
+path).  Then, The Glade library is used to read and parse the XML file into
+an internal representation, from which the widget tree starting at "window1"
+is created.
+</p>
+
+<%= inline_code([[
+require "gtk"
+require "gtk.glade"
+
+]], copy_function("examples/request2.lua", "build_gui")) %>
+
