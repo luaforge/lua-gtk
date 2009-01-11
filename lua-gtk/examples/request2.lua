@@ -9,6 +9,7 @@
 require "gtk"
 require "gtk.strict"
 require "gtk.http_co"
+require "gtkhtml"
 
 local download_running = false
 local statusbar, statusbar_ctx, view
@@ -42,13 +43,13 @@ output_text = {
 
 output_html = {
     create = function(self)
-	local view = gtk.html_view_new()
-	local doc = gtk.html_document_new()
+	local view = gtkhtml.view_new()
+	local doc = gtkhtml.document_new()
 	view:set_document(doc)
 	return view
     end,
     open = function(self)
-	htmldoc = gtk.html_document_new()
+	htmldoc = gtkhtml.document_new()
 	htmldoc:open_stream "text/html"
 	view:set_document(htmldoc)
     end,
