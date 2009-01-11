@@ -278,7 +278,7 @@ int lg_argerror(lua_State *L, int narg, const char *modname, int id,
  * Size: 12 bytes (96 bit)
  */
 struct lg_enum_t {
-    unsigned int value;		// current value
+    signed int	value;		// current value
     GType	gtype;		// cache for GType of ts; unsigned int
     typespec_t	ts;		// ts.flag: 1=enum, 2=flags
 };
