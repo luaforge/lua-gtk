@@ -1,0 +1,51 @@
+
+<p>
+Each module provides a set of constants; most of them are ENUMs which are
+present in the XML dump of gccxml, others being #defines that are extracted
+by pattern matching from the header files at build time (see
+script/parse-xml.lua:parse_header_file).
+</p>
+
+<p>
+This is the list of constant types currently supported:
+</p>
+
+<ul>
+ <li>ENUM, i.e. declared in a C header file with <tt>enum Name { ... };</tt>.
+  Each value is a possibly negative integer and has a data type attached.</li>
+ <li>FLAG, which is a special case of ENUM.  It also has a type, but can
+  be ORed together, while this is not possible with ENUM.  FLAGs are identified
+  at runtime with G_TYPE_IS_FLAGS (see src/gnome/enum.c).</li>
+ <li>Strings</li>
+ <li>Other numerical #defines</li>
+ <li>G_TYPE defines, which are mapped to numbers</li>
+ <li>Atoms, i.e. defined with the macro GDK_MAKE_ATOM</li>
+</ul>
+
+<p>
+Once again this information should be encoded in a most space efficient manner. The algorithm to encode is in script/xml-const.lua, while the decoder is in
+src/gnome/data.c:_find_constant().
+</p>
+
+<p>
+The <b>first byte</b> has following bits:
+</p>
+
+<img src="img/architecture2.png" alt="First byte of constants" />
+
+<ul>
+ <li>bit 7 is set if a type index is present.  In this case, bits 4-0 are the
+  high bits of that index, while the second byte has the low 8 bits.  Otherwise,
+  bits 4-0 are used for the (numerical) value of the constant.</li>
+ <li>bit 6 is set if it is a string; the rest of the bytes are the string.</li>
+ <li>bit 5 is set for negative numerical constants.</li>
+ <li>bits 4 to 0 are part of the type index, or for untyped constants, already
+  part of the numerical value.</li>
+</ul>
+
+<p>
+For numerical constants, the rest of the available bytes (possibly after
+skipping one used for the type index) are the value, the high order bytes
+being stored first.
+</p>
+
