@@ -238,6 +238,8 @@ include_types = {
     -- needed for GtkSourceView
     "GtkTextBuffer",
 
+    "GtkLayout",		-- gtkhtml
+
     -- might be useful?
     -- GtkAccelGroup, GtkProgressBar, GtkSpinButton,
     -- GtkRadioButton
