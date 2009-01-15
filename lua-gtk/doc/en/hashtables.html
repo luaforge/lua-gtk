@@ -1,0 +1,98 @@
+
+<p>
+Within LuaGnome hash values and hash tables are used extensively to reduce
+memory footprint and increase performance.  One area is to lookup a function's
+signature given its name, another to get a constant's value.  Finally, hash
+values are used to refer to types defined in other modules.
+</p>
+
+<h4>Functions and Constants</h4>
+
+<p>
+Functions and constants are stored in hash tables, with the key being
+the name of the symbol and the data the function signature or the
+<a href="#constants">constant's value</a>, respectively.
+</p>
+
+<p>
+For these hash tables either a simple algorithm is used that has no external
+build-time dependencies, or the excellent <b>cmph</b> library that generates
+minimal perfect hash tables.  There are no runtime dependencies, as the hash
+lookup code is simple in either case and is included in LuaGnome's sources.
+</p>
+
+<p>
+Note that in both cases the actual keys (strings) are not stored anywhere.
+Only the strings' hash values are represented.  The hashing algorithm
+guarantees (by storing and comparing the 32 bit hash value) that unknown keys
+are not found.
+</p>
+
+
+<a name="typehash"><h4>Type Hashing</h4></a>
+
+<p>
+The second group of hashing concerns the resolution of data types which are
+defined in another module.  A modules wrapping one library, like gdk or gtk,
+may need to use data types provided by other libraries, like glib.  A data type
+is therefore "native" in only one module and "non-native" in all others.  This
+helps to keep the modules small and avoid code duplication.
+</p>
+
+<p>
+Such "non-native" data types have to be looked up somehow when used.  The first
+implementation simply stored each non-native type's name, which would be
+searched for in other loaded modules on the first access.  Unfortunately this
+duplicates lots of type names.  To make this more efficient, only a 32 bit hash
+value is stored instead of the name.
+</p>
+
+<p>
+When a module is loaded, it is assigned the next available module index.  The
+names of all its data types are processed by a hash function, and entries are
+added to <tt>gnome.typemap</tt>.  Each entry has this logical content:
+</p>
+
+<img src="img/architecture1.png" alt="Typemap Entry" />
+
+<p>
+For example, the function <tt>gtk_widget_get_type()</tt> in gtk returns a
+GType, which is handled in glib.  The function's prototype lists the type
+number in the module's own type list; this may require one or two bytes.  The
+entry for GType in gtk specifies a "non-native" type and a 32 bit hash value
+(<a href="datatypes.html#nonnative">more detail</a>).
+</p>
+
+<p>
+This hash value is looked up in <tt>gnome.typemap</tt>.  The corresponding
+entry was created when glib was loaded, so that yields glib's module index
+(dynamically assigned during loading) and the type number in this module's type
+array.
+</p>
+
+<p>
+It is perfectly possible that the lookup in <tt>gnome.typemap</tt> fails, when
+the module handling that type is not loaded; e.g. if you call
+<tt>win.window:cairo_create()</tt> without having loaded the module cairo, the
+return type "cairo*" is not known.  In this case, the following error message
+is shown:
+</p>
+
+<p><code>
+[gtk] using unresolved type gdk.66
+stack traceback:
+	[C]: in function 'cairo_create'
+	...
+</code></p>
+
+<p>
+Unfortunately, this message is not very helpful; it doesn't read "you need
+to load the cairo module", neither is that module loaded automatically.  The
+hash value doesn't indicate which module handles it.
+</p>
+
+<p>
+Likewise, fundamental data types are looked up by the hash value of their name
+in <tt>gnome.fundamental_map</tt> (see below).
+</p>
+
