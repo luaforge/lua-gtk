@@ -1,0 +1,89 @@
+
+<style type="text/css">
+ table { background-color:#ffa; padding:2ex; margin-left:5ex; }
+ td { padding:1ex; }
+</style>
+
+<p>
+From version 0.9 to version 1.0, lua-gtk has been split up into multiple
+modules, each providing the bindings to one library.  This much more flexible
+design makes it easier to add any number of library bindings, as only the
+bindings you <tt>require</tt> are loaded:
+</p>
+
+<%= inline_code [[
+ require "gtk"
+ require "gtkhtml"
+]] %>
+
+<p>
+If one binding depends on another, it is loaded automatically, as is the base
+library <tt>gnome</tt>.  For example, <tt>gtk</tt> requires <tt>gdk</tt>, which
+in turn depends on <tt>glib</tt>.  Therefore it is enough to <tt>require
+"gtk"</tt> to get all these modules.
+</p>
+
+<p>
+Now there are multiple global variables in addition to "gtk".  Each instance of
+gtk in your code may now have to be replaced by one of the other variables.
+While this sounds complicated, it's actually quite straightforward.  Most of
+the code calls methods on objects, and this doesn't change at all.
+</p>
+
+<p>
+For <b>constants</b> (enums etc.), a prefix is automatically prepended
+depending on the library, so for example GTK_ for gtk, G_ for glib etc.  Remove
+the prefix for cleaner code, even though you could leave it.  Some examples:
+</p>
+
+<table>
+ <tr><th>Old</th><th>New</th></tr>
+ <tr><td>gtk.G_TYPE_STRING</td><td>glib.TYPE_STRING</td></tr>
+ <tr><td>gtk.GTK_WINDOW_TOPLEVEL</td><td>gtk.WINDOW_TOPLEVEL</td></tr>
+ <tr><td>gtk.PANGO_STYLE_BOLD</td><td>pango.STYLE_BOLD</td></tr>
+ <tr><td>gtk.CAIRO_FORMAT_RGB24</td><td>cairo.FORMAT_RGB24</td></tr>
+</table>
+
+
+<p>
+Non-gtk <b>functions</b> that were previously called with a prefix are now in
+the respective module's table without their prefix, even though the prefix can
+be given.  This also applies to type names supplied to "new".
+</p>
+
+<table>
+ <tr><th>Old</th><th>New</th></tr>
+ <tr><td>gtk.g_tree_new</td><td>glib.tree_new</td></tr>
+ <tr><td>gtk.html_document_new</td><td>gtkhtml.document_new</td></tr>
+ <tr><td>gtk.gdk_pixbuf_get_type()</td><td>gdk.pixbuf_get_type()</td></tr>
+ <tr><td>gtk.new "GtkTreeIter"</td><td>gtk.new "TreeIter"</td></tr>
+</table>
+
+<p>
+The LuaGnome specific functions are now in <tt>gnome</tt> and have sometimes
+simpler names, because no collision with module functions can happen
+anymore.
+</p>
+
+<table>
+ <tr><th>Old</th><th>New</th></tr>
+ <tr><td>gtk.make_boxed_value(x)</td><td>gnome.box(x)</td></tr>
+ <tr><td>gtk.get_boxed_value(x)</td><td>x.value</td></tr>
+</table>
+
+<p>
+Some overrides have been removed, so that the LuaGnome API resembles the C API
+more closely.  This reduces the additional knowledge required to code for
+LuaGnome.
+</p>
+
+<table>
+ <tr><th>old</th><th>New</th><th>Comment</th></tr>
+ <tr>
+   <td><%= inline_code [[treestore:append1(iter, parent, val1, val2)]] %></td>
+   <td><%= inline_code [[
+iter = gtk.new "TreeIter"
+treestore:append(iter, parent)
+treestore:set(iter, 0, val1, 1, val2, -1)]] %>
+</table>
+
