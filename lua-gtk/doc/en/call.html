@@ -1,0 +1,121 @@
+
+<p>
+The most important part of LuaGnome is the ability to call almost any function
+provided by the supported libraries.  This section explains how to do this.
+</p>
+
+<h3>Non-object-oriented calls</h3>
+
+<p>
+Using a syntax very similar to the C API, you can call a function like in
+the following example:
+</p>
+
+<%= inline_code [[
+require "glib"
+print(glib.get_user_name())
+print(glib.build_filename("one", "two", "three"))
+]] %>
+
+<p>
+Note how the <code>glib</code> object is used.  It is a module that provides
+the bindings to GLib, and has a prefix for functions built in, in this case
+"g_".  While you could also call <code>glib.g_get_user_name()</code>, the
+preferred usage is without that prefix.
+</p>
+
+
+<h3>Object-oriented calls (methods)</h3>
+
+<p>
+Most of the supported functions can be considered methods, with their first
+argument being the object to manipulate.  The following examples demonstrate
+how such methods are called:
+</p>
+
+<%= copy_file "doc/en/call1.lua" %>
+
+<p>
+When calling a method on an object, the library function to call is computed
+using the object's type name and the method name.  In the example above,
+from the type <code>GMatchInfo</code> and the method name
+<code>get_string</code>, the computed function name is
+<code>g_match_info_get_string</code>.
+</p>
+
+<p>
+Fortunately most of the GLib/GDK/Gtk/... functions have consistent names,
+always starting with the mangled type name and a method name.  In some cases
+aliases have been defined where this pattern is not followed.
+</p>
+
+
+<h3>Arguments</h3>
+
+<p>
+Refer to the official C API documentation of the library for the specification
+of the argument list.  Most of the C types are supported by LuaGnome, which has
+to convert Lua values to C before calling a library function.  Even multiple
+indirections (pointer to pointer to something) are supported.
+</p>
+
+<p>
+Simple data types like strings, numbers, but also objects are quite easy to
+convert.  Other types like function pointers, boxed values, void pointers and
+others are more involved and are explained in detail on separate pages.
+</p>
+
+<h3>Return values</h3>
+
+<p>
+Each function may have none, one or multiple return values.  The called C
+function can have only one "real" return value, of course.  Multiple values
+can, however, be returned by providing a pointer as argument, and the library
+function stores additional values at this location, as in the following example:
+</p>
+
+<div class="code"><code>
+// this is C code.
+gchar *endptr = NULL;
+gint64 val = g_ascii_stroll("123foo", &amp;endptr, 0);
+// endptr now points to the "f" in the given string.
+</code></div>
+
+<p>
+A one-to-one emulation of this in Lua might look like this ugly contraption:
+</p>
+
+
+<%= inline_code [[
+require "glib"
+
+-- this is NOT how it is done
+endptr = gnome.pointer "char*"
+val = glib.ascii_stroll("123foo", endptr, 0)
+print(val, endptr.content)
+]] %>
+
+<p>
+Instead, Lua's ability to return multiple values from functions is used.  You
+only have to provide the initialization as argument, and the return values are
+returned in order.  LuaGnome is fairly adept at figuring out which arguments
+are used as output, and which are not.
+</p>
+
+<p>
+As a special case, a double pointer argument like <code>char**</code>
+or <code>GError**</code> is an output argument; that is, the called function
+will place a pointer at the given location.  If you specify nil, then no
+output is generated.  If you want the function to receive a valid pointer to
+a location that contains NULL, and whose content is returned, you have to
+use <code>gnome.NIL</code>.
+</p>
+
+<%= inline_code [[
+&gt; require "glib"
+&gt; print(glib.ascii_strtoll("123foo", nil, 0))
+123
+&gt; print(glib.ascii_strtoll("123foo", gnome.NIL, 0))
+123    foo
+]] %>
+
