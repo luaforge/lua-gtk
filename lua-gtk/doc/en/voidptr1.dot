@@ -1,0 +1,16 @@
+
+# show the relationship between Lua Wrapper, Void* Wrapper and Lua Value.
+
+digraph voidptr {
+  graph [ concentrate=true, ratio=auto ];
+  node [ fontsize=10, shape=box, fontname=vera, style=filled ];
+  edge [ fontsize=9, fontname=vera ];
+
+  wrapper [ label="Lua Wrapper" ];
+  voidptr [ label="Void* Wrapper" ];
+  value [ label="Lua Value" ];
+
+  wrapper -> voidptr [ label="  pointer" ];
+  voidptr -> value [ label="  ref" ];
+}
+
