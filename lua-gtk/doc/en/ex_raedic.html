@@ -1,0 +1,20 @@
+
+<p>
+Enter a word to be looked up in the <i>Diccionario de la Real Academia
+Española</i>, and press Enter or click on "Start".  The result is displayed
+in a GtkHtmlView widget.
+</p>
+
+<img class="screenshot" width=510 height=425 src="img/raedic.png"
+  alt="Dictionary screenshot" />
+
+<p>
+The GUI is set up without using Glade in this case, the download is done
+using the <tt>gtk.http_co</tt> auxiliary library, which provides asynchronous
+HTTP access.  The lookup handler is as follows:
+</p>
+
+<div class="code"><code>
+<%= copy_function("examples/raedic.lua", "start_download") %>
+</code></div>
+
