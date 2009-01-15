@@ -589,12 +589,15 @@ function _generate_module_info()
 		.. 'int *flags);', v)
 	elseif k == 'overrides' then
 	    header('extern const luaL_reg %s[];', v)
+	elseif k == 'arg_flags_handler' then
+	    header('int %s(lua_State *L, typespec_t ts, int arg_flags);', v)
 	end
     end
 
     
     header("")
     header("struct module_info modinfo_%s = {", modname)
+    header("    major: LUAGNOME_MODULE_MAJOR, minor: LUAGNOME_MODULE_MINOR,")
     header('    name: "%s",', modname)
     header('    type_list: %s_type_list,', modname)
     header('    elem_list: %s_elem_list,', modname)
