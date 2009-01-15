@@ -1,0 +1,60 @@
+
+<p>
+These are some hints how to avoid common problems in your applications.
+</p>
+
+<dl>
+
+ <dt>Disconnect handlers</dt><dd>Objects cannot be freed when there are
+   still signal handlers connected.  On widgets, you can call the method
+   <tt>destroy()</tt>, which disconnects all handlers, destroys child
+   widgets and removes itself from parents.  For non-widgets, you can
+   remember the handler_ids returned from the <tt>connect</tt> call like this:
+
+<%= inline_code [[
+handler_id = obj:connect('signal-name', signal_handler)
+obj:disconnect(handler_id)
+]] %>
+  </dd>
+
+ <dt>Retrieving values from pointer arguments</dt>
+ <dd>Functions sometimes expect a pointer to a memory location where they
+  can place a return value.  If you specify <tt>nil</tt> for that argument, a
+  NULL pointer is given to the function, which normally means that the return
+  value should not be stored, rather discarded. <br/>
+
+  For <tt>int*</tt> and similar types, you should simply give a value to
+  initialize the memory location with; the function can then overwrite it and
+  it will be returned to the caller. <br/>
+
+  For <i>double pointer to enum</i> arguments you should specify
+  <b>gnome.NIL</b> instead of nil,  like in the following example:
+
+<%= inline_code [[
+-- call gchar* g_file_read_link(const gchar*, GError**)
+s, err = glib.file_read_link(path, gnome.NIL)
+if err then
+    error(err.message)
+end
+]] %>
+  </dd>
+
+
+ <dt>Wrong data type for vararg</dt>
+ <dd>When converting Lua values to call a library function with variable
+ arguments, sometimes the wrong data type is used.  For example, consider
+ this:
+<%= inline_code [[
+glib.printf("%f\\n", 20)
+]] %>
+  In this case. an integer is given to printf, which actually expects a double.
+  To avoid this, use a <b>Boxed Value</b> with a type cast, like this:
+
+<%= inline_code [[
+glib.printf("%f\\n", gnome.box(20, "double"))
+]] %>
+ </dd>
+
+
+</dl>
+
