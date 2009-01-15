@@ -1,16 +1,35 @@
 #! /usr/bin/env lua
 -- vim:sw=4:sts=4
---
--- Generate the HTML pages for the website of lua-gtk.
---
--- Invoke this with the current directory set to .../html_in.
--- It recursively reads all files, processes the .html files,
--- copies .css and .png.  Output directory is defined below.
---
--- Copyright (C) 2007, 2008 Wolfgang Oertl <wolfgang.oertl@gmail.com>
---
--- menu_entry structure: [1]=basename, [2]=title, [3]=submenu, [seen]=true
---
+--[[
+
+ Generate static HTML pages for simple websites.
+ Copyright (C) 2007, 2009 Wolfgang Oertl <wolfgang.oertl@gmail.com>
+
+ Features:
+
+  - recursively reads all files, processes the .html files, copies .css,
+    .jpg and .png files.
+
+  - uses a template file with header and document layout.
+
+  - Can generate a sorted index of keywords which -- are marked with {{...}}
+    in the HTML files.
+
+  - Generates a short horizontal and detailed vertical menu linking to all
+    the pages using the menu definition in the file "menu.lua" in the
+    input directory.
+
+  - detects .html files which are not mentioned in the menu, and complains
+    about them.
+
+  - can use .html.in files in the _output_ directory instead of the
+    equivalent .html file in the input directory.  This enables another
+    program to generate input files which will then get the document
+    structure and appear in the menu.
+
+ menu_entry structure: [1]=basename, [2]=title, [3]=submenu, [seen]=true
+
+--]]
 
 require "lfs"
 
@@ -19,6 +38,13 @@ input_dir = nil
 output_dir = nil
 config = nil
 main_menu = nil
+
+-- Handling of the index generation
+index = {}		    -- key=word, data={ href, ... }
+index_nr = 0		    -- next index number in current file
+index_file = nil	    -- menu entry of the index file
+index_string = nil	    -- computed index, used by generate_index()
+curr_menu = nil		    -- required by generate_index()
 
 -- expand tabs; taken from "Programming in Lua" by Roberto Ierusalimschy
 function expand_tabs(s, tab)
@@ -38,6 +64,7 @@ lua_keywords = {
     "function", "if", "in", "local", "nil", "not", "or", "repeat",
     "return", "then", "true", "until", "while",
 }
+
 --[[
 lua_library = { 
     "assert", "collectgarbage", "dofile", "error", "getfenv",
@@ -212,7 +239,7 @@ env = {
     end,
 
     copy_file = function(file)
-	local f = io.open(file)
+	local f = io.open(file, "rb")
 	if not f then return "not found: " .. file end
 	local s = f:read "*a"
 	f:close()
@@ -225,6 +252,11 @@ env = {
 	return "<div class=\"code\"><code>\n" .. colorize(s)
 	    .. sep .. table.concat({...}, "\n")
 	    .. "</code></div>\n"
+    end,
+
+    generate_index = function()
+	index_file = index_file or curr_menu
+	return index_string or ""
     end,
 }
 
@@ -252,10 +284,10 @@ end
 -- @param to  Destination
 --
 function _file_copy(from, to)
-    local f_from = io.open(from)
+    local f_from = io.open(from, "rb")
     assert(f_from)
     _mkdir(to)
-    local f_to = io.open(to, "w")
+    local f_to = io.open(to, "wb")
     assert(f_to)
 
     while true do
@@ -362,28 +394,34 @@ end
 -- Fill the template using the current menu entry and the given input file,
 -- and write the resulting HTML file to ofile.
 --
-function _process_html(ifname, ofname, menu_entry)
-    local ifile, ofile, ar, page
+-- @param basename  Name of the output file without the output base path.
+-- @param ar  Array with variables available to the page for substitution
+--
+function _process_html(ifname, basename, menu_entry, ar)
+    local ofname, ifile, ofile, ar, page
+
+    ofname = output_dir .. "/" .. basename
 
     if not page_template then
-	ifile = assert(io.open(input_dir .. "/template.html"))
+	ifile = assert(io.open(input_dir .. "/template.html", "rb"))
 	page_template = ifile:read "*a"
 	ifile:close()
     end
 
-    ifile = assert(io.open(ifname))
+    ifile = assert(io.open(ifname, "rb"))
+    index_nr = 0
 
-    ar = {}
+    ar = ar or {}
     ar.SIDEMENU = make_side_menu(menu_entry)
     ar.TITLE = menu_entry[2]
-    ar.CONTENT = _evaluate_html(ifile:read "*a")
+    ar.CONTENT = _evaluate_html(menu_entry, basename, ifile:read "*a")
     ar.MAINMENU = main_menu
     ar.CONTENTCLASS = (ar.SIDEMENU == "") and "center" or "right"
     ifile:close()
 
     page = string.gsub(page_template, "#([A-Z]+)#", ar)
 
-    ofile = assert(io.open(ofname, "w"))
+    ofile = assert(io.open(ofname, "wb"))
     ofile:write(page)
     ofile:close()
 end
@@ -394,7 +432,32 @@ end
 -- is exactly what luadoc supports.  The ... is evaluated as Lua expression,
 -- and its result replaces the whole macro.
 --
-function _evaluate_html(s)
+-- Additionally, extract index words and replace them with an anchor.
+--
+function _evaluate_html(menu_entry, basename, s)
+    s = string.gsub(s, "{{(.-)}}", function(word)
+	local hide = false
+	if string.sub(word, 1, 1) == "-" then
+	    -- hidden ref.
+	    word = string.sub(word, 2)
+	    hide = true
+	end
+	local t = index[word] or {}
+	index[word] = t
+	print("index word", word)
+	if hide then
+	    t[#t + 1] = basename
+	    return ""
+	end
+
+	-- regular index entry pointing to a specific location in the text
+	index_nr = index_nr + 1
+	t[#t + 1] = string.format('%s#idx%d', basename, index_nr)
+	return string.format('<a name="idx%d">%s</a>', index_nr, word)
+    end)
+
+    curr_menu = menu_entry
+
     return string.gsub(s, "<%%=(.-)%%>", function(fn)
 	local chunk = assert(loadstring("return " .. fn))
 	setfenv(chunk, env)
@@ -409,8 +472,9 @@ end
 function _read_file(path)
     local path1, path_in, basename, menu_entry
 
-    path1 = string.sub(path, #input_dir + 1)
-    _mkdir(output_dir .. path1)
+    -- basename of the file to process
+    path1 = string.sub(path, #input_dir + 2)
+    _mkdir(output_dir .. "/" .. path1)
 
     basename = string.match(path, "([a-z0-9_]+)%.html$")
     if basename then
@@ -419,19 +483,21 @@ function _read_file(path)
 	    "Missing menu entry for input file " .. basename)
 	-- if a .in file exists in the output directory, process that instead.
 	-- it might exist if the doc file has been preprocessed.
-	path_in = output_dir .. path1 .. ".in"
+	path_in = output_dir .. "/" .. path1 .. ".in"
 	if lfs.attributes(path_in, "mode") ~= "file" then
 	    path_in = path
 	end
-	print("Processing " .. path_in)
+	print("Processing " .. path1)
 	menu_entry.seen = true
-	_process_html(path_in, output_dir .. path1, menu_entry)
+	_process_html(path_in, path1, menu_entry)
 	return
     end
 
-    if string.match(path, "%.png$") or string.match(path, "%.css$") then
+    if string.match(path, "%.png$")
+	or string.match(path, "%.jpg$")
+	or string.match(path, "%.css$") then
 	print("Copying " .. path)
-	_file_copy(path, output_dir .. path1)
+	_file_copy(path, output_dir .. "/" .. path1)
 	return
     end
 end
@@ -484,27 +550,58 @@ function _read_config(ifname)
 
 end
 
+
 ---
 -- Walk the menu tree and find entries that no file was generated for.
 -- Either find a ".in" file in the build directory, or complain.
 --
 function _check_menu()
-    local ifname, ofname
+    local ifname, ofbase
 
     for basename, item in pairs(config.menu_index) do
 	if not item.seen then
 	    ifname = string.format("%s/%s.html.in", output_dir, basename)
-	    ofname = string.format("%s/%s.html", output_dir, basename)
+	    ofbase = string.format("%s.html", basename)
 
 	    if lfs.attributes(ifname, "mode") == "file" then
 		print("Processing " .. ifname)
 		item.seen = true
-		_process_html(ifname, ofname, item)
+		_process_html(ifname, ofbase, item)
 	    else
 		print("Missing input file for", basename)
 	    end
 	end
     end
+end
+
+---
+-- Create a HTML snippet with the alphabetically sorted index.
+--
+function _generate_index()
+    local keys, buf
+
+    -- which is the file with the index?
+    if not index_file then return end
+
+    keys =  {}
+    for k, v in pairs(index) do
+	keys[#keys + 1] = k
+    end
+    table.sort(keys, function(a, b)
+	    return string.upper(a) < string.upper(b)
+	end)
+
+    buf = {}
+    for i, k in ipairs(keys) do
+	buf[#buf + 1] = k .. ": "
+	for i, v in ipairs(index[k]) do
+	    buf[#buf + 1] = string.format('<a href="%s">%d</a>', v, i)
+	end
+	buf[#buf + 1] = "<br/>\n"
+    end
+
+    index_string = table.concat(buf)
+    _process_html("html/idx.html", "idx.html", index_file)
 end
 
 -- MAIN --
@@ -519,4 +616,6 @@ output_dir = arg[2]
 _read_config(arg[1] .. "/menu.lua")
 _read_file_dir(arg[1])
 _check_menu()
+_generate_index()
+
 
