@@ -285,18 +285,22 @@ static int _get_object_meta_parent(lua_State *L, GType type_nr)
 	return 1;
     }
 
-    /* Get LuaGtk description of this structure.  It might not exist, as
+    /* Get LuaGnome description of this structure.  It might not exist, as
      * abstract, empty base classes like GInitiallyUnowned or GBoxed are
-     * not known to LuaGtk. */
+     * not known to LuaGnome.  Also, when a base class should be handled by
+     * another module, which doesn't have it or isn't loaded, this fails
+     * in the same way. */
     ts = lg_find_struct(L, parent_name, 0);
 
-    /*
-    printf("_get_object_meta_parent. parent is ts=%d.%d (%s)\n",
-    	ts.module_idx, ts.type_idx, parent_name);
-    */
-
-    if (!ts.value)
+    if (!ts.value) {
+	/* Might be a non-native type of this module; it could be looked
+	 * for by the hash value; on the other hand, non-native types are
+	 * not registered anywhere, so a linear search would be required
+	 * on the type list.  If found, indicates a problem; the non-native
+	 * type should exist in another module. */
+	printf("%s warning: type not found: %s\n", msgprefix, parent_name);
 	return 1;
+    }
 
     /* the parent class might actually be handled by another module. */
     ts = lg_type_normalize(L, ts);
