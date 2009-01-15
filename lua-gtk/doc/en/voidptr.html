@@ -1,0 +1,161 @@
+
+<p>
+Many library functions accept an opaque "void*" argument which is passed
+as-is to a callback also provided by the user.  For example, you could
+do the following (from examples/clock.lua):
+</p>
+
+<%= inline_code [[
+  lbl = gtk.label_new ""
+  onTimeoutClosure = gnome.closure(onTimeout)
+  timer = glib.timeout_add(1000, onTimeoutClosure, lbl)
+]] %>
+
+<p>
+In this case, an object (GtkLabel) is given for the void* argument.  This needs
+no special handling, but you must make sure that the object is not freed, so
+the following code, appended to the one above, leads to problems:
+</p>
+
+<%= inline_code [[
+  lbl = nil
+  collectgarbage "collect"
+]] %>
+
+<p>
+Following Lua types can be converted to a void* argument by the function
+lua2ffi_void_ptr (in src/voidptr.c):
+</p>
+
+<ul>
+ <li>nil: easy, a NULL pointer is used. </li>
+ <li>lightuserdata: it is used as pointer.  This isn't actually used, but it's
+   easy to implement, so it's there. </li>
+ <li>an object, like GtkLabel in the example above: the pointer to the Gtk
+   object is used. </li>
+ <li>other userdata: can be a constant (enum), a void* wrapper, a boxed value,
+   or some arbitrary userdata (a warning is printed).  </li>
+ <li>arbitrary Lua value: must be wrapped, see below. </li>
+</ul>
+
+<h3>Void* Wrapper</h3>
+
+<p>
+As mentioned in the list above, a "void* wrapper" exists to handle arbitrary
+Lua values.  The library must be given a void* pointer which must
+continue to be valid while it is used, and should be freed afterwards.
+When accessing such a void*, for example as an argument to a callback, or
+as an element of a structure, it must be possible to retrieve its value
+or free the value.
+</p>
+
+<p>
+Therefore, a void* wrapper consists of three interdependent entities:
+</p>
+
+<table><tr><td>
+
+<img src="img/voidptr1.png" alt="Structure Diagram" />
+
+</td><td>
+
+<ol>
+ <li>Zero or more Lua userdatas (Lua Wrappers) with a pointer to the C
+   structure.  This is what the programs "see" and work with.  It has
+   a metatable to allow several methods of accessing the data.</li>
+ <li>A C structure (the void* wrapper) with a reference to the Lua value and a
+   reference counter, which counts how many Lua Wrappers exist for it.  This
+   counter should be at least one, and is updated when Lua Wrappers are created
+   and garbage collected.  When it drops to zero, the void* wrapper is
+   automatically freed.</li>
+ <li>An arbitrary Lua value, like a string, a table etc.  A reference is
+   created through the luaL_ref mechanism and stored in the void* wrapper.</li>
+</ol>
+
+</td></tr></table>
+
+<p>
+For example, a "GTree" (of GLib) stores pairs of void* (key and value).  A
+complete example can be found in <tt>tests/027-closure.lua</tt>.  The important
+parts of this example are given below:
+</p>
+
+<%= inline_code [[
+function destroy_it(wrapper)
+    wrapper:destroy()
+end
+
+cl = { gnome.closure(compare_func), gnome.closure(destroy_it) }
+t = glib.tree_new_full(cl[1], nil, cl[2], cl[2])
+t._closures = cl
+cl = nil
+
+t:insert("hello", "world")
+t:insert("another key", { 2, 3, 4, "another value" })
+
+t:destroy()
+
+]] %>
+
+<p>
+When you remove an item, or call :destroy on the tree (which removes all
+items), the "destroy_it" function is called for both key and value; it
+receives a Lua representation of the wrapper and not the wrapped object.  This
+allows to call the destroy method on it, or use its value.  This Lua userdata
+forwards __len, __index and __newindex to the wrapped Lua value, which is
+useful if it's a table, for example.
+</p>
+
+<p>
+<b>Note</b> When you need to pass a Lua value to a function that expects
+a GValue, like gtk_tree_model_set_value, you need to use a
+<a href="boxed.html">Boxed Value</a>.
+</p>
+
+<h3>Functions</h3>
+
+<h4>gnome.void_ptr(value)</h4>
+
+<p>Create a void* wrapper for the given value, and return a Lua object
+representing it.  The wrapper's reference counter is set to one, so that when 
+the Lua object is freed, the void* wrapper is also released.</p>
+
+<h4>any_function(value)</h4>
+
+<p>If the argument type of <tt>value</tt> is "void*" (or simliar, like
+gpointer), and <tt>value</tt> is not already a void* wrapper, then a void*
+wrapper is automatically created for it.  Its reference counter is also set to
+one, but no Lua object is created.  So it will not be freed automatically, but
+you have to do that manually by calling the :destroy() method on the void*
+wrapper.
+</p>
+
+<h3>Debugging</h3>
+
+<p>
+As you can see, memory management is not automatic for void* wrappers.
+Lua-Gnome can't infer automatically when such a void* wrapper is not needed
+anymore, unless specialized handlers are written for individual classes.
+To aid finding memory leaks, two functions are provided:
+</p>
+
+<h4>gnome.get_vwrappers_count()</h4>
+
+<p>Returns three integers: the number of currently existing void* wrappers, how
+many were allocated in total (can be less than the first number if some have
+already been freed), and finally the number of currently existing Lua
+representations of void* wrappers; this is only for information as these are
+garbage collected automatically by Lua.
+</p>
+
+<h4>gnome.dump_vwrappers()</h4>
+
+<p>Show the information of the above function, and show a list of currently
+existing void* wrappers; each with memory address, followed by the source file
+and line number where it was allocated.
+</p>
+
+<h3>Source</h3>
+
+<p>For implementation details, see <tt>src/voidptr.c</tt>.</p>
+
