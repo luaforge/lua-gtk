@@ -55,6 +55,6 @@ struct lg_module_api {
     void (*empty_table)(lua_State *L, int index);
 };
 #define LUAGNOME_MODULE_MAJOR 0
-#define LUAGNOME_MODULE_MINOR 8
+#define LUAGNOME_MODULE_MINOR 9
 
 
