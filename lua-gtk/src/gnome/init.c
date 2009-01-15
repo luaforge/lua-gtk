@@ -156,20 +156,28 @@ static int lg_generic_index(lua_State *L)
     /* if it starts with an uppercase letter, it's probably an ENUM. */
     if (name[0] >= 'A' && name[0] <= 'Z') {
 	int val;
+	const char *prefix = mi->prefix_constant;
+
 	typespec_t ts = { 0 };
 	ts.module_idx = mi->module_idx;
-	strcpy(symname, mi->prefix_constant);
-	strcat(symname, name);
-	switch (lg_find_constant(L, &ts, symname, -1, &val)) {
-	    case 1:		// ENUM/FLAG found
-	    return lg_push_constant(L, ts, val);
+	for (;;) {
+	    sprintf(symname, "%s%s", prefix ? prefix : "", name);
+	    // strcpy(symname, prefix);
+	    // strcat(symname, name);
+	    switch (lg_find_constant(L, &ts, symname, -1, &val)) {
+		case 1:		// ENUM/FLAG found
+		return lg_push_constant(L, ts, val);
 
-	    case 2:		// integer found
-	    lua_pushinteger(L, val);
-	    /* fall through */
+		case 2:		// integer found
+		lua_pushinteger(L, val);
+		/* fall through */
 
-	    case 3:		// string found - is on Lua stack
-	    return 1;
+		case 3:		// string found - is on Lua stack
+		return 1;
+	    }
+	    if (!prefix)
+		break;
+	    prefix = NULL;
 	}
     }
 
