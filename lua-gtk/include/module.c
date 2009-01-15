@@ -31,12 +31,6 @@ int load_gnome(lua_State *L)
     if (!api)
 	return luaL_error(L, "gnome.api is NULL");
 
-    if (api->major != LUAGNOME_MODULE_MAJOR
-	|| api->minor < LUAGNOME_MODULE_MINOR)
-	return luaL_error(L, "incompatible API versions of gnome %d.%d and "
-	    "%s %d.%d.", api->major, api->minor, thismodule->name,
-	    LUAGNOME_MODULE_MAJOR, LUAGNOME_MODULE_MINOR);
-
     return api->register_module(L, thismodule);
 }
 
