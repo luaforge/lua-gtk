@@ -1,0 +1,38 @@
+
+<p>
+The structure of an HTML input file is just like a regular HTML file, but it
+doesn't have any header, footer, menu or other boilerplate code.  Its content
+is processed and then put into a "content div" block.
+</p>
+
+<p>
+The special file <tt>template.html</tt> is read once, and its placeholders
+replaced by content for each input file to generate the output files.  Known
+placeholders are as follows:
+</p>
+
+<dl>
+ <dt>#TITLE#</dt><dd>The page's title (from the menu)</dd>
+ <dt>#MAINMENU#</dt><dd>The toplevel menu items in a horizontal layout</dd>
+ <dt>#SIDEMENU#</dt><dd>A menu structure appropriate for the current page</dd>
+ <dt>#CONTENT#</dt><dd>The actual content of the input file (after processing)
+  </dd>
+ <dt>#CONTENTCLASS#</dt><dd>When no side menu is present, set to
+   <tt>center</tt>, else to <tt>right</tt>.</dd>
+</dl>
+
+<p>
+The processing step mentioned above detects code blocks, replacing them by
+the output of the Lua code contained therein.  This code is executed in a
+limited environment providing a few functions:
+</p>
+
+<dl>
+ <dt>copy_function(filename, functionname)</dt><dd>Open the given Lua file,
+   and look for the given function.  The function body is extracted,
+   highlighted and returned.</dd>
+ <dt>inline_code(s, ...)</dt><dd>The first argument is the code to display;
+   it is highlighted.  The opional additional arguments are appended to the
+   code verbatim and might be used for a short explanation.</dd>
+</dl>
+
