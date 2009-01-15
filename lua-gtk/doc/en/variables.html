@@ -1,0 +1,55 @@
+
+<p>
+The core module <tt>gnome</tt> defines a few variables, which are not directly
+useful to the user.  Their function is described here.  All of them can, but
+must not be modified, at the risk of malfunctioning.
+</p>
+
+<dl>
+
+ <dt>api</dt>
+  <dd>A userdata with version information and a jump table.  It is used by
+    modules to access functionality of the core module.</dd>
+
+ <dt>emptryattr</dt>
+  <dd>All Lua objects (<tt>struct object</tt>) proxying a C object have an
+   environment to store arbitrary key/value pairs.  To avoid having an empty
+   table for each such object, they all initially are assigned the same,
+   empty table.  The first assignment then creates a private table. This shared
+   table is stored here.</dd>
+
+ <dt>fundamental_map</dt>
+  <dd>For each fundamental type supported by the core library, like
+  <tt>int</tt>, <tt>struct</tt> etc., one entry is created with the key=hash
+  value, data=index into <tt>ffi_type_map</tt>, defined in the build directory
+  <tt>gnome/fundamentals.c</tt>.  This table is filled by the function
+  <tt>src/gnome/data.c:lg_create_fundamental_map</tt> when the core module
+  is loaded, and isn't modified afterwards.</dd>
+
+ <dt>typemap</dt>
+  <dd>Each supported datatype has one entry in this table.  Key is the
+   hash value of the type name, while the data is a <tt>typespec_t</tt>, a
+   32 bit value described in <tt>include/common.h</tt> consisting of
+   a module index and a type index, and a flag value.  This table is initially
+   empty, with more entries being added when a module is loaded.</dd>
+
+ <dt>aliases</dt>
+  <dd>Each Lua proxy object has at least one entry here, but can have multiple.
+  Key is an index (see the objects table), value is the proxy object.  If an
+  object is accessed as different types (typecasting, e.g. GtkEvent and
+  GdkEventKey), more than one proxy object may be needed.</dd>
+
+ <dt>metatables</dt>
+  <dd>One entry per metatable for objects; all objects of the same type share
+  the same metatable.</dd>
+
+ <dt>NIL</dt>
+  <dd>A lightuserdata pointing to NULL; can be used in certain situations
+  instead of nil, which is ignored as last elements of tables etc.</dd>
+
+ <dt>objects</dt>
+  <dd>Maps a library object's address (via lightuserdata) to an index
+  in the <tt>aliases</tt> table.</dd>
+
+</dl>
+
