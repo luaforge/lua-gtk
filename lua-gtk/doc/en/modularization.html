@@ -1,0 +1,199 @@
+
+<p>
+Since Version 1.0, LuaGnome is split into modules, each one being a shared
+object providing binding to one Gnome library, e.g. glib, gdk or gtk.  Care
+has been taken not to create build time dependencies, so that additional
+modules can be used from a different build or even from an independent source
+tree.
+</p>
+
+<p>The core module is named <b>gnome</b>.  It provides the global table
+<tt>gnome</tt> with following members intended for internal use:
+</p>
+
+<dl>
+ <dt>api</dt><dd>A userdata that basically is a jump table to functions
+  provided by the core module, along with version information to detect
+  incompatibilities.  Each module accesses <tt>gnome.api</tt> when
+  loading.</dd>
+ <dt>fundamental_map</dt><dd>A table of fundamental data types.  Keys are
+  a hash of the type name, values an index into an array of the core
+  module.</dd>
+ <dt>typemap</dt><dd>Similar to <tt>fundamental_map</tt>, this table's keys
+  are hashes of type names (like "GtkWindow"), values are an integer
+  representation of <tt>typespec_t</tt>, i.e. a module index and a type index.
+  The module index specifies which module handles the type, while the type
+  index gives the offset in the module's type array.</dd>
+</dl>
+
+<p>
+Following entries in the global table <tt>gnome</tt> are useful to users:
+</p>
+
+<p>
+As mentioned above, each module provides a binding to one Gnome library, and
+consists of the following parts:
+</p>
+
+<ul>
+ <li>A list of <b>functions</b> consisting of the function's name, the type
+  of the return value and the types of all arguments</li>
+
+ <li>A list of <b>constants</b>, i.e. enums and #defines.  The values may
+  be numbers or strings, and have a data type like GtkWindowType.</li>
+
+ <li>An array of <b>data types</b>; functions and constants refer to entries
+  in that array by indices.  This array is built at compile time and is sorted
+  by frequency, so that often used types have low indices.  This allows using
+  just one byte for the index in many cases.</li>
+
+ <li>A list of <b>globals</b>, i.e. global variables; each having a name and
+  a data type.</li>
+</ul>
+
+<p>
+In the filesystem, a modules is a directory with the following files:
+</p>
+
+<ul>
+  <li>The <b>spec.lua</b> file, explained in detail below.</li>
+
+  <li>A <b>Makefile</b> listing source files to compile as well as dependencies.
+    In most cases this is quite simple; please refer to existing Makefiles
+    as model.</li>
+
+  <li>An optional <b>configure.lua</b> script, if the setup is more complicated
+    than can be handled by settings in <tt>spec.lua</tt>.  So far, this is
+    only the case for the core module.</li>
+
+ <li>Some <b>glue code</b>, mostly in the file <tt>init.c</tt>, to load the
+   module.  I plan to generate most of that automatically, too.</li>
+ 
+ <li>Optionally <b>overrides</b> to provide an "impedance matching" between
+  Lua and C conventions.  Overrides should only be used when calling wouldn't
+  otherwise be possible, not to provide new functions or to change the API.
+  This might seem nice in some cases, but to make the binding as transparent
+  and small as possible, such improvements shouldn't be made.</li>
+
+ <li>Any number of extra source files as specified in the <tt>Makefile</tt>.
+ </li>
+
+</ul>
+
+<p>
+Note that there are no "wrapper functions", as often seen in library bindings,
+but a specification of return and argument types.  The call is then performed
+using the <a href="http://en.wikipedia.org/wiki/Libffi">ffi library</a>.  The
+arguments provided by the user are Lua values, which are converted to ffi types
+before the call.  The return value and possibly "output arguments" (pointers to
+memory which is changed by the called function) are converted back to Lua
+values after the call.
+</p>
+
+<p>
+This design greatly reduces the binding size, and also makes it easy to
+support many functions easily by automatically generating the data.
+Furthermore the API of the binding is almost identical to the underlying
+library, so that no separate API has to be learned by the user.
+</p>
+
+<h3>spec.lua files</h3>
+
+<p>
+Each module must have a <i>spec.lua</i> file in its directory.  It contains
+build information, like what dynamic libraries to link with, which header
+files to extract constants from, compiler flags and more.  Following
+settings are currently known:
+</p>
+
+<dl>
+ <dt>name</dt><dd>Name of the module, mostly used for the summary report</dd>
+
+ <dt>pkg_config_name</dt><dd>The package containing the library as known to
+  <i>pkg-config</i>; this is how compile and link flags are determined.</dd>
+
+ <dt>required</dt><dd>If set to true, the configure script will abort if this
+  module can't be built.  It is set for glib, gdk and gtk.</dd>
+
+ <dt>libraries</dt><dd>Contains an entry for each supported architecture
+  (key, currently linux and win32) with the value being array of libraries to
+  link to, e.g. <tt>"/usr/lib/libgobject-2.0.so"</tt>.</dd>
+
+ <dt>headers</dt><dd>An array of { full_path, with_numerical_defines } items,
+  each one advising <tt>parse-xml.lua</tt> to read the given header and extract
+  <tt>#define</tt>s, which are then available as constants.</dd>
+
+ <dt>includes</dt><dd>Similar to <i>libraries</i>, provides an array of
+  header files to <tt>#include</tt> for generation of the type list.  As a
+  special case, the architecture "all" is always used, in addition to an
+  optional architecture-specific list of includes. </dd>
+
+ <dt>defs</dt><dd>Similar to <i>libraries</i>, has a list of statements to
+  put into the generated .c file that, when compiled with gccxml, results in
+  the file types.xml.  It can have the entries "all" or architecture-specific
+  entries. </dd>
+
+ <dt>include_types</dt><dd>A list of additional types to be supported by the
+  module.  The list is generated at build time starting with types used by
+  functions and globals, and completed with all types reachable from there,
+  i.e. by types of structure elements, which may be function prototypes again
+  using a list of types.  Any non-reachable types are omitted, but some useful
+  types might be missing.  In this case, specify them in this setting.</dd>
+ <dt>
+
+ <dt>function_flags</dt><dd>It is possible to specify flags for a function's
+  return value or any of its arguments.  In many cases this can replace an
+  override.  Supported flags are: <dl>
+   <dt>CONST_OBJECT</dt>
+   <dt>NOT_NEW_OBJECT</dt>
+   <dt>CHAR_PTR</dt>
+   <dt>CONST_CHAR_PTR</dt>
+  </dl>
+  Available flags are listed in the file <tt>script/util.lua</tt>.
+  </dd>
+ 
+ <dt>ignore_functions</dt><dd>Add any functions that should not be supported
+  by the module to this hash table, the key being the function name, and
+  the value "true".</dd>
+
+ <dt>aliases</dt><dd>Some functions don't have a consistent name that allows
+ them to be called as methods.  For example, <code>gdk_draw_line</code> has a
+ first argument of the type GdkDrawable; it should, therefore, be named
+ <code>gdk_drawable_draw_line</code>, so that <code>obj:draw_line()</code>
+ works.  <br/> This setting is a mapping with pairs in this form: new_name =
+ "old_name".
+ </dd>
+ 
+ Add any functions that should not be supported
+  by the module to this hash table, the key being the function name, and
+  the value "true".</dd>
+ 
+ <dt>linklist</dt><dd>If the bound libraries are not loaded automatically,
+  but through a manual linking process, functions are called through a
+  function table that is automatically generated using this list.  The
+  advantage is that an older version of the library can be loaded by the
+  module, not causing an error until a missing function is called.
+  <br/>
+  Each entry in this list is either a simple string, i.e. the function's
+  name, or a two-item table: { "functionname", "condition" }.  The condition
+  is a string that is evaluated as Lua expression and can evaluate the
+  versions of the library, e.g. "glib &gt;= '2.15'".
+  <br/>
+  An easy method to get a list of external functions used is to compile
+  the module without the manual linking, and then do this:
+  <code>nm module.so | grep " U " | grep -v "GLIBC\|lua_\|luaL_"</code>
+
+  </dd>
+
+  <dt>moddep</dt><dd>An array listing names of other modules.  Their spec
+    files will be read and CFLAGS defined by them are used.  The only case
+    where this is currently required is for cairo and libxml2, which both
+    do not depend on glib, but common include files do, e.g. GType is
+    used.</dd>
+
+  <dt>module_info</dt><dd>A map with settings for the automatic generation
+    of the <tt>struct module_info</tt> that each module exports.  It defines
+    prefixes for functions, constants and types, 
+
+</dl>
+
