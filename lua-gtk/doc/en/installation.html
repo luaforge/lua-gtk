@@ -1,0 +1,89 @@
+
+<p>
+These are the installation instructions for LuaGnome.  It is distributed
+primarily as source tarball, with precompiled binaries possibly available
+for Linux (different architectures), Windows, and as Debian packages (most
+likely not the latest versions).  You can also get the latest source from
+the CVS repository on LuaForge.
+</p>
+
+<h3>Prerequisites</h3>
+
+<p>
+The following software is required to build LuaGnome:
+</p>
+
+<ul>
+ <li>Lua 5.1</li>
+ <li>gcc</li>
+ <li>make</li>
+ <li>gccxml</li>
+ <li>ffi (foreign function interface)</li>
+ <li>(optional) <a href="http://cmph.sf.net/">cmph</a></li>
+ <li>The libraries to support, i.e. glib, gdk, gtk, atk, cairo etc., with
+   their header files.</li>
+</ul>
+
+<h3>Instructions</h3>
+
+<ul>
+ <li>Fetch the source from either CVS or as source tarball, unpack.</li>
+ <li>Run the script <tt>./configure</tt> (which is a Lua script, not
+  autoconf)</li>
+ <li>Run <tt>make</tt></li>
+</ul>
+
+<p>
+On success, you can now run the included tests, examples or other programs.
+If something didn't work, please use your skillz to fix it, otherwise write
+about your problems on the project's forums on LuaForge.
+</p>
+
+<h3>About CMPH</h3>
+
+<p>
+This is a library to create and use minimal perfect hash (mph) tables.
+LuaGnome relies heavily on hashing to look up functions, constants, types and
+fundamental types.  Thus having a good hashing algorithm and functions
+available improves execution speed and reduces memory usage.  All these tables
+are computed at build time, saved as .c files which are then compiled into the
+modules.
+</p>
+
+<p>
+Note: a hash <i>function</i> computes a hash value for a given input string.  A
+hash <i>algorithm</i> maps an input string to a bucket number, and requires at
+least one hash function.
+</p>
+
+<p>
+Cmph comes with various algorithms.  Two of them are currently supported by
+LuaGnome, which doesn't link with the cmph library, but implements the (simple)
+lookup functions directly to save space (and because cmph doesn't offer saving
+a hash table to a .c file).
+</p>
+
+<ul>
+ <li>The older <b>fch</b> algorithm already delivers excellent results.</li>
+ <li>The newer <b>bdz</b> algorithm, available starting with cmph version 0.8,
+   results in slightly smaller hash table data which is generated a lot
+   faster. </li>
+ <li>A fallback algorithm (named <b>simple</b>) is not part of cmph.  It
+   produces somewhat larger data tables and probably runs somewhat slower at
+   runtime, but doesn't require cmph to build.</li>
+</ul>
+
+<p>
+For comparison, the complete build of LuaGnome on Linux/i386 with all 10
+libaries supported as of 12/2008 results in the following combined binary
+sizes:
+</p>
+
+<table>
+ <tr><th>Algorithm</th><th>Size in kB</th></tr>
+ <tr><td>simple</td><td>415</td></tr>
+ <tr><td>fch</td><td>372</td></tr>
+ <tr><td>bdz</td><td>370</td></tr>
+</table>
+
+
