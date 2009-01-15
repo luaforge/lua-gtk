@@ -1,0 +1,179 @@
+
+<p>
+To help you find bugs in your programs, LuaGnome provides a few helpers.  Note
+that all of these are not available when you specify <tt>--disable-debug</tt>
+when configuring the base library; this saves some memory but that is probably
+not relevant in most cases, so I suggest you include the debugging code.
+</p>
+
+<h3>Runtime Debug Flags</h3>
+
+<p>
+There are a few flags you can set to aid debugging through two mechanisms.
+One is to set the global variable <b>gnome_debug_flags</b> before loading
+any LuaGnome related library, the other is to call
+<b>gnome.set_debug_flags</b>.  In both cases you should specify the flags
+as strings as in the example below:
+</p>
+
+<%= inline_code [[
+gnome_debug_flags = { "valgrind", "gmem" }
+require "gtk"
+gnome.set_debug_flags("memory", "trace")
+gnome.unset_debug_flags "trace"
+]] %>
+
+<p>
+A list of known debug flags follow.  In the source, this list can be found
+in <tt>src/gnome/debug.c, _debug_flag_list</tt>.
+</p>
+
+<dl>
+ <dt>trace</dt><dd>Print a line on stdout before calling any library function,
+   similar to the Unix tool "strace".  <b>Note:</b> Currently tracing doesn't
+   work for overrides, as this would require extra code in each such function.
+   </dd>
+
+ <dt>return</dt><dd>Show a warning when a library function returns something
+   of type <tt>void*</tt> (not NULL), which could not be interpreted in any
+   way and therefore had to be discarded.</dd>
+
+ <dt>memory</dt><dd>Print a line on stdout when an object is allocated or
+   garbage collected.</dd>
+
+ <dt>gmem</dt><dd>Enables GLib's memory tracing functions, which collects
+   statistics at runtime and prints them at program exit.  This flag has to
+   be enabled before loading the core library, i.e. through the global
+   variable <tt>gnome_debug_flags</tt>.</dd>
+
+ <dt>valgrind</dt><dd>Make it easier to run valgrind on LuaGnome to find
+   memory leaks.  This flag has to be set before loading the core library,
+   i.e. through the global variable <tt>gnome_debug_flags</tt>.</dd>
+
+ <dt>closure</dt><dd>As explained on the <a href="closure.html">Page on
+   Closures</a>, these objects are sometimes tricky regarding their allocation
+   and freeing.  This flag causes closures not to be freed on garbage
+   collection, so that accesses to freed closures can be detected.
+   Additionally information about closure allocation and freeing is
+   printed.</dd>
+
+</dl>
+
+<h3>Debugging Functions</h3>
+
+<p>LuaGnome provides a set of functions to aid debugging; more might be
+added in the future.</p>
+
+<p>Some of these functions are obviously a hack and you shouldn't depend
+on them to be available forever.</p>
+
+
+<dl>
+ <dt>function_sig(closure [, align])</dt>
+   <dd>Computes the function signature of the given function as a string, i.e.
+   the return type, the function's name and the types of all arguments.  If
+   <i>align</i> is given, the return type's width is at least that many
+   characters, useful to make a nice list of many functions.  Example:
+<%= inline_code [[
+ print(gnome.function_sig(gtk.window_new))
+]] %>
+
+ <dt>function_sig(module, func_name, [align])</dt><dd>Same as above, but
+  doesn't require a closure to exist, so this is better to list lots of
+  functions (see <tt>script/funclist.lua</tt>).  The function name can be given
+  with or without the module's function prefix.  Examples:
+<%= inline_code [[
+ print(gnome.function_sig(gtk, "window_new"))
+ print(gnome.function_sig(gtk, "gtk_window_new"))
+]] %>
+
+ <dt>set_debug_flags(flag, ...)</dt><dd>Set all the given flags, which
+   must be strings from the list above.  Some flags cannot be set at
+   runtime, but must be given in <tt>gnome_debug_flags</tt>.  An error is
+   printed if you try it anyway.</dd>
+
+ <dt>unset_debug_flags(flag, ...)</dt><dd>Unset the given flags, e.g. to
+   stop function tracing.</dd>
+
+ <dt>dump_struct(object)</dt><dd>Print a complete structure on stdout, e.g.
+   a Gtk widget or similar.  Can be helpful to see what fields exist;
+   unfortunately it doesn't show the current values (yet).</dd>
+
+ <dt>dump_stack(everything)</dt><dd>Display the Lua stack of the current
+   stack frame, or the complete Lua stack if everything is set.</dd>
+
+ <dt>dump_memory()</dt><dd>This function tries to list all currently allocated
+   Lua objects, starting with the global table and the registry.</dd>
+
+ <dt>get_refcount(object)</dt>
+   <dd>Returns the number of references the GObject has, followed by the
+   object's type name.  For newly created widgets this usually is 1.  You can
+   manipulate the refcount with <tt>object:ref()</tt>,
+   <tt>object:unref()</tt>, <tt>object:ref_sink()</tt> and similar methods.
+   </dd>
+
+ <dt>breakfunc</dt><dd>A function that simply prints "BREAK" on stdout.  The
+   idea is that you can set a breakpoint in <tt>lg_breakfunc</tt> in your
+   debugger and insert <tt>gnome.breakfunc()</tt> at some interesting point
+   in your program.  This is useful to debug LuaGnome itself.  Sample gdb
+   session:
+   <div class="code"><code>
+$ gdb --args lua myprogram.lua
+<b class="gn">(gdb)</b> b lg_breakfunc
+Function "lg_breakfunc" not defined.
+Breakpoint 1 (lg_breakfunc) pending.
+<b class="gn">(gdb)</b> r
+...
+
+Breakpoint 1, lg_breakfunc (L=0x962e008) at src/gnome/debug.c:32
+32          printf("BREAK\n");
+<b class="gn">(gdb)</b>
+   </div></code>
+   </dd>
+
+ <dt>for k, v in pairs(gnome.aliases) do print(k, v, gnome.get_refcount(v))
+   end</dt><dd>This loop shows all proxy objects along with their reference
+   counter.  If you place this at the end of your program after a call to
+   <tt>collectgarbage "collect"</tt>, this list should be almost empty.  If
+   it is quite long, you better have a look at memory management.  Hint:
+   be sure to unset global variables, and call <tt>:destroy()</tt> on top level
+   windows first.</dd>
+
+  <dt>box_debug</dt>
+   <dd>Returns the number of currently allocated boxed objects.</dd>
+
+  <dt>dump_vwrappers</dt>
+   <dd>Prints statistics about allocated void wrappers, followed by a list
+   of all currently allocated wrappers along with the location in the
+   Lua source where they were allocated.</dd>
+
+  <dt>get_vwrapper_count</dt>
+   <dd>Return the number of allocated void wrappers, total allocations so
+   far and the number of currently existing Lua wrappers for the void
+   wrappers.</dd>
+
+</dl>
+
+
+<h3>External Tools</h3>
+
+<p>
+The following tools are useful to debug programs written with LuaGnome.
+</p>
+
+<dl>
+ <dt>gdb</dt><dd>The GNU Debugger, which can be used to find tricky bugs.
+  Be sure to run <tt>configure</tt> with the argument <tt>--debug</tt> for
+  building, otherwise you'll not get any debug symbols.</dd>
+ 
+ <dt>g-inspector</dt><dd>A GTK+ object/class inspector, which can show the
+  widget list/tree, types etc. on a running program.  Simply run
+  <tt>g-inspector program.lua</tt>.  Note: on Debian, the package name
+  is ginspector.</dd>
+ 
+ <dt>valgrind</dt><dd>For subtle memory problems, valgrind can detect some
+  issues with malloc/free, buffer overruns etc.  This is probably only useful
+  when debugging LuaGnome, not programs that use it.</dd>
+
+</dl>
+
