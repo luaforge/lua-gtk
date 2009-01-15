@@ -1,0 +1,29 @@
+
+<p>
+The menus can be nested to multiple levels; each menu is therefore a list
+of entries with filename, page title and an optional submenu.  It is defined by
+the input file <code>menu.lua</code>, which must define one variable named
+<code>menu</code> following this schema:
+</p>
+
+<%= inline_code [[
+menu = { item, ... }
+item = { "filename", "Title" [, menu] }
+]] %>
+
+<p>
+Here is an example with just two levels for simplicity.  Note that for each
+page being generated, a static menu is produced with the current menu item
+in bold, with the "surrounding" menu items being displayed as links.
+</p>
+
+<%= inline_code [[
+menu = {
+    { "index", "Home" },
+    { "first", "First Toplevel Page" },
+    { "second", "Second Toplevel Page", {
+        { "third", "Subpage of Second" },
+        { "fourth", "Another Subpage" },
+    } },
+}
+]] %>
