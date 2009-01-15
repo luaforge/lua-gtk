@@ -60,6 +60,12 @@ tar:
 	rm $$D; \
 	)
 
+# type "make bit" to build the bit library from the included .c file.
+bit: bit.so
+
+bit.so: src/bit.c
+	cc -Wall -shared -o $@ $^
+
 
 .DEFAULT:
 	@$(submake) -f src/$(MAKECMDGOALS)/Makefile
