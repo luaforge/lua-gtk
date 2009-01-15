@@ -1,0 +1,8 @@
+
+// Layout of the first byte of constants
+
+digraph constants {
+  node [ fontsize=10, fontname=vera ];
+  firstbyte [ shape=record, label="7\nhas_type|6\nis_string|5\nis_negative|4-0\nvalue" ];
+}
+
