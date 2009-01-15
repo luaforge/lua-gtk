@@ -1,0 +1,72 @@
+
+<p>
+A data type is defined by instances of <tt>union type_info</tt>, which is
+declared in <tt>include/common.h</tt> and has the following fields (total size
+is 8 bytes):
+</p>
+
+<dl>
+ <dt>genus</dt><dd>The only field that is always available; it specifies what
+   type the type has, and as that sounds somewhat convoluted, I chose the
+   name "genus" for this field.  Following values are possible:
+   <ul>
+    <li>GENUS_NON_NATIVE (0) - this entry refers to a type defined in another
+      module.</li>
+    <li>GENUS_STRUCTURE (1) - a composite type, i.e. struct or union. </li>
+    <li>GENUS_FUNCTION (2) - a function pointer; a location of the function's
+      signature is provided.</li>
+    <li>GENUS_FUNDAMENTAL (3) - a fundamental type (other than function) which
+      is handled directly by ffi2lua_xxx or lua2ffi_xxx functions.</li>
+  </ul>
+ </dd>
+      
+ <dt>fundamental_idx</dt><dd>Index into the module's own array of fundamental
+  types (i.e., fundamental_hash), where the entries are just 32 bit hash values
+  of the type name, like "signed char*" or "long unsigned int".  When a module
+  is loaded, the conversion table <tt>module.fundamental_map</tt> is created
+  that gives the core module's fundamental_idx, i.e. the index into the core
+  module's <tt>ffi_type_map</tt>.</dd>
+
+ <dt>is_const</dt><dd>Set if this type is a "const" type, i.e. points to an
+  immutable memory area; this is only useful for pointers.</dd>
+
+ <dt>is_native</dt><dd>If zero, this entry refers to a data type in another
+  module; only the <tt>name_hash</tt> field is used in this case.  If one,
+  this is a regular type entry; and if two, it's a fundamental data type and
+  isn't added to <tt>gnome.typemap</tt> <i>(Note: might be changed soon as of
+  2008-08-20)</i></dd>
+
+ <dt>indirections</dt><dd>Specifies how many "*" to place after the type's
+  name, for example, this is 0 for "char" and 1 for "char*". This is sometimes
+  less than the corresponding fundamental type has, because the plain type name
+  may already be a pointer, e.g. "GdkAtom".</dd>
+
+ <dt>is_array</dt><dd>If set, then this type is a one- or twodimensional
+  array.  This is very rare and so an extra array is used to specify the
+  dimensions for such types (see <tt>struct array_info</tt> and
+  <tt>module.array_list</tt>).</dd>
+
+ <dt>name_ofs</dt><dd>Offset into the big name string where the name of this
+  type is stored.  Using an offset instead of a pointer has advantages: the
+  size of the offset is less than a full pointer, and no relocation needs to
+  be done when the module shared object is loaded.</dd>
+
+ <dt>for structures</dt><dd>If the fundamental type specifies a structure,
+  following fields are filled: <b>struct_size, elem_start, elem_count</b>,
+  which detail the structure and refer to the <tt>module.elem_list</tt>.
+
+ <dt>for functions</dt><dd>If the fundamental type is a function, an offset
+  into the function prototypes in provided.  The information contained there
+  is identical to the data in the function hash table.</dd>
+
+ <dt>for <a name="nonnative">non-native types</a></dt><dd>The hash value of the
+  type's name is stored; it is used to look up the type in the table
+  <tt>gnome.typemap</tt> as described in the section about <a
+  href="hashtables.html#typehash">Type Hashing</a>.  Additionally, either the
+  name of the module known to contain that type is given, or the type's name.
+  This allows to automatically load the correct module, or to display a
+  sensible error message.
+  </dd>
+
+</dl>
+
