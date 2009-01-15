@@ -24,6 +24,7 @@
 
 #include "luagnome.h"
 #include "lg-hash.h"
+#include "module.h"	    // LG_MODULE_MAJOR/MINOR
 #include <string.h>	    // strcmp
 #include <stdlib.h>	    // bsearch
 #include <errno.h>
@@ -381,23 +382,90 @@ found:;	typespec_t ts2;
     return ts;
 }
 
+/**
+ * A constant has been found.  The data is encoded in a certain binary format,
+ * which this function decodes.  Various encoding formats have been tried,
+ * and this is the best one so far.  Even better ones might come along.
+ *
+ * The top 2 bits of the first byte: 00=no type, 01=8 bit type, 10=16 bit type,
+ * 11=string.  If the (16 bit) type has the top bit set, this means a negative
+ * number.  The other 6 bits of the first byte are used as high bits of the
+ * value, unless it is a string.
+ *
+ * Following that is the string, or as many bytes of the value as are required
+ * from high to low byte.
+*
+ * @param L  Lua State
+ * @param ts  (output) to store the data type, if the constant has one
+ * @param res  (input) Pointer to the binary encoding of the value
+ * @param datalen  Length of this value
+ * @param result  (output) Store the value at this location.
+ * @return  1=typed value, 2=untyped, 3=string (on Lua stack).
+ */
+static int _decode_constant_v2(lua_State *L, typespec_t *ts,
+    const unsigned char *res, int datalen, int *result)
+{
+    int val, type_idx = 0;
+    const unsigned char *res_end = res + datalen;
+
+    /* get the flag byte */
+    unsigned char c = *res++;
+
+    /* low 6 bits of first byte are for the value */
+    val = c & 0x3f;
+
+    switch (c >> 6) {
+	case 0:	    // unyped
+	break;
+
+	case 1:	    // 8 bit type
+	type_idx = *res++;
+	break;
+
+	case 2:	    // 16 bit type (high byte, then low)
+	type_idx = (res[0] << 8) + res[1];
+	res += 2;
+	break;
+
+	case 3:	    // string
+	lua_pushlstring(L, (char*) res, datalen - 1);
+	return 3;
+    }
+
+    /* collect all bytes for the number */
+    while (res < res_end)
+	val = (val << 8) + *res++;
+
+    /* high bit if type_idx is the negative sign */
+    if (type_idx & 0x8000) {
+	type_idx &= 0x7fff;
+	val = -val;
+    }
+
+    *result = val;
+    ts->type_idx = type_idx;
+
+    /* if type_idx is set, ENUM or FLAG, else regular integer */
+    return type_idx ? 1 : 2;
+}
+
 
 /**
  * Find a constant by name in the given module.
- * Entries for constants start with a flag byte.
- *   0x80   set if a type_idx is included.
- *   0x40   set if this is a string
- *   0x20   set if the (numeric) value is negative.
- *   0x1f   used for the value, or the type_idx if set
- * Following that is another type_idx byte, if the flag 0x80 is set, and then
- * all the rest of the bytes are the value; for a string, just that, and for
- * numeric values high to low.
+ *
+ * @param L  Lua State
+ * @param ts  The typespec with its module_idx set; its type_idx field
+ *	may be set as output.
+ * @param key  Name of the constant to look up
+ * @param keylen  Length of the name; -1 means zero terminated string
+ * @param result  (output) Location where to store the resulting value
+ * @return  0=not found, else see _decode_constant_v2().
  */
 static int _find_constant(lua_State *L, typespec_t *ts, const char *key,
     int keylen, int *result)
 {
-    int datalen, val;
-    const unsigned char *res;
+    int datalen;
+    unsigned const char *res;
     cmi mi = modules[ts->module_idx];
 
     if (keylen < 0)
@@ -408,44 +476,8 @@ static int _find_constant(lua_State *L, typespec_t *ts, const char *key,
     if (!res)
 	return 0;
 
-    ts->type_idx = 0;
-    const unsigned char *res_end = res + datalen;
-
-    /* get the flag byte */
-    unsigned char c = *res++;
-
-    /* low 5 bits of first byte are either for type_idx or value */
-    val = c & 0x1f;
-
-    /* High bit set if type_idx included; fetch another byte for a total of 13
-     * bits, allowing up to 8191 data types per module - ample */
-    if (c & 0x80) {
-	ts->type_idx = (val << 8) + *res++;
-	val = 0;
-    }
-
-    /* If it is a string, the rest is just that.  Note that a string can have
-     * a type_idx, even though that currently doesn't happen (doesn't make
-     * much sense, either). */
-    if (c & 0x40) {
-	lua_pushlstring(L, (char*) res, datalen - 1);
-	return 3;
-    }
-
-    /* collect all bytes for the number */
-    while (res < res_end)
-	val = (val << 8) + *res++;
-
-    /* bit 5 is the negative sign */
-    if (c & 0x20)
-	val = -val;
-
-    *result = val;
-
-    /* if type_idx is set, ENUM or FLAG, else regular integer */
-    return ts->type_idx ? 1 : 2;
+    return _decode_constant_v2(L, ts, res, datalen, result);
 }
-
 
 
 /**
@@ -713,7 +745,14 @@ static void _register_module(lua_State *L, struct module_info *mi)
 int lg_register_module(lua_State *L, struct module_info *mi)
 {
     if (mi->module_idx)
-	return luaL_error(L, "%s Can't register module %s twice.", mi->name);
+	return LG_ERROR(1, "Can't register module %s twice.", mi->name);
+
+    // check API version compatibility
+    if (mi->major != LUAGNOME_MODULE_MAJOR || mi->minor > LUAGNOME_MODULE_MINOR)
+	return luaL_error(L, "incompatible API versions of gnome %d.%d and "
+	    "%s %d.%d.",
+	    LUAGNOME_MODULE_MAJOR, LUAGNOME_MODULE_MINOR,
+	    mi->name, mi->major, mi->minor);
 
     _register_module(L, mi);
 
@@ -862,10 +901,10 @@ static void *_find_symbol(const struct dynlink *dyn, const char *name)
 int lg_find_global(lua_State *L, const struct module_info *mi, const char *name)
 {
     int len = strlen(name), len2;
-    const char *p = mi->globals;
+    const unsigned char *p = (const unsigned char*) mi->globals;
 
     while (*p) {
-	len2 = strlen(p);
+	len2 = strlen((const char*) p);
 	if (len == len2 && !memcmp(p, name, len))
 	    break;
 	p += len2 + 3;
