@@ -26,6 +26,9 @@ function_flags = {
     pango_trim_string = CHAR_PTR,
     pango_version_check = CONST_CHAR_PTR,
     pango_version_string = CONST_CHAR_PTR,
+
+    pango_attr_iterator_get_attrs = 0x10,
+    pango_glyph_item_apply_attrs = 0x20,
 }
 
 linklist = {
@@ -43,5 +46,6 @@ module_info = {
     prefix_type = '"Pango"',
     depends = '"glib\\0"',
     overrides = 'pango_overrides',
+    arg_flags_handler = 'pango_arg_flags',
 }
 

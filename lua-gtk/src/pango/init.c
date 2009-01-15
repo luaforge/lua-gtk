@@ -36,6 +36,12 @@ static int _pango_attr_list_handler(struct object *w, object_op op, int flags)
     return -1;
 }
 
+int pango_arg_flags(lua_State *L, typespec_t ts, int arg_flags)
+{
+    printf("pango_arg_flags with flag %x\n", arg_flags);
+    return 0;
+}
+
 int luaopen_pango(lua_State *L)
 {
     int rc = load_gnome(L);
