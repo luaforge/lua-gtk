@@ -1,0 +1,39 @@
+
+<p>
+This is a list of all functions available from the <tt>gnome</tt>
+module, but debugging functions are described on the <a href="debug.html">Debugging Tools</a> page.
+</p>
+
+<dl>
+  <dt>box(value[, type])</dt>
+    <dd>Return a <a href="boxed.html">Boxed value</a>.</dd>
+
+  <dt>cast(object, type)</dt>
+    <dd>Perform a typecast on an object; only the type is changed, not the
+    content of the object.  Note that this doesn't work for non-objects,
+    e.g. to cast a void* to a string.  For this, refer to how
+    <a href="voidptr.html">Void Wrappers</a> work.  In fact, this function
+    is quite useless, I guess, as the types are always (?) set correctly.
+    </dd>
+
+  <dt>closure(func)</dt>
+    <dd>Create a closure object for a Lua function.  Contrary to the name,
+    no arguments can be given to the function.  Refer to the
+    <a href="closure.html">Closure Documentation</a> for more details.
+    </dd>
+
+  <dt>destroy(object)</dt>
+    <dd>Don't wait for the garbage collection, but immediately dereference
+    an object; if this was the last reference, the object is freed too.</dd>
+
+  <dt>get_osname()</dt>
+    <dd>Returns two strings: the operating system and the architecture,
+    e.g. "linux" and "i386".
+    </dd>
+
+  <dt>void_ptr(value)</dt>
+    <dd>Returns a <a href="voidptr.html">Void Wrapper</a> for the given
+    value, which may be of any type - objects, Lua types, nil etc.</dd>
+</dl>
+
+
