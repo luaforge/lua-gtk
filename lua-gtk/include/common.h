@@ -219,6 +219,7 @@ struct hash_info;
  */
 struct module_info {
     // const data
+    int major, minor;				// API version expected
     const char *name;				// the module's name
     type_info_t type_list;			// array of types
     const struct struct_elem *elem_list;	// array of structure elements
@@ -240,6 +241,7 @@ struct module_info {
     void *(*allocate_object)(cmi mi, lua_State *L, typespec_t ts, int count,
 	int *flags);
     void (*call_hook)(lua_State *L, struct func_info *fi);
+    int (*arg_flags_handler)(lua_State *L, typespec_t ts, int arg_flags);
 
     // other useful strings
     const char *prefix_func;			// prefix for functions
