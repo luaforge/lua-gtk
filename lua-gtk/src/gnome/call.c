@@ -477,51 +477,14 @@ static int _call_return_values(lua_State *L, int index, struct call_info *ci)
 	if (cnt > 0)
 	    skip = cnt - 1;
 
-#if 0
-
-	// always return the actual return value; others only if they are
-	// pointers and thus can be an output value.
-	if (arg_nr != 0 && ar.arg_type->indirections == 0)
-	    continue;
-
-	if (idx) {
-
-	    // Find the type of the returned value; it's the type of the
-	    // argument with one less level of indirections.  This probably
-	    // could be cached, but I don't think that's worth the effort.
-	    if (arg_nr != 0) {
-		const char *ftype_name = FTYPE_NAME(ar.arg_type);
-		// struct* is not an output parameter.
-		if (!strcmp(ftype_name, "struct*"))
-		    continue;
-		// char* is not an output parameter.
-		if (!strcmp(ftype_name, "char*"))
-		    continue;
-		// void* is not an output parameter.
-		if (!strcmp(ftype_name, "void*"))
-		    continue;
-		//printf("arg_type %s, idx %d\n", FTYPE_NAME(ar.arg_type), idx);
-		ar.ts = lg_type_modify(L, ar.ts, -1);
-		if (!ar.ts.value) {
-		    printf("could not modify type!\n");
-		    continue;
-		}
-	    }
-
-	    // return all arguments that look like output arguments.
-	    ar.index = index + arg_nr - 1;
-	    ar.arg = &ci->args[arg_nr].ffi_arg;
-	    ar.lua_type = arg_nr ? lua_type(L, ar.index) : LUA_TNIL;
-	    int cnt = ffi_type_ffi2lua[idx](&ar);
-	    if (cnt > 0)
-		skip = cnt - 1;
-	} else if (arg_nr == 0) {
-	    // all direct return values must be handled.
-	    call_info_warn(ci);
-	    luaL_error(L, "%s unhandled return type %s\n",
-		msgprefix, FTYPE_NAME(ar.arg_type));
+	// if a special arg_flag is given, try to call the handler of the
+	// module (of the function, not of the argument).
+	if (cnt == 1 && (ar.arg_flags & 0xf0)) {
+	    cmi mi = modules[ar.ci->fi->module_idx];
+	    if (mi->arg_flags_handler)
+		mi->arg_flags_handler(L, ar.ts, ar.arg_flags);
 	}
-#endif
+
     }
 
     /* return number of return values now on the stack. */
