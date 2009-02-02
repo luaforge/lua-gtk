@@ -12,8 +12,18 @@
 
   - uses a template file with header and document layout.
 
-  - Can generate a sorted index of keywords which -- are marked with {{...}}
-    in the HTML files.
+  - parses the input HTML files and processes following patterns:
+    {{item ...}}
+    An item can be:
+	#label		anchor, can be referenced.  No whitespace in label.
+	*		hide this entry (no text output)
+	=label		reference to that anchor.  If not text is given,
+			use the text of the referenced element.
+	noindex		don't add to the index
+	Any text	text content of this directive; must be the last
+			item.
+
+  - Can generate a sorted index of keywords
 
   - Generates a short horizontal and detailed vertical menu linking to all
     the pages using the menu definition in the file "menu.lua" in the
@@ -38,13 +48,16 @@ input_dir = nil
 output_dir = nil
 config = nil
 main_menu = nil
+extensions = { png=true, gif=true, jpg=true, css=true }
+
+-- Handling of {{...}} directives
+items = {}		    -- array of items
+items_byname = {}	    -- key=anchor name, value=item
+files = {}		    -- array of input HTML files
+curr_file = nil		    -- file currently being read, see _process_html
 
 -- Handling of the index generation
-index = {}		    -- key=word, data={ href, ... }
-index_nr = 0		    -- next index number in current file
-index_file = nil	    -- menu entry of the index file
 index_string = nil	    -- computed index, used by generate_index()
-curr_menu = nil		    -- required by generate_index()
 
 -- expand tabs; taken from "Programming in Lua" by Roberto Ierusalimschy
 function expand_tabs(s, tab)
@@ -209,7 +222,12 @@ function colorize(s)
     return table.concat(col_res, "")
 end
 
--- The environment available to the functions in the template.
+
+---
+-- The environment available to the functions in the template.  Note that
+-- all global variables (including functions) are available too.  This
+-- should probably change.
+--
 env = {
 
     -- extract a function from a Lua source file
@@ -255,7 +273,6 @@ env = {
     end,
 
     generate_index = function()
-	index_file = index_file or curr_menu
 	return index_string or ""
     end,
 }
@@ -284,14 +301,25 @@ end
 -- @param to  Destination
 --
 function _file_copy(from, to)
-    local f_from = io.open(from, "rb")
+    local f_from, f_to, buf
+
+    f_from = lfs.attributes(from)
+    f_to = lfs.attributes(to)
+
+    -- Skip unchanged files.
+    if f_from and f_to and f_from.size == f_to.size and f_from.modification
+	<= f_to.modification then
+	return
+    end
+
+    f_from = io.open(from, "rb")
     assert(f_from)
     _mkdir(to)
-    local f_to = io.open(to, "wb")
+    f_to = io.open(to, "wb")
     assert(f_to)
 
     while true do
-	local buf = f_from:read("*a", 2048)
+	buf = f_from:read("*a", 2048)
 	if not buf or #buf == 0 then break end
 	f_to:write(buf)
     end
@@ -299,6 +327,7 @@ function _file_copy(from, to)
     f_from:close()
     f_to:close()
 end
+
 
 ---
 -- Add some entries to the menu: _parent in each item, further a basename
@@ -374,7 +403,9 @@ function _make_side_menu(tbl, menu, path)
 		item[1], item[2])
 	end
 	if path[item] and item[3] then
+	    tbl[#tbl + 1] = '<li>'
 	    _make_side_menu(tbl, item[3], path)
+	    tbl[#tbl + 1] = '</li>'
 	end
     end
 
@@ -397,10 +428,42 @@ end
 -- @param basename  Name of the output file without the output base path.
 -- @param ar  Array with variables available to the page for substitution
 --
-function _process_html(ifname, basename, menu_entry, ar)
-    local ofname, ifile, ofile, ar, page
+function _process_html(ifname, basename, menu_entry, do_index)
+    local ifile, ar, buf
 
-    ofname = output_dir .. "/" .. basename
+    ifile = assert(io.open(ifname, "rb"))
+
+    ar = ar or {}
+    curr_file = {
+	variables = ar,
+	file_name = ifname,
+	basename = basename,
+	menu_entry = menu_entry,
+	index_count = 0,
+    }
+
+    ar.SIDEMENU = make_side_menu(menu_entry)
+    ar.TITLE = menu_entry[2]
+    ar.MAINMENU = main_menu
+    ar.CONTENTCLASS = (ar.SIDEMENU == "") and "center" or "right"
+
+    buf = {}
+    for line in ifile:lines() do
+	buf[#buf + 1] = string.gsub(line, "{{(.-)}}", _html_pass1)
+    end
+    ifile:close()
+    ar.CONTENT = table.concat(buf, "\n")
+    -- ar.CONTENT = string.gsub(ifile:read"*a", "{{(.-)}}", _html_pass1)
+
+    files[#files + 1] = curr_file
+    curr_file = nil
+end
+
+---
+-- Second pass over HTML files and output.
+--
+function output_html()
+    local ifile, page, old_page, ofile, ofname, skip
 
     if not page_template then
 	ifile = assert(io.open(input_dir .. "/template.html", "rb"))
@@ -408,57 +471,165 @@ function _process_html(ifname, basename, menu_entry, ar)
 	ifile:close()
     end
 
-    ifile = assert(io.open(ifname, "rb"))
-    index_nr = 0
+    for _, file in ipairs(files) do
+	_evaluate_html_pass2(file)
+	page = string.gsub(page_template, "#([A-Z]+)#", file.variables)
 
-    ar = ar or {}
-    ar.SIDEMENU = make_side_menu(menu_entry)
-    ar.TITLE = menu_entry[2]
-    ar.CONTENT = _evaluate_html(menu_entry, basename, ifile:read "*a")
-    ar.MAINMENU = main_menu
-    ar.CONTENTCLASS = (ar.SIDEMENU == "") and "center" or "right"
-    ifile:close()
+	ofname = output_dir .. "/" .. file.basename
 
-    page = string.gsub(page_template, "#([A-Z]+)#", ar)
+	-- Check for changes.  This avoids a newer date on unchanged
+	-- files.
+	skip = false
+	if lfs.attributes(ofname, "mode") == "file" then
+	    ifile = assert(io.open(ofname, "rb"))
+	    old_page = ifile:read"*a"
+	    ifile:close()
+	    if page == old_page then
+		skip = true
+	    else
+		print("CHANGES IN", ofname)
+	    end
+	end
 
-    ofile = assert(io.open(ofname, "wb"))
-    ofile:write(page)
-    ofile:close()
+	if not skip then
+	    ofile = assert(io.open(ofname, "wb"))
+	    ofile:write(page)
+	    ofile:close()
+	end
+    end
+end
+
+---
+-- Split a string using a delimiter, which can be a search pattern.  Make sure
+-- that the delimiter doesn't match the empty string.
+--  
+function split(s, delim, is_plain)
+    local ar, pos = {}, 1
+
+    while true do
+        local first, last = s:find(delim, pos, is_plain)
+        if first then
+            table.insert(ar, s:sub(pos, first-1))
+            pos = last + 1
+        else
+            table.insert(ar, s:sub(pos))
+            break
+        end
+    end
+
+    return ar
+end
+
+---
+-- Handler for {{...}} matches during the first pass over the HTML content.
+-- These strings are replaced by {{{%d}}}, the data being stored elsewhere.
+--
+-- Globals: curr_file is the file being read.
+--
+function _html_pass1(str)
+    local c, item
+
+    -- Split the string into elements and fill "item" with data.
+    item = { file=curr_file }
+    for _, s in ipairs(split(str, " +")) do
+	c = string.sub(s, 1, 1)
+	if c == "#" then
+	    item.is_anchor = true
+	    item.anchor_name = string.sub(s, 2)
+	elseif c == "*" then
+	    item.is_hidden = true
+	elseif c == "=" then
+	    item.is_reference = true
+	    item.ref_name = string.sub(s, 2)
+	elseif s == "noindex" then
+	    item.omit_index = true
+	elseif item.text then
+	    item.text = item.text .. " " .. s
+	else
+	    item.text = s
+	end
+    end
+
+    -- if this item has no anchor name, generate the next available
+    if not item.is_anchor then
+	curr_file.index_count = curr_file.index_count + 1
+	item.anchor_name = string.format("idx%d", curr_file.index_count)
+    end
+
+    if item.is_hidden then
+	item.full_anchor = curr_file.basename
+    else
+	item.full_anchor = string.format("%s#%s", curr_file.basename,
+	    item.anchor_name)
+    end
+
+    -- assign the next number and store.  If an anchor is defined, store
+    -- that too.
+    item.nr = #items + 1
+    items[#items + 1] = item
+    if item.is_anchor then
+	assert(items_byname[item.anchor_name] == nil, "Duplicate anchor")
+	items_byname[item.anchor_name] = item
+    end
+
+    return string.format("{{{%d}}}", item.nr)
+end
+
+---
+-- Replace the {{{%d}}} strings with their proper content.
+--
+function _html_pass2(nr)
+    local item, target
+
+    item = assert(items[tonumber(nr)], "Item " .. tostring(nr) .. " not found")
+
+    -- nothing is output for hidden items.
+    if item.is_hidden then
+	-- assert(not item.is_anchor)
+	assert(not item.is_reference)
+	return ""
+    end
+
+    -- a reference is replaced with a link to the referenced anchor
+    if item.is_reference then
+	target = items_byname[item.ref_name]
+	if not target then
+	    error(string.format("%s(%d): Missing target %s",
+		item.file.basename,
+		item.line_nr or 0,
+		item.ref_name))
+	end
+
+	assert(target.is_anchor)
+	assert(item.text or target.text)
+	return string.format('<a href="%s">%s</a>', target.full_anchor,
+	    item.text or target.text)
+    end
+
+    -- named anchors are set
+    if item.is_anchor then
+	return string.format('<a name="%s">%s</a>', item.anchor_name,
+	    item.text)
+    end
+
+    -- unnamed anchor - for the index
+    assert(item.text)
+    return string.format('<a name="%s">%s</a>', item.anchor_name, item.text)
 end
 
 
 ---
--- HTML from the input file can contain macros in the form %<= ... %>, which
--- is exactly what luadoc supports.  The ... is evaluated as Lua expression,
--- and its result replaces the whole macro.
+-- Perform the second pass over the HTML files.  First, {{{%d}}} items left
+-- by the first pass are replaced with their final value, and then inline
+-- Lua code is executed.
 --
--- Additionally, extract index words and replace them with an anchor.
---
-function _evaluate_html(menu_entry, basename, s)
-    s = string.gsub(s, "{{(.-)}}", function(word)
-	local hide = false
-	if string.sub(word, 1, 1) == "-" then
-	    -- hidden ref.
-	    word = string.sub(word, 2)
-	    hide = true
-	end
-	local t = index[word] or {}
-	index[word] = t
-	print("index word", word)
-	if hide then
-	    t[#t + 1] = basename
-	    return ""
-	end
+function _evaluate_html_pass2(file)
+    local v = file.variables
 
-	-- regular index entry pointing to a specific location in the text
-	index_nr = index_nr + 1
-	t[#t + 1] = string.format('%s#idx%d', basename, index_nr)
-	return string.format('<a name="idx%d">%s</a>', index_nr, word)
-    end)
+    v.CONTENT = string.gsub(v.CONTENT, "{{{(%d+)}}}", _html_pass2)
 
-    curr_menu = menu_entry
-
-    return string.gsub(s, "<%%=(.-)%%>", function(fn)
+    -- curr_menu = file.menu_entry
+    v.CONTENT = string.gsub(v.CONTENT, "<%%=(.-)%%>", function(fn)
 	local chunk = assert(loadstring("return " .. fn))
 	setfenv(chunk, env)
 	return chunk()
@@ -493,9 +664,9 @@ function _read_file(path)
 	return
     end
 
-    if string.match(path, "%.png$")
-	or string.match(path, "%.jpg$")
-	or string.match(path, "%.css$") then
+    local ext = string.match(path, "([^.]+)$")
+
+    if extensions[ext] then
 	print("Copying " .. path)
 	_file_copy(path, output_dir .. "/" .. path1)
 	return
@@ -574,34 +745,45 @@ function _check_menu()
     end
 end
 
+
 ---
--- Create a HTML snippet with the alphabetically sorted index.
+-- Create a HTML snippet with the alphabetically sorted index.  All the
+-- HTML files have already been read.
 --
-function _generate_index()
-    local keys, buf
+function generate_index()
+    local keys, buf, item
 
-    -- which is the file with the index?
-    if not index_file then return end
-
-    keys =  {}
-    for k, v in pairs(index) do
-	keys[#keys + 1] = k
-    end
-    table.sort(keys, function(a, b)
-	    return string.upper(a) < string.upper(b)
-	end)
-
-    buf = {}
-    for i, k in ipairs(keys) do
-	buf[#buf + 1] = k .. ": "
-	for i, v in ipairs(index[k]) do
-	    buf[#buf + 1] = string.format('<a href="%s">%d</a>', v, i)
+    -- collect all the strings to be placed in the index, sort.
+    keys = {}
+    for _, item in ipairs(items) do
+	if not item.omit_index and item.text then
+	    keys[#keys + 1] = { string.upper(item.text), item }
 	end
+    end
+    table.sort(keys, function(a, b) return a[1] < b[1] end)
+
+    -- combine index entries with the same string
+    for i, item in ipairs(keys) do
+	while keys[i + 1] and keys[i + 1][1] == item[1] do
+	    item[#item + 1] = keys[i + 1][2]
+	    table.remove(keys, i + 1)
+	end
+    end
+
+    -- build the index string
+    buf = {}
+    for i, tmp in ipairs(keys) do
+	buf[#buf + 1] = tmp[2].text .. ": "
+	for i = 2, #tmp do
+	    buf[#buf + 1] = string.format('%s<a href="%s">%d</a>',
+		i > 2 and ", " or "",
+		tmp[i].full_anchor, i - 1)
+	end
+
 	buf[#buf + 1] = "<br/>\n"
     end
 
     index_string = table.concat(buf)
-    _process_html("html/idx.html", "idx.html", index_file)
 end
 
 -- MAIN --
@@ -616,6 +798,7 @@ output_dir = arg[2]
 _read_config(arg[1] .. "/menu.lua")
 _read_file_dir(arg[1])
 _check_menu()
-_generate_index()
+generate_index()
+output_html()
 
 
