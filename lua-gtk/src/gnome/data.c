@@ -924,6 +924,7 @@ int lg_find_global(lua_State *L, const struct module_info *mi, const char *name)
     ts.module_idx = mi->module_idx;
     ts.type_idx = (p[0] << 8) + p[1];
     ts = lg_type_normalize(L, ts);
+    mi = modules[ts.module_idx];
     type_info_t ti = lg_get_type_info(ts);
 
     int fid = ti->st.fundamental_idx;
