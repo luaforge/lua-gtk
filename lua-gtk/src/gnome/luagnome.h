@@ -86,10 +86,9 @@ struct argconv_t {
 // update this variable.
 //
 // arg_flags: set for individual function's arguments in the library's config
-// file.  Known flags are listed here, compare script/xml-types.lua
-//#define ARG_FLAG_CONST 1		// immutable object, don't refcnt/free
-//#define ARG_FLAG_CHAR_PTR 2		// treat as char* (not const char*)
-//#define ARG_FLAG_NOT_NEW_OBJECT 4	// need to increase refcount
+// file.  Bits 0-3 are reserved for the core module, values are listed
+// in script/util.lua.  The other bits can be used per module.
+//
 
 // argument to lua2struct/struct2lua functions
 struct argconvs_t {
