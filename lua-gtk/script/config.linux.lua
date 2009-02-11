@@ -1,8 +1,14 @@
 -- vim:sw=4:sts=4
 
-if not use_dynlink then
+-- For dynamic linking, need to include the list of libraries.  Otherwise,
+-- this is not required; instead get a list of libraries to link with.
+if use_dynlink then
+    use_liblist = true
+else
+    -- XXX this is not true when compiling other libraries!
     gtk_libs = pkg_config("--libs", "gtk+-2.0")
 end
+
 
 function detect_ffi()
 
@@ -61,12 +67,6 @@ cfg_m("DLLEXT", ".so")
 
 -- need to generate "position independent code"
 cflags = cflags .. " -fpic"
-
--- For dynamic linking, need to include the list of libraries.  Otherwise,
--- this is not required.
-if use_dynlink then
-    use_liblist = true
-end
 
 if use_gcov then
     cflags = cflags .. " -fprofile-arcs -ftest-coverage"
