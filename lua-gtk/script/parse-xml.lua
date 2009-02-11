@@ -17,8 +17,7 @@
 --  2008-02-24	split into multiple files
 --
 
--- Bitlib. See http://luaforge.net/projects/bitlib/
--- Debian: liblua5.1-bit0
+-- BitOp, see http://bitop.luajit.org/
 require "bit"
 
 -- The binding to the hash functions used in this package.  Compiled during
@@ -28,7 +27,7 @@ require "gnomedev"
 require "lfs"
 
 -- locally defined
-require "script/util"
+require "script.util"
 
 -- add the directory where this Lua file is in to the package search path.
 package.path = package.path .. ";" .. string.gsub(arg[0], "%/[^/]+$", "/?.lua")
@@ -124,7 +123,8 @@ end
 function mark_ifaces_as_used()
     local name2id = {}
     for type_id, t in pairs(typedefs) do
-	if t.type == "typedef" and string.match(t.name, "Iface$") then
+	if t.type == "typedef" and string.match(t.name, "Iface$")
+	    and good_files[t.file_id] then
 	    -- types.mark_type_id_in_use(type_id)
 	    name2id[t.name] = type_id
 	    synthesize_type(t.name .. "*", name2id)
@@ -247,6 +247,7 @@ function _function_analyze(fname)
 		fname, arg_nr))
 	    for k, v in pairs(arg_info) do print(">", k, v) end
 	end
+	-- print("analyze function", fname)
 	types.mark_type_id_in_use(arg_info[1],
 	    string.format("%s.%s", fname, arg_info[2]))
     end
@@ -574,8 +575,8 @@ load_other_lib_config()
 -- read the XML data
 xml.parse_xml(arg[2])
 
-mark_ifaces_as_used()
 make_file_list()
+mark_ifaces_as_used()
 analyze_globals()
 analyze_functions()
 mark_override()
@@ -618,4 +619,13 @@ end
 output.output_globals(arg[1] .. "/globals.c")
 output.output_code(arg[1] .. "/generated.c")
 write_summary(arg[1] .. "/parse.log")
+
+if false then
+    for k, t in pairs(typedefs) do
+	if not t.in_use and not t.marked and good_files[t.file_id] then
+	    print("unused", k, t.type, t.name)
+	end
+    end
+end
+
 
