@@ -604,8 +604,12 @@ function _generate_module_info()
     header('    type_count: %d,', config.type_count)    -- set in output_types
     header('    fundamental_hash: %s_fundamental_hash,', modname)
     header('    fundamental_count: %d,', config.fundamental_count)
-    header('    type_strings_elem: %s_strings_elem,', modname)
-    header('    prototypes: %s_strings_proto,', modname)
+    if string_buf.elem then
+	header('    type_strings_elem: %s_strings_elem,', modname)
+    end
+    if string_buf.proto then
+	header('    prototypes: %s_strings_proto,', modname)
+    end
     header('    type_names: %s_strings_types,', modname)
     header('    globals: %s_globals,', modname)
     header('    array_list: %s_array_list,', modname)
