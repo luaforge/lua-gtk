@@ -390,8 +390,9 @@ function mark_type_id_in_use(type_id, name)
     -- that have additional info, this must be marked in use.
     local t = resolve_type(type_id)
 
-    -- detail may be set for struct, union, enum, functions.
-    if t.detail then
+    -- for native types, go into the detail, i.e. make sure the types of the
+    -- elements of the struct, union, enum or function are available, too.
+    if t.detail and good_files[t.file_id] then
 	_mark_typedef_in_use(t.detail, name or t.full_name)
     end
 
