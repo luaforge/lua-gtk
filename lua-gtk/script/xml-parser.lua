@@ -158,7 +158,10 @@ local xml_tags = {
     Namespace = function(p, el)
     end,
 
-    -- store functions
+    -- store functions with their prototype.  In this XML tag there already
+    -- is the type of the return value, additional arguments are appended
+    -- one by one.  The file ID where this function is defined is "hidden"
+    -- in the otherwise unused prototype[1][3].
     Function = function(p, el)
 	if check_fields(el, "name", "returns", "file") then return end
 	if el.attributes and string.match(el.attributes, "visibility%(hidden%)") then
@@ -173,11 +176,11 @@ local xml_tags = {
 	funclist[el.name] = curr_func
     end,
 
-    -- discard the argument names, just keep the type.
+    -- store the argument's type and the name.
     Argument = function(p, el)
 	if not curr_func then return end
-	local name = el.name or string.format("arg_%d", #curr_func)
 	if check_fields(el, "type") then return end
+	local name = el.name or string.format("arg_%d", #curr_func)
 	curr_func[#curr_func + 1] = { el.type, name }
     end,
 
@@ -188,12 +191,16 @@ local xml_tags = {
 	end
     end,
 
-    -- declare a type being a function prototype
+    -- Declare a type being a function prototype.  These don't have names or
+    -- file_id, but there always is a PointerType and then a Typedef somewhere
+    -- with a name and file_id, which will then be filled in.
+    -- Such function types are NOT added to funclist - which is indexed
+    -- by name, and after all this is just a type and not an actual function
+    -- you could call.
     FunctionType = function(p, el)
 	if check_fields(el, "id", "returns") then return end
-	curr_func = { { el.returns, "retval" } }
-	typedefs[el.id] = { type="func", prototype=curr_func,
-	    name="func" .. el.id, dummy_name=true }
+	curr_func = { { el.returns, "retval", nil } }
+	typedefs[el.id] = { type="func", prototype=curr_func, id=el.id }
     end,
 
     -- Not interested much in constructors.  Store anyway to avoid
@@ -250,7 +257,9 @@ local xml_tags = {
 
     -- declare an alternative name for another type
     Typedef = function(p, el)
-	if check_fields(el, "id", "context", "name", "type") then return end
+	if check_fields(el, "id", "context", "name", "type", "file") then
+	    return
+	end
 	if el.context ~= "_1" then
 	    print("Warning: typedef context is " .. el.context)
 	end
