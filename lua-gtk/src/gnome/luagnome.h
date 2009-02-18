@@ -189,7 +189,7 @@ struct meta_entry {
 #define OBJECT_NAME(o) lg_get_object_name(o)
 
 // Max. length of a complete type name
-#define LG_TYPE_NAME_LENGTH 60
+#define LG_TYPE_NAME_LENGTH 80
 
 /*-
  * Information about one argument to a library function, or to a callback.
