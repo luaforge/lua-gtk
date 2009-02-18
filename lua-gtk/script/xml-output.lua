@@ -190,9 +190,17 @@ function output_one_struct(ofile, tp, struct_name)
 		end
 	    end
 
+	    -- The structure element might not have a type idx; this can happen
+	    -- for undefined types (?)
 	    local type_idx = tp.type_idx
-	    assert(type_idx, "no type_idx set for " .. tp.full_name)
-	    assert(type_idx ~= 0)
+	    if not type_idx then
+		print("Warning: No type_idx set for " .. struct_name .. "."
+		    .. tostring(tp.name) .. " type_id " .. member.type)
+		type_idx = 0
+	    else
+		assert(type_idx ~= 0, "invalid type_idx zero for "
+		    .. struct_name .. "." .. tp.full_name)
+	    end
 	    max_type_id = math.max(max_type_id, type_idx)
 
 	    -- name offset, bit offset, bit length (0=see detail),
@@ -306,11 +314,13 @@ function output_types(ofname)
 	    .. ": " .. t.pointer .. " vs " .. fu.pointer .. ", fu=" .. fu.name)
 	if t.is_native then
 	    assert(t.name_ofs, "no name_ofs defined for type " .. full_name)
-	end
-
-	if not t.is_native then
+	else
 	    assert(not t.name_ofs, "name_ofs defined for non-native type "
 		.. full_name)
+	end
+
+	-- non-native types are output with the hash value of the type name.
+	if not t.is_native then
 	    local hash_value = gnomedev.compute_hash(full_name)
 	    local name_ofs = _find_non_native_module(t)
 	    local name_is_module
@@ -325,6 +335,8 @@ function output_types(ofname)
 	    s = string.format(" { nn: { %d, %d, 0, %d, 0x%08x } }",
 		0, name_is_module, name_ofs, hash_value)
 	elseif t.fname == "func" then
+	    assert(detail.proto_ofs, "Prototype not set for function "
+		.. full_name)
 	    s = string.format(" { fu: { %d, %d, %d, %d, 0, %d } }",
 		2, t.fid, t.name_ofs, t.indir, detail.proto_ofs)
 	elseif detail and detail.struct then
