@@ -641,7 +641,8 @@ static int _write_meta_entry(lua_State *L, int index)
     return luaL_error(L, "%s can't write %s.%s (unsupported type %s.%d = %s)",
 	msgprefix, lg_get_object_name(w),
 	lg_get_struct_elem_name(me->ts.module_idx, me->se),
-	modules[me->ts.module_idx]->name,
+	modules[ts.module_idx]->name,
+	// modules[me->ts.module_idx]->name,
 	me->ts.type_idx,
 	FTYPE_NAME(arg_type));
 }
