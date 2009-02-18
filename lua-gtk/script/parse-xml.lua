@@ -102,7 +102,7 @@ function promote_enum_typedefs()
     for id, t in pairs(typedefs) do
 	if t.type == "typedef" and enum_list[t.what] then
 	    -- print("FOUND typedef for enum:", t.full_name)
-	    types.mark_type_id_in_use(id)
+	    types.mark_type_id_in_use(id, nil)
 	    t2 = typedefs[t.what]
 	    t.counter = t.counter + t2.counter - 1
 	    t2.in_use = false
@@ -205,6 +205,9 @@ end
 -- Mark all these data types as used.  Note that functions prototypes that only
 -- appear in structures (i.e., function pointers) are not considered here.
 --
+-- Note that this does not consider function types, which are only to be
+-- found in the typedefs list.
+--
 function analyze_functions()
 
     -- Make a sorted list of functions to output.  Only use functions declared
@@ -212,6 +215,7 @@ function analyze_functions()
     -- are most likely private.  v[1][3] contains the file's ID.
     for k, v in pairs(xml.funclist) do
 	local found = false
+	assert(v[1][3])
 	if good_files[v[1][3]] and string.sub(k, 1, 1) ~= "_" then
 	    function_list[#function_list + 1] = k
 	    _function_analyze(k)
@@ -247,7 +251,7 @@ function _function_analyze(fname)
 		fname, arg_nr))
 	    for k, v in pairs(arg_info) do print(">", k, v) end
 	end
-	-- print("analyze function", fname)
+
 	types.mark_type_id_in_use(arg_info[1],
 	    string.format("%s.%s", fname, arg_info[2]))
     end
