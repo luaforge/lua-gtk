@@ -306,6 +306,8 @@ static int l_g_dir_close(lua_State *L)
     
 /**
  * This function is a macro and therefore is missing from the function list.
+ * It can therefore not be called via call_byname.  It uses the symbol
+ * g_utf8_skip, which is a "const char*".
  */
 static int l_g_utf8_next_char(lua_State *L)
 {

@@ -339,6 +339,9 @@ void lg_init_boxed(lua_State *L)
 	_boxed_copy, lg_boxed_free);
 
     luaL_register(L, NULL, gnome_methods);
+
+    // required: if you want a TreeStore or similar to hold such boxed values,
+    // use gnome.boxed_type.
     lua_pushinteger(L, lg_boxed_value_type);
     lua_setfield(L, -2, "boxed_type");
 }
