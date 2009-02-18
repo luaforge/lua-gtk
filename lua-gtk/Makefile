@@ -12,7 +12,7 @@ submake = $(MAKE) -r --no-print-directory
 # first build the core module, the others depend on it.
 all: build/make.state
 	@$(submake) -f src/gnome/Makefile
-	@for file in src/*/Makefile; do $(submake) -f $$file; done
+	@for file in src/*/Makefile; do $(submake) -f $$file || break; done
 
 clean mrproper:
 	@for file in src/*/Makefile; do $(submake) -f $$file $@; done
