@@ -108,6 +108,27 @@ function register_fundamental(t)
     t.fid = fid
 end
 
+
+-- compute a full name for the type including qualifiers and pointers
+function make_full_name(t, name)
+    local ar_string = ""
+    if t.array then
+	for _, dim in ipairs(t.array) do
+	    ar_string = ar_string .. "[" .. tostring(dim) .. "]"
+	end
+    end
+
+    -- this is the name stored in the data file; it doesn't include
+    -- const, array or pointers, as this information is stored separately.
+    t.extended_name = name or t.fname
+
+    t.full_name = string.format("%s%s%s%s",
+	t.const and "const " or "",
+	name or t.fname,
+	string.rep("*", t.indir),
+	ar_string)
+end
+
 ---
 -- Given a Type ID, find the underlying type - which may be a structure,
 -- union, fundamental type, function, enum, array, pointer or maybe other
@@ -129,7 +150,7 @@ end
 function resolve_type(type_id, path, may_be_incomplete)
     if type_id == nil then return {} end
 
-    local t, t_top, top_type_id
+    local t, t_top, top_type_id, name
 
     -- first typedef
     top_type_id = type_id
@@ -143,13 +164,6 @@ function resolve_type(type_id, path, may_be_incomplete)
     t_top = t
     t_top.pointer = 0 -- t_top.pointer or 0
     t_top.indir = 0
-
---    if size then
---	print("SIZE OVERRIDE", size)
---	t_top.size = size
---    end
-
-    local name = nil
 
     while t do
 	-- retain the most specific name and file_id (the first one encountered)
@@ -228,10 +242,7 @@ function resolve_type(type_id, path, may_be_incomplete)
 	    break
 	end
 
-	if track_size then
-	    print("track: going to", t.what)
-	end
-
+	-- follow the pointer (Typedef, PointerType etc.)
 	type_id = t.what
 	t = typedefs[type_id]
     end
@@ -242,23 +253,19 @@ function resolve_type(type_id, path, may_be_incomplete)
 	t_top.fname = "boolean"
     end
 
-    -- this is the name stored in the list.  no pointers or arrays; these
-    -- are stored as flags.
-    t_top.extended_name = name or t_top.fname
 
-    -- compute a full name for the type including qualifiers and pointers
-    local ar_string = ""
-    if t_top.array then
-	for _, dim in ipairs(t_top.array) do
-	    ar_string = ar_string .. "[" .. tostring(dim) .. "]"
-	end
+    -- don_t set t_top.name - this is only set for types that have an
+    -- explicit name in the XML file.
+
+--[[
+    if t_top.name then
+	assert(t_top.name == name)
+    else
+	t_top.name = name
     end
-	
-    t_top.full_name = string.format("%s%s%s%s",
-	t_top.const and "const " or "",
-	name or t_top.fname,
-	string.rep("*", t_top.indir),
-	ar_string)
+--]]
+
+    make_full_name(t_top, name)
 
     if not t_top.size or t_top.size == 0 then
 	if may_be_incomplete then return end
@@ -322,14 +329,15 @@ end
 --
 -- @param t  An entry of the typedefs array.  t.type is struct, union,
 --   func or enum.
--- @param name  ?
+-- @param typename  While descending the type chain, the "lower" types may not
+--   have a type name, esp. functions.  Carry the higher level name.
 --
-local function _mark_typedef_in_use(t, name)
+local function _mark_typedef_in_use(t, typename)
     local ignore_types = { constructor=true, union=true, struct=true }
     local field
 
-    name = name or t.name
-    assert(name)
+    typename = typename or t.name
+    assert(typename)
 
     -- already marked?
     if t.in_use or t.marked then
@@ -347,7 +355,7 @@ local function _mark_typedef_in_use(t, name)
 		    .. "field %s", st.name, member_id))
 	    elseif not ignore_types[field.type] then
 		mark_type_id_in_use(field.type, string.format("%s.%s",
-		    name, field.name or member_id))
+		    typename, field.name or member_id))
 	    elseif field.type ~= "constructor" then
 		-- substructure, subunion - not supported.
 		if verbose > 0 then
@@ -362,13 +370,16 @@ local function _mark_typedef_in_use(t, name)
     if t.prototype then
 	for i, arg_info in ipairs(t.prototype) do
 	    local type_id = arg_info[1]
-	    mark_type_id_in_use(type_id, nil)
-		-- string.format("%s.%s", name, arg_info[2] .. "XX"))
+	    local arg_name = assert(arg_info[2])
+	    local t2 = mark_type_id_in_use(type_id, arg_name)
+	    assert(t2.in_use)
+	    assert(t2.counter > 0)
 	end
+
 	-- Can't call register_prototype yet, because no type_ids are
 	-- assigned yet.  Instead, add this to a list.
-	assert(not funclist2[name], "double funclist2 entry " .. t.name)
-	funclist2[name] = t
+	assert(not funclist2[typename], "double funclist2 entry " .. typename)
+	funclist2[typename] = t
     end
 end
 
@@ -383,18 +394,34 @@ end
 -- @param name  Variable or argument name.  Might be required for something?
 -- @return  The type entry
 --
-function mark_type_id_in_use(type_id, name)
+function mark_type_id_in_use(type_id, varname)
 
     -- resolve this type ID, resulting in a fundamental type.  These are
     -- all available; but if it is a structure, union, enum, function etc.
     -- that have additional info, this must be marked in use.
+    -- print("mark_type_id_in_use", type_id, varname)
     local t = resolve_type(type_id)
 
     -- for native types, go into the detail, i.e. make sure the types of the
     -- elements of the struct, union, enum or function are available, too.
-    if t.detail and good_files[t.file_id] then
-	_mark_typedef_in_use(t.detail, name or t.full_name)
+    -- if no file information is present, follow.
+    if t.detail and (not t.file_id or good_files[t.file_id]) then
+
+	-- unnamed function types are quite common.  During type_idx assignment
+	-- in assign_type_idx each type must have a unique name, therefore
+	-- generate them here from the varname in the form "Struct.elem_name".
+	if not t.name and t.fname == "func" then
+	    t.name = string.format("%s_func", string.gsub(varname, "%.", "_"))
+	    t.name = string.gsub(t.name, "^_", "")
+	    -- update the full name, which has const, * and others.
+	    make_full_name(t, t.name)
+	    -- print("synthetic function name", type_id, t.full_name)
+	    assert(t.detail.prototype)
+	end
+	-- print("mark_typedef_in_use detail", t.name)
+	_mark_typedef_in_use(t.detail, t.name)
     end
+    
 
     -- increase the usage counter
     t.counter = (t.counter or 0) + 1
@@ -470,7 +497,10 @@ function function_arglist(arg_list, fname)
 	-- if val is 128 or more, a second type byte is required.
 	-- the algorithm could be extended to cover even more bits
 	val = t.type_idx
-	assert(val, "No type_idx for " .. type_id .. " = " .. t.full_name)
+	if not val then
+	    error(string.format("Function arglist for %s: no type_idx for "
+		.. "arg #%d - type %s = %s", fname, i-1, type_id, t.full_name))
+	end
 	if bit.band(val, 0xffff8000) ~= 0 then
 	    error("Type index too high: " .. tostring(val))
 	end
@@ -597,6 +627,7 @@ function register_function_prototypes()
 	    end
 	end
 	funclist2 = funclist3
+	if cnt == 0 then break end
     end
 
     -- no unresolved functions must remain.
@@ -710,7 +741,7 @@ function assign_type_idx()
 --	else
 --	    print("Duplicate, skipping: " .. full_name .. ", " .. t.type_idx)
 	end
-	-- print(idx, t.counter, sum, full_name)
+--	print(idx, t.counter, sum, name2id[full_name], full_name)
     end
     return keys_nodup
 end
