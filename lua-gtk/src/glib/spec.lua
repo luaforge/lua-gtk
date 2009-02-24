@@ -75,6 +75,8 @@ include_types = {		-- used in which other module:
     "gint16",			-- gio
 
     "GSList**",			-- gtkhtml
+
+    "short int*",		-- clutter
 }
 
 function_flags = {
