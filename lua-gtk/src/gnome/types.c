@@ -1559,6 +1559,19 @@ static int lua2struct_void_ptr(struct argconvs_t *ar)
     return 1;
 }
 
+/**
+ * Write to a char* field in a structure.
+ */
+static int lua2struct_char_ptr(struct argconvs_t *ar)
+{
+    size_t len;
+    const char *s = luaL_checklstring(ar->L, ar->index, &len);
+    char *s2 = (char*) malloc(len + 1);
+    memcpy(s2, s, len + 1);
+    set_bits_long(ar->L, ar->ptr, ar->se->bit_offset, ar->se->bit_length,
+	(char*) &s2);
+    return 1;
+}
 
 static int lua2struct_enum(struct argconvs_t *ar)
 {
@@ -1712,7 +1725,7 @@ const lua2struct_t ffi_type_lua2struct[] = {
     &lua2struct_func_ptr,
     NULL,			// STRUCT_PTR
     NULL,			// STRUCT
-    NULL,			// CHAR_PTR
+    &lua2struct_char_ptr,	// CHAR_PTR
     NULL,			// PTR
 };
 
