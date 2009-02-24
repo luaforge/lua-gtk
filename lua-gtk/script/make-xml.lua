@@ -96,6 +96,7 @@ function generate_xml(ofname, platform)
     s = string.format("gccxml %s -fxml=%s %s %s", flags, ofname,
 	"--gccxml-compiler " .. config.cc,
 	tmp_file)
+    s = s:gsub("-pthread", "")
     rc = os.execute(s)
     os.remove(tmp_file)
 
