@@ -24,16 +24,12 @@ function_flags = {
     clutter_version_string = CONST_CHAR_PTR,
 }
 
-moddep = {
-    "glib",
-}
-
 -- extra settings for the module_info structure
 module_info = {
 
     prefix_func = '"clutter_"',
     prefix_constant = '"CLUTTER_"',
-    prefix_type = '"clutter_"',
-    depends = '""',
+    prefix_type = '"Clutter"',
+    depends = '"glib\\0"',
 }
 
