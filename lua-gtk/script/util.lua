@@ -44,13 +44,15 @@ local function include_spec(modname)
     local fname, spec, target
 
     fname = string.format("src/%s/spec.lua", modname)
-    spec = load_config(fname)
+    spec = load_spec(fname)
     target = getfenv(2)
     for k, v in pairs(spec) do
 	target[k] = v
     end
 end
 
+-- dummy function to replace the "include_spec" when following includes is
+-- not wanted.
 local function ignore_spec(name)
 end
 
