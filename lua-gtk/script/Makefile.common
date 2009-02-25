@@ -123,9 +123,15 @@ $(ODIR)$(MODULE)$(DLLEXT): $(addprefix $(ODIR),$(addsuffix .$O,$(OFILES)))
 	$H $(CC) $(LDFLAGS) -shared -o $@ $^ $(LIBS)
 
 # if config.h changes, chances are that make-xml must be run again.
-${ODIR}types.xml: script/make-xml.lua $(ODIR)config.h $(ODIR)config.lua
+${ODIR}types.xml: script/make-xml.lua $(ODIR)config.h $(ODIR)config.lua $(IDIR)/spec.lua
 	$I
 	$H script/make-xml.lua "$(ODIR)"
+
+# changed spec.lua - must reconfigure.  Unfortunately, any flags to configure
+# used earlier are not preserved.
+$(ODIR)config.lua: $(IDIR)/spec.lua
+	$I
+	$H script/configure.lua $(MODULE)
 
 $(ODIR)%.$O: $(ODIR)%.c
 	$I
