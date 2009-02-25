@@ -468,8 +468,9 @@ end
 
 
 ---
--- Check one library
+-- Check one library.
 -- @param cfg  The configuration from the library's config file
+-- @return  The "cfg" argument, or nil on error.
 --
 function _setup_library(cfg)
 
@@ -655,7 +656,9 @@ function configure_base()
     load_arch_config()
     setup_compilation()
     cfg_l('module = "%s"', modname)
-    _setup_library(spec)
+    if not _setup_library(spec) then
+	error()
+    end
 
     -- don't add libraries from additional module specs, only cflags
     tmp = use_liblist
