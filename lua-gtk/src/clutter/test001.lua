@@ -12,7 +12,7 @@ stage:set_title"Clutter Demo"
 
 -- define a red, somewhat transparent color
 red = clutter.new "Color"
-clutter.color_parse("#ff000088", red)
+red:from_pixel(0xff000088)
 
 -- add a red rectangle
 actor = clutter.rectangle_new_with_color(red)
