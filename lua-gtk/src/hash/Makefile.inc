@@ -32,11 +32,13 @@ $(BINDIR)gnomedev.so: $(ODIR)gnomedev-native.o $(ODIR)hash-functions-native.o \
 
 # -- general rules --
 
-$(ODIR)%-native.$(O): src/hash/%.c $(ODIR)config.h
+$(ODIR)%-native.$O: src/hash/%.c $(ODIR)config.h
 	$I
 	$H ${HOSTCC} ${CFLAGS} -c -o $@ $<
 
 # -- dependencies --
 
-$(ODIR)hash-cmph.o: $(ODIR)config.h include/lg-hash.h
+$(ODIR)hash-cmph.$O: $(ODIR)config.h include/lg-hash.h
+$(ODIR)hash-generate-cmph-native.$O: $(ODIR)config.h include/lg-hash.h
+
 
