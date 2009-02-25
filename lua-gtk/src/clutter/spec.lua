@@ -22,6 +22,8 @@ includes.all = {
 function_flags = {
     clutter_status_to_string = CONST_CHAR_PTR,
     clutter_version_string = CONST_CHAR_PTR,
+    clutter_stage_get_default = CONST_OBJECT,
+    clutter_container_add_actor = { nil, nil, INCREF },
 }
 
 -- extra settings for the module_info structure
