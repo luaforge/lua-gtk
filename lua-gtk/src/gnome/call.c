@@ -408,8 +408,9 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
  * After completing a call to a Gtk function, push the return values
  * on the Lua stack.
  *
- * Note: the stack still contains the parameters to the called function;
- * these are currently not used, though.
+ * @param L  Lua State
+ * @param index  Stack position of the function's first argument.
+ * @param ci  Call Info of the called function.
  */
 static int _call_return_values(lua_State *L, int index, struct call_info *ci)
 {
@@ -439,6 +440,17 @@ static int _call_return_values(lua_State *L, int index, struct call_info *ci)
 
 	ar.arg_type = lg_get_ffi_type(ar.ts);
 	int idx = ar.arg_type->conv_idx;
+
+	/* The INCREF flag means to increase the refcount of a function's
+	 * argument - required when the called function takes ownership
+	 * of the argument without increasing its refcount.  This would lead
+	 * to an invalid decrease in refcount when the Lua proxy object
+	 * is garbage collected. */
+	if (arg_nr > 0 && ar.arg_flags & FLAG_INCREF) {
+	    struct object *o = (struct object*) lua_touserdata(L,
+		index + arg_nr - 1);
+	    lg_inc_refcount(L, o, 0);
+	}
 
 	if (arg_nr == 0) {
 
