@@ -148,6 +148,9 @@ settings are currently known:
    <dt>NOT_NEW_OBJECT</dt>
    <dt>CHAR_PTR</dt>
    <dt>CONST_CHAR_PTR</dt>
+   <dt>INCREF</dt><dd>This flag for function arguments causes the refcount
+    of an object used as argument to be increased after the call.  Use this
+    to handle the case of a function that "uses" an existing reference.</dd>
   </dl>
   Available flags are listed in the file <tt>script/util.lua</tt>.
   </dd>

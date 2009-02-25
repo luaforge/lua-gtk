@@ -15,6 +15,7 @@ function_flag_map = {
     CONST_OBJECT = 1,		-- used
     NOT_NEW_OBJECT = 2,		-- used
     DONT_FREE = 4,		-- used
+    INCREF = 8,			-- used
     CHAR_PTR = 0x1000,		-- used indirectly
     CONST_CHAR_PTR = 0x2000,	-- used indirectly
 }
@@ -24,8 +25,16 @@ function load_config(fname, tbl)
     local chunk
     chunk = assert(loadfile(fname))
     tbl = tbl or {}
+
+    -- catch accesses to undefined variables.
+    setmetatable(tbl, { __index = function(tbl, key)
+	error(string.format("%s: undefined variable: %s", fname, key))
+    end
+    })
+   
     setfenv(chunk, tbl)
     chunk()
+    setmetatable(tbl, nil)
     return tbl
 end
 
