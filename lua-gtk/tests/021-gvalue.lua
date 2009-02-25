@@ -60,3 +60,19 @@ v:unset()
 v:init(glib.TYPE_DOUBLE)
 v:set_double(5.0)
 
+-- test unsigned char and transform
+v:unset()
+v:init(glib.TYPE_UCHAR)
+v:set_uchar(65)
+assert(tostring(v) == "A")
+rc, msg = pcall(function() v:set_uchar("") end)
+assert(not rc)
+v:set_uchar("B")
+assert(tostring(v) == "B")
+v:set_uchar(true)
+
+v2 = glib.new "GValue"
+v2:init(glib.TYPE_UINT)
+v:transform(v2)
+assert(v2:get_uint() == 1)
+
