@@ -298,6 +298,8 @@ static int _get_object_meta_parent(lua_State *L, GType type_nr)
 	 * not registered anywhere, so a linear search would be required
 	 * on the type list.  If found, indicates a problem; the non-native
 	 * type should exist in another module. */
+	if (!strcmp(parent_name, "GBoxed"))
+	    return 1;
 	printf("%s warning: type not found: %s\n", msgprefix, parent_name);
 	return 1;
     }
