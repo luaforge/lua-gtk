@@ -3,10 +3,11 @@
 name = "Clutter"
 pkg_config_name = "clutter-0.8"
 
-include_dirs = { "clutter" }
+include_dirs = { "clutter-0.8" }
 
 libraries = {}
-libraries.linux = { "/usr/lib/libclutter-glx-0.8.so" }
+libraries.linux = { "/usr/lib/libclutter-glx-0.8.so",
+    "/usr/lib/libclutter-cairo-0.8.so" }
 libraries.win32 = { "libclutter-glx-0.8.dll" }
 
 includes = {}
@@ -16,7 +17,10 @@ includes.all = {
     "<clutter/x11/clutter-x11.h>",
     "<clutter/json/json-glib.h>",
     "<clutter/json/json-marshal.h>",
-    "<cogl/cogl.h>",
+    "<clutter-cairo/clutter-cairo.h>",	    -- optional
+--    "<clutter-gtk/gtk-clutter-embed.h>",    -- optional
+--    "<clutter-gtk/gtk-clutter-util.h>",	    -- optional
+    "<cogl/cogl.h>",			    -- optional
 }
 
 function_flags = {
@@ -28,7 +32,6 @@ function_flags = {
 
 -- extra settings for the module_info structure
 module_info = {
-
     prefix_func = '"clutter_"',
     prefix_constant = '"CLUTTER_"',
     prefix_type = '"Clutter"',
