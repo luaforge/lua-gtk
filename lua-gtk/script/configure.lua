@@ -245,7 +245,7 @@ function pkg_config(...)
     while true do
 	s = fh:read "*l"
 	if not s then break end
-	ar[#ar + 1] = s
+	ar[#ar + 1] = string.gsub(s, "^%s*", "")
     end
     return unpack(ar)
 end
@@ -648,6 +648,7 @@ function configure_base()
     summary("Lua Version", _VERSION)
     cfg_l("prefix = \"%s_\"", modname)
     cfg_l("srcdir = \"src/%s\"", modname)
+    cfg_m("CONFIG_ARGS", table.concat(arg, " "))
     detect_architecture()
     arch = arch or host_arch
     check_architecture()
