@@ -127,11 +127,12 @@ ${ODIR}types.xml: script/make-xml.lua $(ODIR)config.h $(ODIR)config.lua $(IDIR)/
 	$I
 	$H script/make-xml.lua "$(ODIR)"
 
-# changed spec.lua - must reconfigure.  Unfortunately, any flags to configure
-# used earlier are not preserved.
+# changed spec.lua - must reconfigure.  This may or may not change config.lua,
+# but to avoid configures every time, the timestamp is updated.
 $(ODIR)config.lua: $(IDIR)/spec.lua
 	$I
-	$H script/configure.lua $(MODULE)
+	$H script/configure.lua $(CONFIG_ARGS) $(MODULE)
+	$H touch "$@"
 
 $(ODIR)%.$O: $(ODIR)%.c
 	$I
