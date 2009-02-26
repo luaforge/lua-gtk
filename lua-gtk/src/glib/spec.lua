@@ -259,6 +259,7 @@ linklist = {
     "g_iconv",
     "g_idle_add",
     "g_object_class_find_property",
+    "g_object_get_property",
     "g_object_set_property",
     "g_object_unref",
     "g_object_ref_sink",
