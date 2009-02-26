@@ -187,7 +187,8 @@ static int lg_generic_index(lua_State *L)
     if (name[0] == '_' && name[1] == '_') {
 	strcpy(symname, name + 2);
 	if (!lg_find_func(L, mi, symname, &fi))
-	    return luaL_error(L, "%s not found: gtk.%s", msgprefix, name);
+	    return luaL_error(L, "%s not found: %s.%s", msgprefix, mi->name,
+		name);
 	goto found;
     }
 
@@ -215,6 +216,10 @@ static int lg_generic_index(lua_State *L)
     // Might be a global variable.  This is not so common, therefore
     // it is not checked for earlier.
     if (lg_find_global(L, mi, symname))
+	return 1;
+
+    // "name" might not need the prefix.
+    if (lg_find_global(L, mi, name))
 	return 1;
     
     // Maybe it's Windows and a function with _utf8 suffix?  While there
