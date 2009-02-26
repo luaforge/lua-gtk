@@ -40,5 +40,6 @@ $(ODIR)%-native.$O: src/hash/%.c $(ODIR)config.h
 
 $(ODIR)hash-cmph.$O: $(ODIR)config.h include/lg-hash.h
 $(ODIR)hash-generate-cmph-native.$O: $(ODIR)config.h include/lg-hash.h
+$(ODIR)hash-lookup.$O: $(ODIR)config.h include/lg-hash.h
 
 
