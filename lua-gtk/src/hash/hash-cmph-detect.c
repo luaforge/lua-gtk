@@ -11,14 +11,13 @@
 
 static int find_cmph_algo(const char *name)
 {
-    int i;
+    const char **s;
 
-    for (i=0; i<CMPH_COUNT; i++) {
-	if (!strcmp(cmph_names[i], name)) {
+    for (s=cmph_names; *s; s++)
+	if (!strcmp(*s, name)) {
 	    printf("%s\n", name);
 	    return 1;
 	}
-    }
 
     return 0;
 }
