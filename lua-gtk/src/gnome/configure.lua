@@ -9,7 +9,7 @@ require "src/hash/hash-conf"
 
 -- Default Settings --
 
-lg_version = "1.0-rc2"
+lg_version = "1.0-rc3"
 debug_funcs = true	    -- include some debugging functions
 
 
