@@ -551,7 +551,7 @@ void *lg_use_closure(lua_State *L, int index, typespec_t ts, int arg_nr,
     struct lua_closure *cl = (struct lua_closure*) lua_touserdata(L, index);
     if (G_UNLIKELY(cl->magic1 != CLOSURE_MAGIC1)) {
 	if (arg_nr)
-	    luaL_argerror(L, arg_nr, "must be a closure, use gtk.closure");
+	    luaL_argerror(L, arg_nr, "must be a closure, use gnome.closure");
 	else
 	    LG_ERROR(7, "Value must be a closure");
     }
