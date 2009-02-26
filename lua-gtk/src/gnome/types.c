@@ -171,6 +171,10 @@ static int lua2ffi_long(struct argconv_t *ar)
     return 1;
 }
 
+/**
+ * An unsigned char can be given as number (ASCII code), a boolean (0/1)
+ * or as a string (first character is used).
+ */
 static int lua2ffi_uchar(struct argconv_t *ar)
 {
     lua_State *L = ar->L;
@@ -182,9 +186,16 @@ static int lua2ffi_uchar(struct argconv_t *ar)
 	case LUA_TBOOLEAN:
 	    ar->arg->uc = (unsigned char) lua_toboolean(L, ar->index);
 	    break;
-	case LUA_TSTRING:
-	    ar->arg->uc = (unsigned char) lua_tostring(L, ar->index)[0];
-	    break;
+	case LUA_TSTRING:;
+	    size_t len;
+	    const char *s = lua_tolstring(L, ar->index, &len);
+	    if (len > 0) {
+		ar->arg->uc = (unsigned char) s[0];
+		break;
+	    }
+	    return LG_ARGERROR(ar->func_arg_nr, 24,
+		"An empty string can't be converted to character.");
+
 	default:
 	    return LG_ARGERROR(ar->func_arg_nr, 11, "Can't convert Lua type %s "
 		"to char", lua_typename(L, ar->lua_type));
@@ -395,7 +406,7 @@ static int lua2ffi_struct_ptr(struct argconv_t *ar)
 
 /**
  * A func* should be passed to a Gtk function.  Either a preallocated closure
- * (obtained by gtk.closure) or a regular Lua function can be used.
+ * (obtained by gnome.closure) or a regular Lua function can be used.
  *
  * For callbacks, the func* argument is often followed by a void* argument
  * which is passed to the callback.  This is already handled properly by
