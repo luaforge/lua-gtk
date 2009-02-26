@@ -135,14 +135,62 @@ static int l_g_object_set_property(lua_State *L)
 }
 
 /**
- * Provide a memory location to store each return value.  This is not possible
- * without an override.
- * XXX not implemented yet
+ * Get one or more properties of the object.  The API differs from the C API,
+ * as each requested value is returned; no need to provide a pointer for each
+ * property where to store the result.
+ *
+ * @param obj  The object to get the properties from
+ * @param name...  Zero or more property names
+ * @return  val... - for each name, one value.
  */
 static int l_g_object_get(lua_State *L)
 {
-    printf("g_object_get: NOT YET IMPLEMENTED\n");
-    return 0;
+    int i, n_top = lua_gettop(L);
+
+    struct object *w = (struct object*) lua_touserdata(L, 1);
+    struct object_type *wt = api->get_object_type(L, w);
+
+    if (!wt) {
+	printf("%s invalid object in l_g_object_set_property.\n",
+	    api->msgprefix);
+	return 0;
+    }
+
+    // this object must be one derived from gobject or gtkwidget.
+    if (strcmp(wt->name, "gobject") && strcmp(wt->name, "gtkwidget")) {
+	printf("%s g_object_set_property on a %s object\n", api->msgprefix,
+	    wt->name);
+	return 0;
+    }
+
+    // the first argument is the object.
+    lua_getmetatable(L, 1);
+    lua_getfield(L, -1, "_gtktype");
+    GType type = lua_tointeger(L, -1);
+    GObjectClass *oclass = (GObjectClass*) g_type_class_ref(type);
+    lua_pop(L, 2);
+
+    for (i=2; i<=n_top; i++) {
+	const gchar *prop_name = luaL_checkstring(L, i);
+
+	// find the property; this searches all parent classes, too.
+	GParamSpec *pspec = g_object_class_find_property(oclass, prop_name);
+	if (!pspec) {
+	    printf("g_object_get_property: no property %s.%s\n",
+		api->get_object_name(w), prop_name);
+	    lua_pushnil(L);
+	    continue;
+	}
+
+	GValue gvalue = { 0 };
+	g_value_init(&gvalue, pspec->value_type);
+	g_object_get_property((GObject*) w->p, prop_name, &gvalue);
+	api->push_gvalue(L, &gvalue);
+	g_value_unset(&gvalue);
+    }
+
+    g_type_class_unref(oclass);
+    return lua_gettop(L) - n_top;
 }
 
 
