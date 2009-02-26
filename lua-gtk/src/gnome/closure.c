@@ -433,6 +433,10 @@ static const char _check_types_whitelist[] =
     // cairo
     "cairo_read_func\0"
     "cairo_write_func\0"
+
+    // clutter
+    "ClutterModelForeachFunc\0"
+    "ClutterCallback\0"
 ;
 
 
