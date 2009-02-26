@@ -482,6 +482,7 @@ function output_fundamental_types(ofname)
     ofile = io.open(ofname, "w")
     ofs = _type_name_add("INVALID")
 
+    ofile:write("/* List of fundamental types.  See include/fundamental.lua */\n")
     ofile:write(string.format("struct ffi_type_map_t ffi_type_map[] = {\n"
 	.. "  { %d, },\n", ofs))
 
