@@ -31,8 +31,7 @@ function setup_cmph()
 	version, cmph_libs, cmph_cflags = pkg_config("--modversion",
 	    "--libs", "--cflags", "cmph")
 	cmph_cflags = cmph_cflags or ""
-
-	if string.match(cmph_cflags, "^%s*$") then cmph_cflags = "" end
+	cmph_cflags = string.gsub(cmph_cflags, "^%s*$", "")
 
 	-- if cmph_cflags is empty, then the includes are in the default
 	-- include path, which is not necessarily used, e.g. for MingW or
