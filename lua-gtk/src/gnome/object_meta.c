@@ -114,7 +114,6 @@ static int _fe_check_struct(lua_State *L, const char *attr_name, typespec_t ts)
 	sizeof(*me) + strlen(attr_name) + 1);
     memset(me, 0, sizeof(*me));
 
-    ts.type_idx = se->type_idx;
     me->ts = ts;		    // typespec of the structure
     me->se = se;
     strcpy(me->name, attr_name);
@@ -466,18 +465,25 @@ static int _find_element(lua_State *L, int must_exist)
  * Given a pointer to a structure and the description of the desired element,
  * push a value onto the Lua stack with this item.
  *
- * Returns the number of pushed items, i.e. 1 on success, 0 on failure.
+ * @param L  Lua State
+ * @param ts  Typespec of the structure containing the element
+ * @param se  Description of the structure element to access
+ * @param ptr  Pointer to the structure
+ * @return  Number of pushed items, i.e. 1 on success, 0 on failure.
+ *
  */
 static int _push_attribute(lua_State *L, typespec_t ts,
     const struct struct_elem *se, unsigned char *ptr)
 {
     const struct ffi_type_map_t *arg_type;
+    typespec_t ts2 = { 0 };
     int idx;
 
     // the type might be non-native.
-    ts.type_idx = se->type_idx;
-    ts = lg_type_normalize(L, ts);
-    arg_type = lg_get_ffi_type(ts);
+    ts2.module_idx = ts.module_idx;
+    ts2.type_idx = se->type_idx;
+    ts2 = lg_type_normalize(L, ts2);
+    arg_type = lg_get_ffi_type(ts2);
 
     idx = arg_type->structconv_idx;
     if (idx && ffi_type_struct2lua[idx]) {
@@ -485,13 +491,13 @@ static int _push_attribute(lua_State *L, typespec_t ts,
 	ar.L = L;
 	ar.se = se;
 	ar.ptr = ptr;
-	ar.ts = ts;
+	ar.ts = ts2;
 	return ffi_type_struct2lua[idx](&ar);
     }
 
-    return luaL_error(L, "%s unhandled attribute type %s (%s.%s)\n",
+    return luaL_error(L, "%s unhandled attribute type %s (%s.%s), idx=%d\n",
 	msgprefix, FTYPE_NAME(arg_type), lg_get_type_name(ts),
-	lg_get_struct_elem_name(ts.module_idx, se));
+	lg_get_struct_elem_name(ts.module_idx, se), idx);
 }
 
 
@@ -630,7 +636,7 @@ static int _write_meta_entry(lua_State *L, int index)
     if (idx && ffi_type_lua2struct[idx]) {
 	struct argconvs_t ar;
 	ar.L = L;
-	ar.ts = me->ts;
+	ar.ts = ts; // me->ts;
 	ar.se = me->se;
 	ar.ptr = w->p;
 	ar.index = index;
@@ -642,7 +648,6 @@ static int _write_meta_entry(lua_State *L, int index)
 	msgprefix, lg_get_object_name(w),
 	lg_get_struct_elem_name(me->ts.module_idx, me->se),
 	modules[ts.module_idx]->name,
-	// modules[me->ts.module_idx]->name,
 	me->ts.type_idx,
 	FTYPE_NAME(arg_type));
 }
