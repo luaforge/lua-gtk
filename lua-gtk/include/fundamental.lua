@@ -60,7 +60,7 @@ fundamental_map = {
     ["short int"] = { "sshort", { "long", "long" } },
 
     ["unsigned char"] = { "uchar",
-	{ "uchar" },
+	{ "uchar", "long" },
 	{ "char_ptr", "char_ptr" },
 	{ "ptr" },
     },
