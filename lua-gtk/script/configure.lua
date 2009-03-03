@@ -58,7 +58,7 @@ function _get_arch_list()
 
     ar = {}
     for name in lfs.dir("script") do
-	base = string.match(name, "^config.(.*)$")
+	base = string.match(name, "^config%.(.*)%.lua$")
 	if base then
 	    ar[#ar + 1] = base
 	end
@@ -72,7 +72,8 @@ function _get_lib_list()
     local ar = {}
     for name in lfs.dir("src") do
 	if string.sub(name, 1, 1) ~= "." and not string.find(name, "%.")
-	    and name ~= "CVS" and name ~= "hash" then
+	    and name ~= "CVS" and name ~= "hash"
+	    and lfs.attributes("src/" .. name, "mode") == "directory" then
 	    ar[#ar + 1] = string.match(name, "^[^.]+")
 	end
     end
@@ -86,8 +87,8 @@ function _get_cpu_list()
 end
 
 function show_help()
-    print(string.format([[Usage: %s [args] [architecture]
-Configure lua-gtk for compilation.
+    print(string.format([[Usage: %s [args] [module]
+Configure LuaGnome for compilation.
 
   --debug            Compile with debugging information (-g)
   --gcov             Compile with gcov (coverage)
@@ -101,7 +102,7 @@ Configure lua-gtk for compilation.
 
 Known architectures: %s.
 Known CPUs: %s.
-Known libraries: %s.
+Known modules: %s.
 
     ]], arg[0], _get_arch_list(), _get_cpu_list(), _get_lib_list()))
 end
@@ -437,11 +438,14 @@ end
 function setup_lua()
     local flags, rc, msg
 
-    if not pkg_config_exists("lua5.1") then
+    -- detect both lua5.1 (Debian) and lua (Fedora), thanks to Gabriel Ramos.
+    if pkg_config_exists"lua5.1" then
+	pkgs_cflags[#pkgs_cflags + 1] = "lua5.1"
+    elseif pkg_config_exists"'lua >= 5.1'" then
+	pkgs_cflags[#pkgs_cflags + 1] = "lua"
+    else
 	return cfg_err("Lua 5.1 headers not installed.")
     end
-
-    pkgs_cflags[#pkgs_cflags + 1] = "lua5.1"
 
     for _, lib in ipairs(required_lua_libs) do
 	rc, msg = pcall(function() require(lib) end)
@@ -608,6 +612,7 @@ function configure_done()
     if show_summary then do_show_summary() end
 end
 
+
 ---
 -- Configure settings required for both the core module and library modules.
 -- Modules can provide additional flags, so read the spec file first, and then
@@ -621,9 +626,16 @@ function configure_main()
 	os.exit(1)
     end
 
+    -- the last argument should be the spec file.  If it is an option,
+    -- e.g. "--help", subtitute the core module for it.
     module_name = table.remove(arg)
-    s = string.match(module_name, "([^/]+)/spec.lua$")
-    module_name = s or module_name
+    if string.sub(module_name, 1, 1) == "-" then
+	arg[#arg + 1] = module_name
+	module_name = "gnome"
+    else
+	s = string.match(module_name, "([^/]+)/spec.lua$")
+	module_name = s or module_name
+    end
 
     spec = load_spec(string.format("src/%s/spec.lua", module_name))
     spec.basename = module_name
@@ -635,7 +647,7 @@ function configure_main()
 	return main()
     end
 
-    configure_base(spec)
+    configure_base()
     configure_done()
 end
 
