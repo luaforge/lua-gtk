@@ -1,10 +1,58 @@
-#! /bin/sh
-# Configure all modules of LuaGnome.
-# Pass extra arguments to all modules.
+#! /usr/bin/env lua
+-- vim:sw=4:sts=4
+-- Configure all modules of LuaGnome.
+-- Pass extra arguments to all modules.
 
-for i in src/*/spec.lua; do
-	script/configure.lua "$@" $i || break
-done
+require "lfs"
 
-echo 'Type "make" to build all modules.'
+function parse_cmdline()
+    local s, last_opt, modules
+
+    -- from the last option forward, detect modules
+    last_opt = #arg
+    for i = #arg, 1, -1 do
+	s = arg[i]
+	if lfs.attributes("src/" .. s .. "/spec.lua", "mode") ~= "file" then
+	    break
+	end
+	last_opt = i - 1
+    end
+
+    modules = { unpack(arg, last_opt + 1) }
+
+    if #modules == 0 then
+	for mod in lfs.dir"src" do
+	    if string.sub(mod, 1, 1) ~= "." and
+		lfs.attributes("src/" .. mod, "mode") == "directory"
+		and lfs.attributes("src/"..mod.."/spec.lua", "mode") == "file"
+		then
+		modules[#modules + 1] = mod
+	    end
+	end
+    end
+
+    return last_opt, modules
+end
+
+function run_sub_configure(last_opt, modules)
+    local cmd, n, rc
+
+    cmd = { "script/configure.lua", unpack(arg, 1, last_opt) }
+    n = #cmd + 1
+    for _, mod in ipairs(modules) do
+	cmd[n] = mod
+	rc = os.execute(table.concat(cmd, " "))
+	if rc ~= 0 then
+	    break
+	end
+    end
+end
+
+function main()
+    local last_opt, modules = parse_cmdline()
+    run_sub_configure(last_opt, modules)
+    print'Type "make" to build all modules.'
+end
+
+main()
 
