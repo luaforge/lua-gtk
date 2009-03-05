@@ -104,12 +104,15 @@ static int l_g_object_set_property(lua_State *L)
 	return 0;
     }
 
+#if 0
     // this object must be one derived from gobject or gtkwidget.
-    if (strcmp(wt->name, "gobject") && strcmp(wt->name, "gtkwidget")) {
+    if (strcmp(wt->name, "gobject") && strcmp(wt->name, "gtkwidget")
+	&& strcmp(wt->name, "ginitiallunowned")) {
 	printf("%s g_object_set_property on a %s object\n", api->msgprefix,
 	    wt->name);
 	return 0;
     }
+#endif
 
     lua_getmetatable(L, 1);
     lua_getfield(L, -1, "_gtktype");
@@ -156,12 +159,14 @@ static int l_g_object_get(lua_State *L)
 	return 0;
     }
 
+#if 0
     // this object must be one derived from gobject or gtkwidget.
     if (strcmp(wt->name, "gobject") && strcmp(wt->name, "gtkwidget")) {
 	printf("%s g_object_set_property on a %s object\n", api->msgprefix,
 	    wt->name);
 	return 0;
     }
+#endif
 
     // the first argument is the object.
     lua_getmetatable(L, 1);
