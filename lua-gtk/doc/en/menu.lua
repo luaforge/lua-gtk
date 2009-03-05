@@ -19,6 +19,7 @@ menu = {
 	{ "gnome", "Gnome functions" },
 	{ "call", "Function calls" },
 	{ "closure", "Closures" },
+	{ "objects", "Objects" },
 	{ "vararg", "Variable Argument List" },
 	{ "boxed", "Boxed Values" },
 	{ "voidptr", "Void Pointer Handling" },
