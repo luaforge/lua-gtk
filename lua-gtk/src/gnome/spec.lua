@@ -18,6 +18,7 @@ linklist = {
     "g_mem_gc_friendly",
     "g_mem_profile",
     "g_mem_set_vtable",
+    "g_object_is_floating",	    -- in object.c
     "g_object_ref_sink",
     "g_realloc",
     "g_slice_alloc",
