@@ -68,7 +68,7 @@ function MainWin.new()
     -- list within a scrolled window
     local sw = gtk.scrolled_window_new(nil, nil)
     sw:set_policy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
-    vbox:pack_start_defaults(sw)
+    vbox:pack_start(sw, true, true, 0)
     self.tree_view = gtk.tree_view_new()
     sw:add(self.tree_view)
     local sel = self.tree_view:get_selection()

@@ -30,7 +30,7 @@ function Mainwin.init()
 
 	self.notebook = gtk.notebook_new()
 	self.notebook:connect('switch-page', Mainwin.on_switch_page)
-	vbox:pack_start_defaults(self.notebook)
+	vbox:pack_start(self.notebook, true, true, 0)
 	
 	self.statusbar = gtk.statusbar_new()
 	vbox:pack_start(self.statusbar, false, true, 0)

@@ -20,7 +20,7 @@ function build_gui()
     for id, lbl in ipairs { "One", "Two", "Three", "Four" } do
 	r = gtk.radio_button_new_with_label(grp, lbl)
 	r._id = id
-	vbox:pack_start_defaults(r)
+	vbox:pack_start(r, true, true, 0)
 	-- get the start of the list.
 	grp = r:get_group()
     end
@@ -40,7 +40,7 @@ function build_gui()
 	gtk.main_quit()
     end)
 
-    vbox:pack_start_defaults(b)
+    vbox:pack_start(b, true, true, 0)
 
     w:show_all()
 end
