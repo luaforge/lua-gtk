@@ -27,9 +27,7 @@ function_flags = {
     clutter_status_to_string = CONST_CHAR_PTR,
     clutter_version_string = CONST_CHAR_PTR,
     clutter_stage_get_default = CONST_OBJECT,
-    clutter_container_add_actor = { nil, nil, INCREF },
     clutter_entry_get_layout = CONST_OBJECT,
-    clutter_behaviour_opacity_new = { nil, INCREF },
 }
 
 linklist = {
