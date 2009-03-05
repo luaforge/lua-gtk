@@ -33,9 +33,10 @@ lua2ffi_void_ptr (in src/voidptr.c):
    easy to implement, so it's there. </li>
  <li>an object, like GtkLabel in the example above: the pointer to the Gtk
    object is used. </li>
- <li>other userdata: can be a constant (enum), a void* wrapper, a boxed value,
-   or some arbitrary userdata (a warning is printed).  </li>
- <li>arbitrary Lua value: must be wrapped, see below. </li>
+ <li>other userdata: can be a constant (enum), a void* wrapper, a
+   <a href="boxed.html">boxed value</a>, or some arbitrary userdata (a warning
+   is printed). </li>
+ <li>any other Lua type: must be wrapped, see below. </li>
 </ul>
 
 <h3>Void* Wrapper</h3>
@@ -111,6 +112,36 @@ useful if it's a table, for example.
 a GValue, like gtk_tree_model_set_value, you need to use a
 <a href="boxed.html">Boxed Value</a>.
 </p>
+
+<h3>The Wrapper Object</h3>
+
+<p>The wrapper object, which is the top box in the diagram above, is a
+Lua userdata that allows to access the Lua value (bottom box in the diagram).
+It offers the following methods:
+</p>
+
+<dl>
+ <dt>.value</dt>
+ <dd>When accessing wrapper.value, the Lua value is returned.</dd>
+
+ <dt>:destroy()</dt>
+ <dd>Calling this method decreases the reference count of the void*
+ wrapper.</dd>
+
+ <dt>.anything, [n]</dt>
+ <dd>For any other index of any type (numeric, string, ...), this index
+ request is passed to the wrapped Lua value.  This works if this Lua value
+ is a table or userdata.</dd>
+
+</dl>
+
+<p>
+Note that if you want to access a field named "value" or "destroy" in the
+wrapped Lua object, you have to use wrapper.value.value or
+wrapper.value.destroy instead.  If you use a variable as index, be on the
+safe side and use wrapper.value[index].
+</p>
+
 
 <h3>Functions</h3>
 
