@@ -835,3 +835,55 @@ arguments.
 * some fundamental types added to glib, like FILE, size_t, time_t.  Other modules may still complain during building but these types are now available.
 * all of the files now checked into CVS.
 
+
+2009-01-11
+* lua-bit library replaced by bitop from luajit
+
+2009-01-12
+* arg_flag handling starting to be modularized
+
+
+2009-01-15
+* script/gen-html.lua Windows safe, and generates a sorted index of keywords
+* bug fixed in the lookup of globals
+* upload of all documentation files to CVS
+* upload of current documentation to lua-gtk.luaforge.net
+
+2009-02-02
+* script/gen-html.lua now supports cross references and anchors
+
+2009-02-11
+* new module gtkspell to support this library.
+
+2009-02-18
+* parse-xml.lua: now works with Gtk 2.14, too.
+
+2009-02-22
+* write to char* fields of structures.  probable memory leak...
+
+2009-02-24
+* added support for the clutter library as suggested and implemented by Michal Kolodziejczyk
+
+2009-02-25
+* handling of reference counting for a few clutter functions
+* gnome: reading/writing structure elements of type uchar now works
+
+2009-02-26
+* clutter: some more overrides and demo programs
+* gnome: fixed the message that recommends the use of gtk.closure (now in gnome)
+* clutter: more tests added in src/clutter
+* clutter: various improvements
+* glib: implementation of g_object_get
+
+2009-03-03
+* configure: detect module names and configure only those modules
+
+2009-03-05
+* gnome: arguments of type "double*" can now be an output argument
+* remove special refcounting for GtkObject, instead do this for GInitiallyUnowned. This fixes refcounting problems for Clutter.
+* more documentation on void ptr
+* documentation on objects
+* replace gtk_box_pack_start_defaults with calls to gtk_box_pack_start, as the former method is deprecated in Gtk 2.14.
+* clutter: removal of the superfluous overrides with INCREF
+* clutter: demo test002.lua that shows rotating hands
+* method obj:get_type() added
