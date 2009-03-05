@@ -330,12 +330,26 @@ static int l_object_compare(lua_State *L)
     return w1->p == w2->p;
 }
 
+/**
+ * Return the object's type name.
+ */
+static int l_object_get_type(lua_State *L)
+{
+    struct object *o = (struct object*) lua_touserdata(L, 1);
+    // GType gtype = G_TYPE_FROM_INSTANCE(o->p);
+    // lua_pushstring(L, g_type_name(gtype));
+    lua_pushstring(L, lg_get_object_name(o));
+    return 1;
+}
+
+
 static const luaL_reg object_methods[] = {
     { "__index",    lg_object_index },
     { "__newindex", lg_object_newindex },
     { "__tostring", lg_object_tostring },
     { "__gc",	    l_object_gc },
     { "__eq",	    l_object_compare },
+    { "get_type",   l_object_get_type },
     { NULL, NULL }
 };
 
@@ -569,8 +583,6 @@ void lg_get_object(lua_State *L, void *p, typespec_t ts, int flags)
 	    luaL_error(L, "%s lg_get_object called with non-native "
 		"type %d.%d", msgprefix, ts.module_idx, ts.type_idx);
     }
-
-    // ts = lg_type_normalize(L, ts);
 
     // translate the address to a reference in the aliases table
     lua_getglobal(L, LUAGTK_TBL);
