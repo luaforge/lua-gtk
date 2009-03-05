@@ -1,0 +1,54 @@
+
+<p>
+A special data type is the <i>object</i>, which is often a widget, i.e. an
+area on screen which is part of a GUI, e.g. a label, button etc.
+</p>
+
+<p>
+In Glib-based libraries, all objects are derived from the base class
+<i>GObject</i>.  These are handled specially in following ways:
+</p>
+
+<dl>
+
+ <dt>Method Invocation</dt>
+ <dd>When you call a method on an object, e.g. win:set_title(), then
+ a function name is constructed from the object's type and the method
+ name, in this case gtk_window_set_title(). </dd>
+
+ <dt>Reference Counting</dt>
+ <dd>GObjects have reference counts, which are generally managed automatically
+ by LuaGnome so you don't have to worry about them.  In some corner cases
+ you may have to think about it, mostly that you keep a Lua proxy object
+ around until the referenced object isn't required anymore.</dd>
+
+ <dt>Additional Methods</dt>
+ <dd>Some operations on objects are handled through C macros, which are not
+ available - only functions are.  Therefore, a few extra methods are
+ defined:
+  <ul>
+   <li>get_type(): returns the name of the object's class</li>
+  </ul>
+ </dd>
+
+ <dt>Data Storage</dt>
+ <dd>Each Lua proxy object (a userdata) can store arbitrary key/value pairs
+ in its environment, which is a regular Lua table attached to such proxy
+ objects.  As long as you keep the proxy object, this data is retained, even
+ if this is an argument to a callback - the same proxy object will be
+ reused, and retains the data. </dd>
+
+ <dt>Access to structure fields</dt>
+ <dd>Any GObject and derived objects have an underlying C structure; all the
+ fields can be read and written by simply accessing them just as you would
+ for a Lua table.</dd>
+
+ <dt>Type casting</dt>
+ <dd>It is possible to cast a type to another by using the function
+ <b>gnome.cast</b>, e.g. when you have a GdkEvent e and know by inspecting
+ e.type that this is a key event, you can call e = gnome.cast(e, "GdkEventKey")
+ to get access to key specific fields.
+ </dd>
+
+</dl>
+
