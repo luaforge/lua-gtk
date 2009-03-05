@@ -117,38 +117,34 @@ void gtk_call_hook(lua_State *L, struct func_info *fi)
 }
 
 
+#ifdef GTK_OLDER_THAN_2_10
+
 /**
- * Handler for GTK_IS_OBJECT objects.
- * This is almost the same as the GObject handler, but uses gtk_object_ref_sink
- * for older GTK libraries.
+ * Handler for GtkObject derived objects.
+ * This is almost the same as the GInitiallyUnowned handler, but uses
+ * gtk_object_ref_sink for older GTK libraries.
  */
 static int _gtkwidget_handler(struct object *w, object_op op, int flags)
 {
+    static GType gtk_type = 0;
+
     switch (op) {
 	case WIDGET_SCORE:
 	    if (flags & FLAG_ALLOCATED)
 		return 0;
 	    GType type_nr = g_type_from_name(api->get_object_name(w));
-	    GType type_of_gobject = g_type_from_name("GObject");
-	    if (!g_type_is_a(type_nr, type_of_gobject))
-		return 0;
-	    if (GTK_IS_OBJECT(w->p))
-		return 101;
-	    return 0;
+	    if (!gtk_type)
+		gtk_type = g_type_from_name("GtkObject");
+	    return g_type_is_a(type_nr, gtk_type) ? 101 : 0;
 
 	case WIDGET_GET_REFCOUNT:
 	    return ((GObject*)w->p)->ref_count;
 
 	case WIDGET_REF:
-#ifdef GTK_OLDER_THAN_2_10
 	    // GtkObjects are created with a floating ref, so this code
 	    // works no matter whether it is a new or existing object.
 	    g_object_ref(w->p);
 	    gtk_object_sink((GtkObject*) w->p);
-#else
-	    // GtkObject derived objects are referenced when new.
-	    g_object_ref_sink(w->p);
-#endif
 	    break;
 
 	case WIDGET_UNREF:;
@@ -166,10 +162,15 @@ static int _gtkwidget_handler(struct object *w, object_op op, int flags)
     return -1;
 }
 
+#endif
+
+
 int luaopen_gtk(lua_State *L)
 {
     int rc = load_gnome(L);
+#ifdef GTK_OLDER_THAN_2_10
     api->register_object_type("gtkwidget", _gtkwidget_handler);
+#endif
     return rc;
 }
 
