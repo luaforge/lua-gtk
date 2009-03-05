@@ -786,6 +786,16 @@ static int lua2ffi_double_ptr(struct argconv_t *ar)
 	return 1;
     }
 
+    /* input/output argument */
+    if (ar->lua_type == LUA_TNUMBER) {
+	double *a = (double*) call_info_alloc_item(ar->ci, sizeof(*a));
+	*a = lua_tonumber(L, index);
+	ar->arg->p = (void*) a;
+	ar->ci->args[ar->func_arg_nr].is_output = 1;
+	return 1;
+    }
+
+
     /* A table should be given. */
     if (ar->lua_type != LUA_TTABLE)
 	luaL_error(L, "%s table or nil expected for the double* argument.",
@@ -803,6 +813,16 @@ static int lua2ffi_double_ptr(struct argconv_t *ar)
 
     ar->arg->p = (void*) a;
     return 1;
+}
+
+static int ffi2lua_double_ptr(struct argconv_t *ar)
+{
+    if (ar->ci->args[ar->func_arg_nr].is_output) {
+	double *a = (double*) ar->arg->p;
+	lua_pushnumber(ar->L, *a);
+	return 1;
+    }
+    return 0;
 }
 
 
@@ -960,8 +980,8 @@ static int ffi2lua_char_ptr(struct argconv_t *ar)
  * It seems that functions that match the pattern gtk_*_get_ return existing
  * objects.  This is just a guess, I haven't verified them all, and maybe
  * there are others that also return existing objects but don't match this
- * naming pattern.  Currently 181 functions match this:
- * grep -c '^struct\*.* gtk_.*_get_' funclist
+ * naming pattern.  Currently 174 functions match this:
+ * grep -c '^Gtk.*gtk_.*_get_' funclist-gtk
  *
  * Note that computing the flags in this way is only relevant when the Lua
  * proxy object doesn't exist yet, but that is determined later.  OTOH
@@ -981,7 +1001,7 @@ static int _determine_flags(struct argconv_t *ar)
     // This heuristic assumes that gtk_xxx_get_yyy functions return non-new
     // objects, so that their refcount needs to be increased.  This makes
     // no difference for GObject derived objects, as they have a floating
-    // reference.  There are more than 1000 functions matching this pattern,
+    // reference.  There are more than 150 functions matching this pattern,
     // and it would be cumbersome to tag each of them with an argument flag.
 
     const char *name = ar->ci->fi->name;
@@ -1724,7 +1744,7 @@ const ffi2lua_t ffi_type_ffi2lua[] = {
     NULL,			// FFI2LUA_PTR
     NULL,			// FFI2LUA_VARARG
     NULL,			// FFI2LUA_FUNC_PTR
-    NULL,			// FFI2LUA_DOUBLE_PTR
+    &ffi2lua_double_ptr,
 };
 
 const lua2struct_t ffi_type_lua2struct[] = {
