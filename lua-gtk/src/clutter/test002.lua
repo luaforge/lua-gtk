@@ -10,7 +10,7 @@ stage_w = 800
 stage_h = 800
 radius = math.sqrt(stage_w * stage_h) / 3
 hands = {}
-mydir = string.gsub(arg[0], "/[^/]+$", "")
+imgfile = string.gsub(arg[0], "[%w.]+$", "redhand.png")
 
 -- Input handler
 function input_cb(stage, event)
@@ -94,8 +94,7 @@ function test_actors_main()
 
     for i = 1, n_hands do
 	if i == 1 then
-	    hand, err = clutter.texture_new_from_file(mydir .. "/redhand.png",
-		gnome.NIL)
+	    hand, err = clutter.texture_new_from_file(imgfile, gnome.NIL)
 	    if not hand then error(err.message) end
 	    w = hand:get_width()
 	    h = hand:get_height()
