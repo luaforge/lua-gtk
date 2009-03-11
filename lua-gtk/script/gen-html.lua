@@ -647,7 +647,7 @@ function _read_file(path)
     path1 = string.sub(path, #input_dir + 2)
     _mkdir(output_dir .. "/" .. path1)
 
-    basename = string.match(path, "([a-z0-9_]+)%.html$")
+    basename = string.match(path, "([a-z0-9_-]+)%.html$")
     if basename then
 	if basename == "template" then return end
 	menu_entry = assert(config.menu_index[basename],
