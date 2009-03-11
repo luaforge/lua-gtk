@@ -421,10 +421,17 @@ static int lua2ffi_func_ptr(struct argconv_t *ar)
 	ar->arg->p = NULL;
 	return 1;
 
-	// For a function, create a temporary closure.  It is added to the
-	// Lua stack (stack_curr_top is incremented), so that it can't be
-	// garbage collected until the library function is done.
+	// If a function is given, and it actually is a closure for the
+	// C function "lg_call_wrapper", then use the function that is
+	// being pointed to directly.
 	case LUA_TFUNCTION:
+	if (lg_use_c_closure(ar))
+	    return 1;
+	
+	// Not a C function, but a Lua function, or a non-library C function:
+	// create a temporary closure.  It is added to the Lua stack
+	// (stack_curr_top is incremented), so that it can't be garbage
+	// collected until the library function is done.
 	lg_create_closure(ar->L, ar->index, 1);
 	ar->stack_curr_top ++;
 	index = -1;
