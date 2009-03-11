@@ -144,6 +144,7 @@ struct dynlink {
     linkfuncptr *dynlink_table;
     int dll_count;				// length of dll_list
     void **dl_handle;				// array of handles
+    void *dl_self_handle;			// handle of module's .so
 };
 
 /* dll_list is needed when the libraries are to be dynamically loaded.
@@ -298,6 +299,7 @@ struct lg_enum_t {
 #define RUNTIME_GMEM_PROFILE	    8	/* enable g_mem_profile */
 #define RUNTIME_VALGRIND	    16	/* valgrind friendly */
 #define RUNTIME_DEBUG_CLOSURES	    32	/* don't free closures until end */
+#define RUNTIME_PROFILE		    64	/* runtime profiling */
 
 #ifdef RUNTIME_LINKING
 #include "link.h"
