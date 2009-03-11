@@ -333,7 +333,7 @@ function check_architecture()
 end
 
 function cfg_m(name, value)
-    if value then
+    if value ~= nil then
 	if type(value) == "boolean" then
 	    value = value and "1" or "0"
 	end
