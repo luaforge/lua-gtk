@@ -541,7 +541,7 @@ static void _setup_closure(lua_State *L, struct lua_closure *cl,
  * setup the ffi closure.
  *
  * @param L  Lua state
- * @param index  Stack position of a Lua function
+ * @param index  Stack position of a closure
  * @param ts  The typespec (and therefore, signature) of the function to call
  * @param arg_nr  If this is an argument to a function, which argument
  * @param func_name  Name of the called function, or structure element name
@@ -577,7 +577,6 @@ void *lg_use_closure(lua_State *L, int index, typespec_t ts, int arg_nr,
  #endif
 #endif
 }
-
 
 /**
  * Create a new userdata representing a closure.  The function signature will
