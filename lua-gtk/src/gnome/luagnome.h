@@ -237,7 +237,7 @@ struct call_info {
 // in data.c
 void lg_create_fundamental_map(lua_State *L);
 int lg_register_module(lua_State *L, struct module_info *mi);
-int lg_dl_init(struct dynlink *dyn);
+int lg_dl_init(lua_State *L, struct dynlink *dyn);
 int lg_make_func_name(char *buf, int buf_size, const char *class_name,
     const char *attr_name);
 GType lg_gtype_from_name(lua_State *L, cmi mi, const char *s);
@@ -330,6 +330,7 @@ void lg_done_closure();
 int lg_create_closure(lua_State *L, int index, int is_automatic);
 void *lg_use_closure(lua_State *L, int index, typespec_t ts,
     int arg_nr, const char *func_name);
+int lg_use_c_closure(struct argconv_t *ar);
 
 // gvalue.c
 void lg_lua_to_gvalue_cast(lua_State *L, int index, GValue *gv, GType gtype);
