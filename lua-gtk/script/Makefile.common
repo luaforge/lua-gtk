@@ -101,6 +101,7 @@ wc:
 DEP	:=include/common.h include/module.h $(ODIR)config.h
 
 ifeq ($(DYNLINK), 0)
+LIBS	+=$(GTK_LIBS)
 else
 OFILES	+=link
 DEP	+=$(ODIR)link.h
