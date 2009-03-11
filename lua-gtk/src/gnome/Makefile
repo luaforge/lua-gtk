@@ -14,6 +14,9 @@ include src/hash/Makefile.inc
 BINDIR	:=build/$(ARCH)
 LIBS	+=$(LIBFFI_LIB)
 
+ifeq ($(DYNLINK), 0)
+  LIBS	+=$(GTK_LIBS)
+endif
 
 # XXX
 # if DYNLINK==0, LIBS:=$(GTK_LIBS)
@@ -114,7 +117,7 @@ funclist: all $(ODIR)functions.txt
 
 # -- dependencies --
 
-DEP	+=$(IDIR)/luagnome.h
+DEP	+=$(IDIR)/luagnome.h include/common.h
 
 ${ODIR}call.$O: ${ODIR}lg_ffi.h $(DEP)
 ${ODIR}closure.$O: $(DEP)
