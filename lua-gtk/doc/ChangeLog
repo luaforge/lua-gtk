@@ -887,3 +887,12 @@ arguments.
 * clutter: removal of the superfluous overrides with INCREF
 * clutter: demo test002.lua that shows rotating hands
 * method obj:get_type() added
+
+2009-03-11
+* glib: override for g_object_set - correctly convert datatypes, omit last nil
+* gnome: use library functions as closures directly
+* clutter: examples moved to tests/clutter
+* clutter: new example 006-carousel
+* gnome: load libraries with RTLD_GLOBAL (required by clutter)
+* gnome: when not using dynlink, determine the module's handle
+
