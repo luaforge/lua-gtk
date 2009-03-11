@@ -5,8 +5,9 @@
 if use_dynlink then
     use_liblist = true
 else
-    -- XXX this is not true when compiling other libraries!
-    gtk_libs = pkg_config("--libs", "gtk+-2.0")
+    assert(spec)
+    assert(spec.pkg_config_name)
+    gtk_libs = pkg_config("--libs", spec.pkg_config_name)
 end
 
 
