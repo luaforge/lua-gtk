@@ -687,6 +687,7 @@ static const struct _debug_flags {
     { "gmem", 1, RUNTIME_GMEM_PROFILE },
     { "valgrind", 1, RUNTIME_VALGRIND },
     { "closure", 0, RUNTIME_DEBUG_CLOSURES },
+    { "profile", 0, RUNTIME_PROFILE },
     { NULL, 0 }
 };
 
