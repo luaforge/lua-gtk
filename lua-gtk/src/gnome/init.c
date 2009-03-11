@@ -53,6 +53,8 @@ static int lg_call_wrapper(lua_State *L)
  * static, which is for elements of structures, or dynamically created, as
  * is the case for regular library functions.
  *
+ * XXX when alloc_fi is not 0, when will this memory be freed again?
+ *
  * @param L  Lua State
  * @param fi  Function Info with name, address and signature
  * @param alloc_fi  0=use fi as-is; 1=duplicate the structure; 2=also duplicate
@@ -62,7 +64,7 @@ int lg_push_closure(lua_State *L, const struct func_info *fi, int alloc_fi)
 {
     int name_len;
     struct func_info *fi2;
-
+    
     switch (alloc_fi) {
 	case 0:
 	lua_pushlightuserdata(L, (void*) fi);
@@ -88,6 +90,38 @@ int lg_push_closure(lua_State *L, const struct func_info *fi, int alloc_fi)
     lua_pushcclosure(L, lg_call_wrapper, 1);
     return 1;
 }
+
+
+/**
+ * A function should be used as a function pointer.  If this is a C closure
+ * to a library function, we can use that library function's address directly.
+ * This avoids a C closure for a Lua closure, the invocation of which would
+ * look like this: FFI closure -> closure_handler -> lg_call_wrapper -> library
+ * function.
+ *
+ * @return  1 on success, i.e. ar->arg->p has been set to the C function, or 0
+ *  otherwise.
+ */
+int lg_use_c_closure(struct argconv_t *ar)
+{
+    lua_State *L = ar->L;
+
+    lua_CFunction func = lua_tocfunction(L, ar->index);
+    if (!func || func != &lg_call_wrapper)
+	return 0;
+
+    // the first upvalue of this closure is a struct fi
+    if (lua_getupvalue(L, ar->index, 1)) {
+	struct func_info *fi = (struct func_info*) lua_touserdata(L, -1);
+	ar->arg->p = fi->func;
+	lua_pop(L, 1);
+	return 1;
+    }
+
+    return 0;
+}
+
+
 
 
 /**
@@ -189,7 +223,7 @@ static int lg_generic_index(lua_State *L)
 	if (!lg_find_func(L, mi, symname, &fi))
 	    return luaL_error(L, "%s not found: %s.%s", msgprefix, mi->name,
 		name);
-	goto found;
+	goto found_func;
     }
 
     // Check for an override (with the function prefix).
@@ -207,11 +241,11 @@ static int lg_generic_index(lua_State *L)
 
     // Otherwise, simply look it up
     if (lg_find_func(L, mi, symname, &fi))
-	goto found;
+	goto found_func;
 
     // maybe it's a function but with the prefix already added.
     if (*mi->prefix_func && lg_find_func(L, mi, name, &fi))
-	goto found;
+	goto found_func;
     
     // Might be a global variable.  This is not so common, therefore
     // it is not checked for earlier.
@@ -229,13 +263,13 @@ static int lg_generic_index(lua_State *L)
     strcat(symname, "_utf8");
     // sprintf(symname, "%s%s_utf8", prefix_func, name);
     if (lg_find_func(L, mi, symname, &fi))
-	goto found;
+	goto found_func;
 #endif
 
     // Not found.
     return luaL_error(L, "%s not found: %s.%s", msgprefix, mi->name, name);
 
-found:;
+found_func:;
     lg_push_closure(L, &fi, 2);
 
     // cache the result of this lookup, using the key given by the user,
@@ -541,9 +575,8 @@ int luaopen_gnome(lua_State *L)
 {
     // get this module's name, then discard the argument.
     lib_name = strdup(lua_tostring(L, 1));
+    lg_dl_init(L, &gnome_dynlink);
     lua_settop(L, 0);
-
-    lg_dl_init(&gnome_dynlink);
     lg_debug_flags_global(L);
 
     g_type_init();
