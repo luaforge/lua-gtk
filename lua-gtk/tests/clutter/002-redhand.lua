@@ -10,7 +10,7 @@ stage_w = 800
 stage_h = 800
 radius = math.sqrt(stage_w * stage_h) / 3
 hands = {}
-imgfile = string.gsub(arg[0], "[%w.]+$", "redhand.png")
+imgfile = string.gsub(arg[0], "[%w.-]+$", "redhand.png")
 
 -- Input handler
 function input_cb(stage, event)
