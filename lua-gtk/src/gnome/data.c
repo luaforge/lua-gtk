@@ -706,41 +706,13 @@ static void _update_typemap_hash(lua_State *L, struct module_info *mi)
 	    msgprefix, mi->name);
 }
 
-/**
- * A module_info must be initialized now.  This includes setting up the
- * mapping of fundamental types, making a sorted list of types, and
- * adding it to the global list of modules.
- */
-static void _register_module(lua_State *L, struct module_info *mi)
-{
-    const char *depends = mi->depends;
-
-    if (depends) {
-	while (*depends) {
-	    lua_getglobal(L, "require");
-	    lua_pushstring(L, depends);
-	    lua_call(L, 1, 0);
-	    depends += strlen(depends) + 1;
-	}
-    }
-
-    /*
-    if (!mi->type_count_ptr)
-	luaL_error(L, "%s internal error: module %s didn't set type_count_ptr",
-	    msgprefix, mi->name);
-	
-    mi->type_count = *mi->type_count_ptr;
-    */
-
-    lg_dl_init(&mi->dynlink);
-
-    _map_fundamental_names(L, mi);
-}
 
 /**
  * Add a module to the module list.
  * This also creates a global table for that module:
  *  { new, new_array, _modinfo }
+ *
+ * @luaparam module_name
  */
 int lg_register_module(lua_State *L, struct module_info *mi)
 {
@@ -754,7 +726,20 @@ int lg_register_module(lua_State *L, struct module_info *mi)
 	    LUAGNOME_MODULE_MAJOR, LUAGNOME_MODULE_MINOR,
 	    mi->name, mi->major, mi->minor);
 
-    _register_module(L, mi);
+    const char *depends = mi->depends;
+
+    if (depends) {
+	while (*depends) {
+	    lua_getglobal(L, "require");
+	    lua_pushstring(L, depends);
+	    lua_call(L, 1, 0);
+	    depends += strlen(depends) + 1;
+	}
+    }
+
+    lg_dl_init(L, &mi->dynlink);
+
+    _map_fundamental_names(L, mi);
 
     // add to pointer array modules[].  Note that it is 1-based, and therefore
     // one dummy entry is allocated at the beginning.
@@ -873,13 +858,18 @@ cmi lg_get_module(lua_State *L, const char *module_name)
  */
 static void *_find_symbol(const struct dynlink *dyn, const char *name)
 {
-    // compile-time linked?  Note: not possible on windows.
-    if (!dyn->dll_list)
-	return DLLOOKUP(NULL, name);
+    void *p = NULL;
+
+    // compile-time linked?  Note: not possible on Windows.
+    if (!dyn->dll_list) {
+	p = DLLOOKUP(dyn->dl_self_handle, name);
+	if (!p && dyn->dl_self_handle)
+	    p = DLLOOKUP(NULL, name);
+	return p;
+    }
 
     /* use the list of available handles */
     int i;
-    void *p = NULL;
 
     for (i=0; i<dyn->dll_count; i++)
 	if ((p = DLLOOKUP(dyn->dl_handle[i], name)))
@@ -903,6 +893,8 @@ int lg_find_global(lua_State *L, const struct module_info *mi, const char *name)
     int len = strlen(name), len2;
     const unsigned char *p = (const unsigned char*) mi->globals;
 
+    // each entry in mi->globals is a zero-terminated string followed
+    // by two bytes of type_idx.
     while (*p) {
 	len2 = strlen((const char*) p);
 	if (len == len2 && !memcmp(p, name, len))
@@ -970,7 +962,7 @@ static void unavailable_function()
 #ifdef LUAGTK_linux
 static void *dll_load(struct dynlink *dyn, const char *name)
 {
-    return dlopen(name, RTLD_LAZY);
+    return dlopen(name, RTLD_LAZY | RTLD_GLOBAL);
 }
 #endif
 
@@ -986,15 +978,50 @@ static void *dll_load(struct dynlink *dyn, const char *name)
 
 
 /**
+ * Find out what the handle is for the module shared object.  This is important
+ * because _find_symbol needs this handle for DLLOOKUP to find the symbols
+ * in the linked library.  Unfortunately, Lua stores this handle in an
+ * almost inaccessible location: in the registry with a key that is
+ * a string derived from the full path name of the dynamic library.
+ *
+ * If the handle can be found, it is stored in dyn->dl_self_handle.
+ */
+static int _find_my_handle(lua_State *L, struct dynlink *dyn)
+{
+    const char *libname = luaL_checkstring(L, 1), *s;
+
+    lua_pushnil(L);
+    while (lua_next(L, LUA_REGISTRYINDEX)) {
+	if (lua_type(L, -2) == LUA_TSTRING) {
+	    s = lua_tostring(L, -2);
+	    if (strstr(s, libname)) {
+		void **handle = (void**) lua_touserdata(L, -1);
+		if (handle)
+		    dyn->dl_self_handle = *handle;
+		lua_pop(L, 2);
+		break;
+	    }
+	}
+	lua_pop(L, 1);
+    }
+
+    return 0;
+}
+
+/**
  * Load the dynamic libraries.  Returns 0 on error.
  *
  * On Linux with automatic linking, nothing has to be done; the dynamic linker
  * already has loaded libgtk+2.0 and its dependencies.
  *
  * Note: do _not_ use any functions that are runtime linked, e.g. g_malloc.
+ *
+ * @param module_name  Name of the module that is being loaded (from require)
  */
-int lg_dl_init(struct dynlink *dyn)
+int lg_dl_init(lua_State *L, struct dynlink *dyn)
 {
+    _find_my_handle(L, dyn);
+
     if (dyn->dll_list) {
 	const char *dlname;
 	int cnt;
