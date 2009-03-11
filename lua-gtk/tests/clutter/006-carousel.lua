@@ -145,6 +145,7 @@ end
 function on_scroll_event(actor, event)
     if not timeline:is_playing() then
 	running = (event.scroll.direction == clutter.SCROLL_UP) and -1 or 1
+	stop_from_pos = 0
 	rotate_items()
     end
 end
