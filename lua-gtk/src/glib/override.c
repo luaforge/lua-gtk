@@ -82,19 +82,7 @@ static int l_g_object_get_class_name(lua_State *L)
     return 1;
 }
 
-
-/**
- * Set a property of an object.  The difficulty is to first convert the value
- * to a GValue of the correct type, because that is what the GLib function
- * expects.
- *
- * @name g_object_set_property
- * @luaparam object   Object derived from GObject
- * @luaparam property_name
- * @luaparam value    The value to set the property to
- */
-static int l_g_object_set_property(lua_State *L)
-{
+#if 0
     struct object *w = (struct object*) lua_touserdata(L, 1);
     struct object_type *wt = api->get_object_type(L, w);
 
@@ -103,16 +91,6 @@ static int l_g_object_set_property(lua_State *L)
 	    api->msgprefix);
 	return 0;
     }
-
-#if 0
-    // this object must be one derived from gobject or gtkwidget.
-    if (strcmp(wt->name, "gobject") && strcmp(wt->name, "gtkwidget")
-	&& strcmp(wt->name, "ginitiallunowned")) {
-	printf("%s g_object_set_property on a %s object\n", api->msgprefix,
-	    wt->name);
-	return 0;
-    }
-#endif
 
     lua_getmetatable(L, 1);
     lua_getfield(L, -1, "_gtktype");
@@ -136,6 +114,7 @@ static int l_g_object_set_property(lua_State *L)
     g_type_class_unref(oclass);
     return 0;
 }
+#endif
 
 /**
  * Get one or more properties of the object.  The API differs from the C API,
@@ -154,19 +133,9 @@ static int l_g_object_get(lua_State *L)
     struct object_type *wt = api->get_object_type(L, w);
 
     if (!wt) {
-	printf("%s invalid object in l_g_object_set_property.\n",
-	    api->msgprefix);
+	printf("%s invalid object in l_g_object_get.\n", api->msgprefix);
 	return 0;
     }
-
-#if 0
-    // this object must be one derived from gobject or gtkwidget.
-    if (strcmp(wt->name, "gobject") && strcmp(wt->name, "gtkwidget")) {
-	printf("%s g_object_set_property on a %s object\n", api->msgprefix,
-	    wt->name);
-	return 0;
-    }
-#endif
 
     // the first argument is the object.
     lua_getmetatable(L, 1);
@@ -196,6 +165,69 @@ static int l_g_object_get(lua_State *L)
 
     g_type_class_unref(oclass);
     return lua_gettop(L) - n_top;
+}
+
+/**
+ * When calling g_object_set directly, the values are sometimes not converted
+ * correctly, e.g. int versus float.  Additionally, this override allows to
+ * omit the last argument (nil).
+ */
+static int l_g_object_set(lua_State *L)
+{
+    int i, n_top = lua_gettop(L);
+    struct object *w = (struct object*) lua_touserdata(L, 1);
+    struct object_type *wt = api->get_object_type(L, w);
+
+    if (!wt) {
+	printf("%s invalid object in l_g_object_set.\n", api->msgprefix);
+	return 0;
+    }
+
+    // the first argument is the object.
+    lua_getmetatable(L, 1);
+    lua_getfield(L, -1, "_gtktype");
+    GType type = lua_tointeger(L, -1);
+    GObjectClass *oclass = (GObjectClass*) g_type_class_ref(type);
+    lua_pop(L, 2);
+
+    for (i=2; i<=n_top; i+=2) {
+	// allow the last argument to be nil.
+	if (i == n_top && lua_type(L, i) == LUA_TNIL)
+	    break;
+	const gchar *prop_name = luaL_checkstring(L, i);
+
+	// find the property; this searches all parent classes, too.
+	GParamSpec *pspec = g_object_class_find_property(oclass, prop_name);
+	if (!pspec) {
+	    printf("g_object_set: no property %s.%s\n",
+		api->get_object_name(w), prop_name);
+	    continue;
+	}
+
+	GValue gvalue = { 0 };
+	api->lua_to_gvalue_cast(L, i+1, &gvalue, pspec->value_type);
+	g_object_set_property((GObject*) w->p, prop_name, &gvalue);
+	g_value_unset(&gvalue);
+    }
+
+    g_type_class_unref(oclass);
+    return 0;
+}
+
+
+/**
+ * Set a property of an object.  The difficulty is to first convert the value
+ * to a GValue of the correct type, because that is what the GLib function
+ * expects.
+ *
+ * @name g_object_set_property
+ * @luaparam object   Object derived from GObject
+ * @luaparam property_name
+ * @luaparam value    The value to set the property to
+ */
+static int l_g_object_set_property(lua_State *L)
+{
+    return l_g_object_set(L);
 }
 
 
@@ -392,6 +424,7 @@ const luaL_reg glib_overrides[] = {
     OVERRIDE(g_object_get_class),
     OVERRIDE(g_object_set_property),
     OVERRIDE(g_object_get),
+    OVERRIDE(g_object_set),
     OVERRIDE(g_atexit),
     OVERRIDE(g_iconv),
 
