@@ -31,6 +31,7 @@ local running = 0	    -- current direction (-1 or 1) or 0 when stopped
 local alpha_sine_inc	    -- alpha function for the movement
 local stop_from_pos = 0	    -- at which timeline position the stop was initiated
 local stopping
+local mydir = string.gsub(arg[0], "[%w.-]+$", "")
 
 
 ---
@@ -214,8 +215,8 @@ function init()
     csh = stage:get_height()
 
     for k, v in pairs(items_init) do
-	ac = clutter.texture_new_from_file(v[1], nil)
-	assert(ac, "Couldn't load file " .. tostring(v[1]))
+	ac = clutter.texture_new_from_file(mydir .. v[1], nil)
+	assert(ac, "Couldn't load file " .. mydir .. tostring(v[1]))
 
 	item = {
 	    actor = ac,
