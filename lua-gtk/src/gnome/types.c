@@ -1001,7 +1001,7 @@ static int _determine_flags(struct argconv_t *ar)
     if (ar->arg_flags)
 	return ar->arg_flags;
 
-    // If this is a Gtk to Lua callback, all provided objects are not new.
+    // If this is a library to Lua callback, all provided objects are not new.
     if (ar->mode == ARGCONV_CALLBACK)
 	return FLAG_NOT_NEW_OBJECT;
 
