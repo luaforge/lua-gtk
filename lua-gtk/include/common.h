@@ -196,6 +196,7 @@ typedef enum {
 #define FLAG_NOT_NEW_OBJECT 2	    // returned object is not new; inc refcnt
 #define FLAG_DONT_FREE 4	    // don't free the output string
 #define FLAG_INCREF 8		    // increase ref of retval/arg after call
+#define FLAG_NOINCREF 16	    // returned object is new, but ref'd already
 #define FLAG_OBJECT_FLAG 0x80	    // lower 7 bits are an object flag
 
 // flags with values 0x0100 and above cannot be used for function arguments.
