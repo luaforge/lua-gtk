@@ -67,23 +67,24 @@ static void _free_structure(struct object *w)
     char func_name[50];
     struct func_info fi;
     struct free_methods *fm;
+    const char *obj_name = lg_get_object_name(w);
 
     if (!w->p) {
 	fprintf(stderr, "%s Warning: trying to free NULL structure %p %s\n",
-	    msgprefix, w, lg_get_object_name(w));
+	    msgprefix, w, obj_name);
 	return;
     }
 
     for (fm=free_methods; ; fm++) {
 	if (!fm->class_name) {
 	    // not found - use default name.
-	    if (lg_make_func_name(func_name, sizeof(func_name),
-		lg_get_object_name(w), "free"))
+	    if (lg_make_func_name(func_name, sizeof(func_name), obj_name,
+		"free"))
 		return;
 	    break;
 	}
 
-	if (!strcmp(fm->class_name, lg_get_object_name(w))) {
+	if (!strcmp(fm->class_name, obj_name)) {
 
 	    // direct pointer to a free function - use it.
 	    if (fm->free_func) {
@@ -137,6 +138,8 @@ free_directly:;
  */
 void lg_inc_refcount(lua_State *L, struct object *w, int flags)
 {
+    if (flags & FLAG_NOINCREF)
+	return;
     struct object_type *wt = lg_get_object_type(L, w);
     if (wt)
 	wt->handler(w, WIDGET_REF, flags);
