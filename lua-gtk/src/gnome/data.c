@@ -71,6 +71,13 @@ int lg_make_func_name(char *buf, int buf_size, const char *class_name,
     const char *s = class_name;
     char *out = buf;
 
+    // XXX special case for GConf - convert to gconf_xxx and not g_conf_xxx.
+    if (s[1] == 'C' && !memcmp(s, "GConf", 5)) {
+	memcpy(out, "gconf", 5);
+	out += 5;
+	s += 5;
+    }
+
     // each loop adds one or two characters to the output; a final 0 byte
     // is also required, therefore +2.
     while (*s) {
