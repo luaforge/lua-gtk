@@ -42,9 +42,10 @@ function run_sub_configure(last_opt, modules)
     for _, mod in ipairs(modules) do
 	cmd[n] = mod
 	rc = os.execute(table.concat(cmd, " "))
-	if rc ~= 0 then
-	    break
-	end
+-- don't stop when optional packages are not found.
+--	if rc ~= 0 then
+--	    break
+--	end
     end
 end
 

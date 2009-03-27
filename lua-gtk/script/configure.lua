@@ -483,6 +483,7 @@ function _setup_library(cfg)
 	    return cfg_err("Required library %s doesn't exist.", cfg.name)
 	end
 	print(string.format("The optional package %s doesn't exist.", cfg.name))
+	cfg_m("NOT_AVAILABLE", 1)
 	return
     end
 
@@ -670,6 +671,8 @@ function configure_base()
     setup_compilation()
     cfg_l('module = "%s"', modname)
     if not _setup_library(spec) then
+	show_summary = false
+	configure_done()
 	error()
     end
 

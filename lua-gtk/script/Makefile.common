@@ -37,6 +37,12 @@ endif
 # include the config file
 include build/$(ARCH)/$(MODULE)/config.make
 
+ifdef NOT_AVAILABLE
+  $(warning The module $(MODULE) is not buildable.)
+module_$(MODULE):
+	@true
+else
+
 # -- general configuration --
 #HASH	:=hash-$(HASHF)
 O	:=o
@@ -217,4 +223,6 @@ ${ODIR}%.c: $(IDIR)/%.c
 ${ODIR}%.luac: $(IDIR)/%.lua
 	$I
 	$H luac -o $@ $<
+
+endif
 
