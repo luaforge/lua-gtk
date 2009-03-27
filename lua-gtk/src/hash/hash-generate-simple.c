@@ -307,7 +307,7 @@ static int value_cmp(const void *a, const void *b)
 static void _output_values(lua_State *L, FILE *ofile)
 {
     unsigned int curr_ofs, bucket_nr, value_count=0;
-    struct hash_item *hi;
+    struct hash_item *hi = NULL;
     struct value_t *values, *p;
 
     // make a sorted array of values.
@@ -351,7 +351,7 @@ static void _output_values(lua_State *L, FILE *ofile)
     if (debug)
     	printf("Duplicate values: %d\n", bucket_count - value_count);
     fprintf(ofile, ";\n\n");
-    dataofs_bits = _bits_required(curr_ofs - hi->value_len);
+    dataofs_bits = hi ? _bits_required(curr_ofs - hi->value_len) : 0;
 }
 
 
