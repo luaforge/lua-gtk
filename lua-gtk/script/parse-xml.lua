@@ -357,7 +357,8 @@ end
 --
 -- Some required types are not even in the type list, like
 -- GtkFileChooserWidget*; only GtkFileChooserWidget is defined, i.e. without
--- the pointer.
+-- the pointer.  For these types, new ones are "synthetized", or derived, with
+-- additional pointers.
 --
 function mark_override()
     local ar = {}
