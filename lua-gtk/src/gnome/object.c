@@ -1,6 +1,6 @@
 /* vim:sw=4:sts=4
- * Library to use the Gtk2 object library from Lua 5.1
- * Copyright (C) 2007 Wolfgang Oertl
+ * Library to use the Gnome family of libraries from Lua 5.1
+ * Copyright (C) 2007, 2009 Wolfgang Oertl
  *
  * Handle GObject derived objects.
  *
@@ -56,7 +56,7 @@ struct object *lg_check_object(lua_State *L, int index)
 }
 
 /**
- * Update/remove the entry in objects, which maps the Gtk object's address
+ * Update/remove the entry in objects, which maps the library object's address
  * to a reference.
  *
  * @param L  Lua State
@@ -159,12 +159,13 @@ static void _alias_unlink(lua_State *L, struct object *w)
 
 /**
  * When a Lua object is garbage collected, decrease the reference count of
- * the associated Gtk object, too.  This may cause the Gtk object to be freed.
+ * the associated library object, too.  This may cause the library object to be
+ * freed.
  *
- * Note that for a given Gtk object, multiple Lua objects can exist, having
+ * Note that for a given library object, multiple Lua objects can exist, having
  * different types (which should be related to each other, of course).  Each
  * such Lua proxy object can have multiple Lua references, but holds only
- * one Gtk reference.
+ * one reference to the underlying library object.
  */
 static int l_object_gc(struct lua_State *L)
 {
@@ -190,7 +191,7 @@ static int l_object_gc(struct lua_State *L)
 	int ref_count = lg_get_refcount(L, w);
 	struct object_type *wt = lg_get_object_type(L, w);
 
-	// Lua object address - Gtk object address - object_type -
+	// Lua object address - library object address - object_type -
 	//   current reference counter - class name -
 	//   reference in gtk.object_aliases for this Lua object -
 	//   ref of next alias (if applicable) -
@@ -211,7 +212,7 @@ static int l_object_gc(struct lua_State *L)
     else if (w->own_ref)
 	_set_object_pointer(L, w->p, 0, w->own_ref);
 
-    // decrease the refcount of the Gtk/Gdk object
+    // decrease the refcount of the library object
     lg_dec_refcount(L, w);
     return 0;
 }
@@ -255,8 +256,8 @@ void lg_invalidate_object(lua_State *L, struct object *o)
 
 
 /**
- * A meta table for a Gtk class has been created on the stack.  Now
- * try to find the Gtk base class and call _get_object_meta for it, too.
+ * A meta table for a class has been created on the stack.  Now
+ * try to find the base class and call _get_object_meta for it, too.
  *
  * @param L  Lua State
  * @param type_nr  The GType of the class to find the parent for
@@ -269,19 +270,27 @@ void lg_invalidate_object(lua_State *L, struct object *o)
 static int _get_object_meta_parent(lua_State *L, GType type_nr)
 {
     const char *parent_name;
+    GType parent_type_nr;
     GTypeQuery query;
     query.type_name = NULL;
     int rc;
     typespec_t ts;
 
     /* determine the name of the parent class, if any */
-    type_nr = g_type_parent(type_nr);
-    if (!type_nr)
+    parent_type_nr = g_type_parent(type_nr);
+    if (!parent_type_nr) {
+	/* printf("%s no parent for type 0x%x\n", msgprefix, type_nr); */
 	return 1;
+    }
 
-    parent_name = g_type_name(type_nr);
+    parent_name = g_type_name(parent_type_nr);
+    /*
+    printf("%s parent 0x%x -> 0x%x %s\n", msgprefix, type_nr, parent_type_nr,
+	parent_name);
+    */
     if (!parent_name) {
-	fprintf(stderr, "%s Unknown GType %ld\n", msgprefix, (long int)type_nr);
+	fprintf(stderr, "%s Unknown GType 0x%x, supposed parent of %s\n",
+	    msgprefix, parent_type_nr, g_type_name(type_nr));
 	return 1;
     }
 
@@ -393,7 +402,8 @@ static int _get_object_meta(lua_State *L, typespec_t ts)
     lua_pushnumber(L, ts.value);
     lua_rawset(L, -3);
 
-    /* Determine GTk type number.  Gdk classes like GdkEvent are not found. */
+    /* Determine the GType.  Structures which are not registered in the GType
+     * system, e.g. GdkEvent, are not found. */
     GType type_nr = lg_gtype_from_name(L, modules[ts.module_idx],
 	type_name);
     if (!type_nr)
@@ -409,7 +419,7 @@ static int _get_object_meta(lua_State *L, typespec_t ts)
 
 
 /**
- * A object for a given Gtk object (identified by its address) has been found.
+ * A object for a given object (identified by its address) has been found.
  * Check the address, and the type.
  *
  * Returns:
@@ -479,7 +489,7 @@ static int _get_object_check(lua_State *L, void *object, typespec_t ts)
 /**
  * Determine whether p points to something on the stack.
  *
- * I don't want to create reusable Lua proxy objects for Gtk/Gdk objects on the
+ * I don't want to create reusable Lua proxy objects for library objects on the
  * stack.  Such objects are usually given to callbacks (e.g. a GdkEvent), don't
  * have refcounting, and will go away when returning from the callback.
  *
@@ -560,12 +570,13 @@ static void _reuse_object(lua_State *L, void *p, typespec_t ts, int flags)
  * @param flags  FLAG_NEW_OBJECT if this is a newly allocated/created object;
  *	FLAG_ALLOCATED if this object was created by g_slice_alloc and doesn't
  *	have refcounting.  FLAG_ARRAY if this was allocated by g_malloc and
- *	contains more than one structure.
+ *	contains more than one structure.  FLAG_NOINCREF means that this is
+ *	a new object, but lg_inc_refcount should not be called.
  *
  * If we already have a Lua object for this object, do NOT increase the
  * refcount of the object.  Only the Lua object has a new reference.
  *
- * You can call this function from C code to make existing Gtk objects
+ * You can call this function from C code to make existing library objects
  * available to Lua code: lg_get_object(L, object_ptr, 0, 0);
  */
 void lg_get_object(lua_State *L, void *p, typespec_t ts, int flags)
