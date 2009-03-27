@@ -15,7 +15,8 @@ function_flag_map = {
     CONST_OBJECT = 1,		-- used
     NOT_NEW_OBJECT = 2,		-- used
     DONT_FREE = 4,		-- used
-    INCREF = 8,			-- used
+    INCREF = 8,			-- not used
+    NOINCREF = 16,		-- used
     CHAR_PTR = 0x1000,		-- used indirectly
     CONST_CHAR_PTR = 0x2000,	-- used indirectly
 }
