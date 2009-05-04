@@ -418,6 +418,9 @@ static int _call_return_values(lua_State *L, int index, struct call_info *ci)
     const unsigned char *s, *s_end;
     struct argconv_t ar;
 
+    /* this avoids a load of valgrind errors about "uninitialized memory" */
+    memset(&ar, 0, sizeof(ar));
+
     ar.L = L;
     ar.ci = ci;
     ar.mode = ARGCONV_CALL;

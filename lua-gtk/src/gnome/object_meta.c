@@ -287,7 +287,7 @@ static int _fe_recurse(lua_State *L, int must_exist)
 {
     int recursed = 0, rc;
     const char *attr_name;
-    typespec_t ts, top_ts;
+    typespec_t ts = {0}, top_ts;
 
     attr_name = lua_tostring(L, 2);
 
