@@ -55,7 +55,7 @@ include_types = {		-- used in which other module:
     "time_t*",
     "timespec",
     "FILE*",
-    "va_list",
+--    "va_list",
 
     "gint8*",			-- gdk
     "guint**",			-- gdk
@@ -64,6 +64,7 @@ include_types = {		-- used in which other module:
     "gint**",			-- gdk
     "guint32*",			-- gdk
     "const gint",		-- gdk
+    "const gint*",		-- gdk
 
     "GMarkupParser*",		-- gtk
     "gfloat*",			-- gtk
