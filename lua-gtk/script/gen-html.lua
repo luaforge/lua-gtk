@@ -23,7 +23,8 @@
 	Any text	text content of this directive; must be the last
 			item.
 
-  - Can generate a sorted index of keywords
+  - Can generate a sorted index of keywords in multiple columns with sections
+    headed by the first letter of keywords in the section
 
   - Generates a short horizontal and detailed vertical menu linking to all
     the pages using the menu definition in the file "menu.lua" in the
@@ -43,12 +44,15 @@
 
 require "lfs"
 
+is_utf8 = string.find(os.setlocale(""), "UTF%-8") ~= nil
+print(is_utf8)
+
 page_template = nil
 input_dir = nil
 output_dir = nil
 config = nil
 main_menu = nil
-extensions = { png=true, gif=true, jpg=true, css=true }
+extensions = { png=true, gif=true, jpg=true, css=true, js=true }
 
 -- Handling of {{...}} directives
 items = {}		    -- array of items
@@ -541,6 +545,7 @@ function _html_pass1(str)
 	elseif c == "=" then
 	    item.is_reference = true
 	    item.ref_name = string.sub(s, 2)
+	    item.omit_index = true
 	elseif s == "noindex" then
 	    item.omit_index = true
 	elseif item.text then
@@ -745,45 +750,91 @@ function _check_menu()
     end
 end
 
+function first_char(s)
+    if is_utf8 then
+	return string.match(s, "^[%z\1-\127\194-\244][\128-\191]*")
+    end
+    return string.sub(s, 1, 1)
+end
+
 
 ---
 -- Create a HTML snippet with the alphabetically sorted index.  All the
--- HTML files have already been read.
+-- HTML files have already been read.  Multiple columns can be produced.
 --
 function generate_index()
-    local keys, buf, item
+    local keys, buf, item, c, last_c, columns, s, col_length, this_col
+
+    columns = 3
 
     -- collect all the strings to be placed in the index, sort.
     keys = {}
     for _, item in ipairs(items) do
 	if not item.omit_index and item.text then
-	    keys[#keys + 1] = { string.upper(item.text), item }
+	    s = string.upper(item.text)
+	    keys[#keys + 1] = { s, first_char(s), item }
 	end
     end
     table.sort(keys, function(a, b) return a[1] < b[1] end)
 
-    -- combine index entries with the same string
+    -- combine index entries with the same string; count categories
+    cat_count = 0
     for i, item in ipairs(keys) do
+	if item[2] ~= last_c then
+	    cat_count = cat_count + 1
+	    last_c = item[2]
+	end
 	while keys[i + 1] and keys[i + 1][1] == item[1] do
-	    item[#item + 1] = keys[i + 1][2]
+	    item[#item + 1] = keys[i + 1][3]
 	    table.remove(keys, i + 1)
 	end
     end
 
+    -- calculate length of a column; categories count as two
+    col_length = math.max(1, math.ceil((#keys + cat_count * 2) / columns))
+
     -- build the index string
     buf = {}
-    for i, tmp in ipairs(keys) do
-	buf[#buf + 1] = tmp[2].text .. ": "
-	for i = 2, #tmp do
-	    buf[#buf + 1] = string.format('%s<a href="%s">%d</a>',
-		i > 2 and ", " or "",
-		tmp[i].full_anchor, i - 1)
+    this_col = 0
+    last_c = nil
+    for i, item in ipairs(keys) do
+
+	-- skip to next column if this one is full
+	if this_col >= col_length then
+	    buf[#buf + 1] = "</td><td class=\"notfirst\">"
+	    this_col = 0
+	    last_c = 100
 	end
 
-	buf[#buf + 1] = "<br/>\n"
+	-- begin new section if the first character changes
+	c = item[2]
+	if c ~= last_c then
+	    buf[#buf + 1] = string.format('<h6%s>%s%s%s</h6>',
+		this_col > 0 and ' class="nottop"' or '',
+		last_c == 100 and "<i>" or "",
+		c,
+		last_c == 100 and "</i>" or "")
+	    if last_c ~= 100 then
+		this_col = this_col + 2
+	    end
+	    last_c = c
+	end
+
+	-- build one entry
+	s = item[3].text .. ": "
+	for i = 3, #item do
+	    s = string.format('%s%s<a href="%s">%d</a>',
+		s,
+		i > 3 and ", " or "",
+		item[i].full_anchor, i - 2)
+	end
+	buf[#buf + 1] = s .. "<br/>\n"
+	this_col = this_col + 1
     end
 
-    index_string = table.concat(buf)
+    index_string = "<table><tr><td>" .. table.concat(buf) ..
+	"</td></tr></table>\n"
+
 end
 
 -- MAIN --
