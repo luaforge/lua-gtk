@@ -358,7 +358,7 @@ static const luaL_reg object_methods[] = {
     { "__tostring", lg_object_tostring },
     { "__gc",	    l_object_gc },
     { "__eq",	    l_object_compare },
-    { "get_type",   l_object_get_type },
+    { "lg_get_type",l_object_get_type },
     { NULL, NULL }
 };
 

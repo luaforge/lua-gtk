@@ -27,7 +27,9 @@ In Glib-based libraries, all objects are derived from the base class
  available - only functions are.  Therefore, a few extra methods are
  defined:
   <ul>
-   <li>get_type(): returns the name of the object's class</li>
+    <li>lg_get_type(): returns the name of the object's class.  It is not
+    named <i>get_type()</i>, because this would hide other functions
+    by this name, e.g. cairo.surface_get_type().  </li>
   </ul>
  </dd>
 
