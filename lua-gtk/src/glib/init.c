@@ -1,10 +1,11 @@
 /*- vim:sw=4:sts=4
  *
  * Support for the GLib and GObject libraries.  This is part of lua-gnome.
- * Copyright (C) 2008 Wolfgang Oertl
+ * Copyright (C) 2008, 2009 Wolfgang Oertl
  */
 
 
+#include <string.h>		/* strcmp */
 #include "module.h"
 
 /**
@@ -121,6 +122,30 @@ static int _ginitiallyunowned_handler(struct object *w, object_op op, int flags)
 }
 
 
+static int _gmainloop_handler(struct object *o, object_op op, int flags)
+{
+    switch (op) {
+	case WIDGET_SCORE:;
+	    const char *name = api->get_object_name(o);
+	    if (!strcmp(name, "GMainLoop"))
+		return 100;
+	    return 0;
+	
+	case WIDGET_GET_REFCOUNT:
+	    break;
+
+	case WIDGET_REF:
+	    g_main_loop_ref((GMainLoop*)o->p);
+	    break;
+	
+	case WIDGET_UNREF:
+	    g_main_loop_unref((GMainLoop*)o->p);
+	    break;
+    }
+
+    return -1;
+}
+
 
 
 void glib_init_channel(lua_State *L);
@@ -131,6 +156,7 @@ int luaopen_glib(lua_State *L)
     glib_init_channel(L);
     api->register_object_type("gobject", _gobject_handler);
     api->register_object_type("ginitiallyunowned", _ginitiallyunowned_handler);
+    api->register_object_type("gmainloop", _gmainloop_handler);
     return rc;
 }
 
