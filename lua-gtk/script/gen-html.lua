@@ -7,8 +7,8 @@
 
  Features:
 
-  - recursively reads all files, processes the .html files, copies .css,
-    .jpg and .png files.
+  - recursively reads all files, processes the .html files and copies files
+    with a given list of extensions, like jpg, png, css and others.
 
   - uses a template file with header and document layout.
 
@@ -20,8 +20,12 @@
 	=label		reference to that anchor.  If not text is given,
 			use the text of the referenced element.
 	noindex		don't add to the index
+	footnote	Make a footnote of the following text
 	Any text	text content of this directive; must be the last
-			item.
+			item and may contain spaces.
+
+    - All menu entries automatically have an anchor (but not an index entry)
+      with the basename of the file.
 
   - Can generate a sorted index of keywords in multiple columns with sections
     headed by the first letter of keywords in the section
@@ -45,7 +49,6 @@
 require "lfs"
 
 is_utf8 = string.find(os.setlocale(""), "UTF%-8") ~= nil
-print(is_utf8)
 
 page_template = nil
 input_dir = nil
@@ -433,7 +436,7 @@ end
 -- @param ar  Array with variables available to the page for substitution
 --
 function _process_html(ifname, basename, menu_entry, do_index)
-    local ifile, ar, buf
+    local ifile, ar
 
     ifile = assert(io.open(ifname, "rb"))
 
@@ -444,24 +447,35 @@ function _process_html(ifname, basename, menu_entry, do_index)
 	basename = basename,
 	menu_entry = menu_entry,
 	index_count = 0,
+	footnotes = {},
     }
+    _store_file_in_index()
 
     ar.SIDEMENU = make_side_menu(menu_entry)
     ar.TITLE = menu_entry[2]
     ar.MAINMENU = main_menu
     ar.CONTENTCLASS = (ar.SIDEMENU == "") and "center" or "right"
+    ar.FOOTNOTES = ""
 
-    buf = {}
-    for line in ifile:lines() do
-	buf[#buf + 1] = string.gsub(line, "{{(.-)}}", _html_pass1)
+    if false then
+	local buf = {}
+	for line in ifile:lines() do
+	    buf[#buf + 1] = string.gsub(line, "{{(.-)}}", _html_pass1)
+	end
+	ar.CONTENT = table.concat(buf, "\n")
+    else
+	-- read whole file at once; allows to find multi-line {{...}} entries.
+	ar.CONTENT = string.gsub(ifile:read"*a", "{{(.-)}}", _html_pass1)
     end
+
     ifile:close()
-    ar.CONTENT = table.concat(buf, "\n")
-    -- ar.CONTENT = string.gsub(ifile:read"*a", "{{(.-)}}", _html_pass1)
+
+    _append_footnotes(curr_file)
 
     files[#files + 1] = curr_file
     curr_file = nil
 end
+
 
 ---
 -- Second pass over HTML files and output.
@@ -524,6 +538,29 @@ function split(s, delim, is_plain)
     return ar
 end
 
+local directives = {
+    footnote = function(str)
+	local nr = #curr_file.footnotes + 1
+	curr_file.footnotes[nr] = string.sub(str, 10)
+	return string.format('<sup id="ref%d"><a href="#foot%d">[%d]</a></sup>',
+	    nr, nr, nr)
+    end,
+}
+
+function _append_footnotes(f)
+    local buf
+    if #f.footnotes == 0 then
+	return
+    end
+    buf = {}
+    for nr, txt in ipairs(f.footnotes) do
+	buf[#buf + 1] = string.format('<li id="foot%d"><a href="#ref%d">↑</a> %s</li>\n',
+	    nr, nr, txt)
+    end
+    f.variables.FOOTNOTES = '<div class="footnotes"><ol>' .. table.concat(buf)
+	.. '</ul></div>'
+end
+
 ---
 -- Handler for {{...}} matches during the first pass over the HTML content.
 -- These strings are replaced by {{{%d}}}, the data being stored elsewhere.
@@ -532,6 +569,12 @@ end
 --
 function _html_pass1(str)
     local c, item
+
+    -- The first word may trigger special handling
+    c = string.match(str, "^([^ ]+)")
+    if directives[c] then
+	return directives[c](str)
+    end
 
     -- Split the string into elements and fill "item" with data.
     item = { file=curr_file }
@@ -568,16 +611,41 @@ function _html_pass1(str)
 	    item.anchor_name)
     end
 
-    -- assign the next number and store.  If an anchor is defined, store
-    -- that too.
+    _store_index_entry(item)
+    return string.format("{{{%d}}}", item.nr)
+end
+
+---
+-- Assign the next number and store.  If an anchor is defined, store
+-- that too.
+--
+function _store_index_entry(item)
     item.nr = #items + 1
     items[#items + 1] = item
     if item.is_anchor then
-	assert(items_byname[item.anchor_name] == nil, "Duplicate anchor")
+	local i = items_byname[item.anchor_name]
+	if i then
+	    error(string.format("Duplicate anchor %s at %s and %s",
+		i.anchor_name,
+		i.full_anchor,
+		item.full_anchor))
+	end
+
 	items_byname[item.anchor_name] = item
     end
+end
 
-    return string.format("{{{%d}}}", item.nr)
+
+function _store_file_in_index()
+    local m = curr_file.menu_entry
+    local item = {
+	full_anchor = curr_file.basename,
+	is_anchor = true,
+	anchor_name = m[1],	    -- file name
+	text = m[2],
+	omit_index = true,	    -- don't add to Index
+    }
+    _store_index_entry(item)
 end
 
 ---
@@ -640,6 +708,7 @@ function _evaluate_html_pass2(file)
 	return chunk()
     end)
 end
+
 
 ---
 -- Process a file.  If it is a HTML file, run the luadoc template routines on
@@ -799,7 +868,8 @@ function generate_index()
     last_c = nil
     for i, item in ipairs(keys) do
 
-	-- skip to next column if this one is full
+	-- skip to next column if this one is full.  "notfirst" columns may
+	-- have a separation line to their left.
 	if this_col >= col_length then
 	    buf[#buf + 1] = "</td><td class=\"notfirst\">"
 	    this_col = 0
@@ -820,13 +890,26 @@ function generate_index()
 	    last_c = c
 	end
 
-	-- build one entry
-	s = item[3].text .. ": "
-	for i = 3, #item do
-	    s = string.format('%s%s<a href="%s">%d</a>',
-		s,
-		i > 3 and ", " or "",
-		item[i].full_anchor, i - 2)
+	-- build one entry.
+	if true then
+	    -- the text is the first link, additional links are appended
+	    -- with numbers starting at 2
+	    s = string.format('<a href="%s">%s</a>',
+		item[3].full_anchor, item[3].text)
+	    for i = 4, #item do
+		s = string.format('%s, <a href="%s">%d</a>',
+		    s, item[i].full_anchor, i - 2)
+	    end
+	else
+	    -- the text is not a link, but followed by numbers starting at 1,
+	    -- each being a link
+	    s = item[3].text .. ": "
+	    for i = 3, #item do
+		s = string.format('%s%s<a href="%s">%d</a>',
+		    s,
+		    i > 3 and ", " or "",
+		    item[i].full_anchor, i - 2)
+	    end
 	end
 	buf[#buf + 1] = s .. "<br/>\n"
 	this_col = this_col + 1
