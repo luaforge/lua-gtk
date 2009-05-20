@@ -8,6 +8,71 @@ function format_2bytes(val)
 	bit.band(val, 255))
 end
 
+local function count_bits(v)
+    local n = 0
+    while v > 0 do
+	n = n + 1
+	v = bit.rshift(v, 1)
+    end
+    return n
+end
+
+---
+-- type_idx are assigned to the types in use sorted by their frequency, i.e.
+-- most used types get a low type_idx.  This is good, as lower type_idx can
+-- be encoded with less bytes.
+--
+-- In practice, this results in a very slightly smaller total size.
+--
+function count_const_usage()
+
+    -- uncomment the following line to enable the histogram.
+--    local histo, max_n = { [0]=0 }, 0
+
+    for k, enum in pairs(xml.enum_values) do
+	t = typedefs[enum.context]
+	assert(t)
+
+	-- follow redirections
+	while t.enum_redirect do
+	    t = typedefs[t.enum_redirect]
+	    assert(t)
+	end
+
+	if t.in_use and not t.no_good then
+	    if not (t.counter >= 0) then
+		error("Unused const type " .. tostring(t.full_name)
+		    .. " for constant " .. tostring(k))
+	    end
+	    t.counter = (t.counter or 0) + 1
+	    if histo and type(enum.val) == "number" then
+		local n = count_bits(enum.val)
+		while max_n < n do
+		    max_n = max_n + 1
+		    histo[max_n] = 0
+		end
+		histo[n] = histo[n] + 1
+	    end
+	end
+    end
+
+    -- Show the histogram of bits
+    if histo then
+	local sum = 0
+	for i = 0, max_n do
+	    sum = sum + histo[i]
+	end
+
+	local tally = 0
+	print("Histogram of Constants\nBits   Count    Tally    %")
+	for i = 0, max_n do
+	    tally = tally + histo[i]
+	    print(string.format(" %2d %8d %8d %3.0f%%", i, histo[i],
+		tally, tally * 100 / sum))
+	end
+    end
+end
+
 ---
 -- Compute the representation of an ENUM in the hash table.  The format is
 -- described in doc/README.
@@ -79,8 +144,8 @@ function encode_enum_v1(name, val, type_idx)
     return string.format("%s,%s%s%s", name, encode_byte(c), extra, s)
 end
 
-
--- second version.  first byte with 6 bits of data and a 2-bit indicator for
+---
+-- Second version.  First byte with 6 bits of data and a 2-bit indicator for
 -- no type, 8 bit type, 16 bit type or string.  negative values have bit 15
 -- set in their type (which may be zero); this is very scarce.
 function encode_enum_v2(name, val, type_idx)
@@ -191,14 +256,20 @@ function encode_enum_v3(name, val, type_idx)
 	table.concat(buf))
 end
 
--- fourth version: most constants have a type_idx, but there are not so many
--- distinct type_idx being used.  therefore, have a table with the used
--- numbers, and store an index in each entry, thereby saving space.
+---
+-- Version 4.  Most constants have a type_idx, but there are not so many
+-- distinct type_idx in use.  Therefore, build a table with 16 bit entries,
+-- each containing a type_idx.  The entries only contain an index number to
+-- this table.
+--
+-- But as most type_idx fit into 8 bits, v2 is equally efficient, but this
+-- encoding here needs an extra type_idx table, which makes it larger.
+--
 function encode_enum_v4(name, val, type_idx)
 
     local buf, t, type_idx_idx, first
 
-    buf = {}
+    buf = { name, "," }
     type_idx = type_idx or 0
 
     enum_count = enum_count + 1
@@ -207,19 +278,16 @@ function encode_enum_v4(name, val, type_idx)
     -- strings are stored with a type_idx_idx of 0x7f.
     if t == "string" then
 	assert(type_idx == 0)
-	first = 0x80			    -- flag: type_idx present
 	buf[#buf + 1] = encode_byte(0xff)   -- type for string
 	buf[#buf + 1] = val
 	enum_rawdata = enum_rawdata + #val - 1
 	enum_strings = enum_strings + 1
     elseif t == "number" then
 
-	first = 0
-
 	-- flag for negative value.
 	if val < 0 then
 	    val = -val
-	    first = bit.bor(first, 0x40)
+	    type_idx = bit.bor(type_idx, 0x8000)
 	    enum_negative = enum_negative + 1
 	end
 
@@ -227,31 +295,31 @@ function encode_enum_v4(name, val, type_idx)
 	if type_idx ~= 0 then
 	    enum_typenr = enum_typenr + 1
 	    type_idx_idx = enum_typesseen[type_idx]
-	    first = bit.bor(first, 0x80)
 	    if not type_idx_idx then
 		enum_next_type_idx_idx = enum_next_type_idx_idx + 1
 		type_idx_idx = enum_next_type_idx_idx
-		assert(type_idx_idx < 0xff)
+		assert(type_idx_idx < 0x80)
 		enum_distincttypes = enum_distincttypes + 1
 		enum_typesseen[type_idx] = type_idx_idx
 		enum_rawdata = enum_rawdata + 2
 	    end
-	    buf[#buf + 1] = encode_byte(type_idx_idx)
+	    buf[#buf + 1] = encode_byte(bit.bor(type_idx_idx, 0x80))
 	end
 
-	-- the first byte contains the high 6 bits of the value.
+	-- the first byte contains the high 7 bits of the value.
 	t = #buf + 1
-	while val >= 0x40 do
-	    table.insert(buf, t, encode_byte(bit.band(val, 255)))
+	while val >= 0x80 do
+	    table.insert(buf, t, encode_byte(bit.band(val, 0xff)))
 	    val = bit.rshift(val, 8)
 	end
-	first = bit.bor(first, val)
+	table.insert(buf, t, encode_byte(bit.bor(val, 0x80)))
     else
 	error("Unhandled type in encode_enum: " .. t)
     end
 
     enum_rawdata = enum_rawdata + 1 + #buf
-    return string.format("%s,%s%s", name, encode_byte(first), table.concat(buf))
+    return table.concat(buf)
+    -- return string.format("%s,%s", name, table.concat(buf))
 end
 
 encode_enum = encode_enum_v2
