@@ -65,17 +65,26 @@ const struct module_info *curr_module;	// needed for qsort and bsearch
  * Returns 0 on success, else 1.  The only possible error is that the
  * buffer is not big enough.
  */
-int lg_make_func_name(char *buf, int buf_size, const char *class_name,
+int lg_make_func_name(cmi mi, char *buf, int buf_size, const char *class_name,
     const char *attr_name)
 {
-    const char *s = class_name;
+    const char *s = class_name, *s2;
     char *out = buf;
 
-    // XXX special case for GConf - convert to gconf_xxx and not g_conf_xxx.
-    if (s[1] == 'C' && !memcmp(s, "GConf", 5)) {
-	memcpy(out, "gconf", 5);
-	out += 5;
-	s += 5;
+    /* If a module is given, use its prefix_func_remap table if available. */
+    if (mi && (s2 = mi->prefix_func_remap)) {
+	for (; *s2; s2 += *s2) {
+	    int len = strlen(s2 + 1);
+	    // printf("try %s for %s.%s\n", s2+1, class_name, attr_name);
+	    if (!memcmp(class_name, s2 + 1, len)) {
+		s += len;
+		s2 += 2 + len;
+		len = strlen(s2);
+		memcpy(out, s2, len);
+		out += len;
+		break;
+	    }
+	}
     }
 
     // each loop adds one or two characters to the output; a final 0 byte
@@ -99,6 +108,7 @@ int lg_make_func_name(char *buf, int buf_size, const char *class_name,
 	    return 1;
 	*out++ = '_';
 	strcpy(out, attr_name);
+	// printf("RESULT: %s\n", buf);
     } else
 	*out = 0;
 
@@ -132,7 +142,7 @@ GType lg_gtype_from_name(lua_State *L, cmi mi, const char *s)
     // Determine the name of the corresponding get_type function.
     char func_name[60];
     struct func_info fi;
-    if (lg_make_func_name(func_name, sizeof(func_name), s, "get_type"))
+    if (lg_make_func_name(mi, func_name, sizeof(func_name), s, "get_type"))
 	return 0;
 
     // If s is not a valid type, then the _get_type function doesn't exist

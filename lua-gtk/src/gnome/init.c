@@ -368,7 +368,7 @@ static int lg_generic_new_array(lua_State *L, cmi mi, int is_array)
 	char func_name[80];
 	struct func_info fi;
 
-	lg_make_func_name(func_name, sizeof(func_name), type_name, "new");
+	lg_make_func_name(mi, func_name, sizeof(func_name), type_name, "new");
 	if (lg_find_func(L, mi, func_name, &fi))
 	    return lg_call(L, &fi, 2);
     }

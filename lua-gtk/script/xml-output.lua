@@ -602,6 +602,8 @@ function _generate_module_info()
 	    header('extern const luaL_reg %s[];', v)
 	elseif k == 'arg_flags_handler' then
 	    header('int %s(lua_State *L, typespec_t ts, int arg_flags);', v)
+	elseif k == 'prefix_func_remap' then
+	    header('extern const char %s[];', v)
 	end
     end
 

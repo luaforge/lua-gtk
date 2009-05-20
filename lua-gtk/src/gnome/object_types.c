@@ -78,8 +78,8 @@ static void _free_structure(struct object *w)
     for (fm=free_methods; ; fm++) {
 	if (!fm->class_name) {
 	    // not found - use default name.
-	    if (lg_make_func_name(func_name, sizeof(func_name), obj_name,
-		"free"))
+	    if (lg_make_func_name(modules[w->ts.module_idx], func_name,
+		    sizeof(func_name), obj_name, "free"))
 		return;
 	    break;
 	}

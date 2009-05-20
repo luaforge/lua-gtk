@@ -238,7 +238,7 @@ struct call_info {
 void lg_create_fundamental_map(lua_State *L);
 int lg_register_module(lua_State *L, struct module_info *mi);
 int lg_dl_init(lua_State *L, struct dynlink *dyn);
-int lg_make_func_name(char *buf, int buf_size, const char *class_name,
+int lg_make_func_name(cmi mi, char *buf, int buf_size, const char *class_name,
     const char *attr_name);
 GType lg_gtype_from_name(lua_State *L, cmi mi, const char *s);
 void lg_get_type_name_full(lua_State *L, typespec_t ts, char *buf);

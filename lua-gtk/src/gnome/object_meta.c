@@ -161,7 +161,8 @@ static int _fe_check_interfaces(lua_State *L, const char *attr_name)
 	if (!ts.value)
 	    continue;
 
-	if (lg_make_func_name(tmp_name, sizeof(tmp_name), class_name,
+	mi = modules[ts.module_idx];
+	if (lg_make_func_name(mi, tmp_name, sizeof(tmp_name), class_name,
 	    attr_name))
 	    break;
 
@@ -172,7 +173,6 @@ static int _fe_check_interfaces(lua_State *L, const char *attr_name)
 	}
 
 	// regular function in that module?
-	mi = modules[ts.module_idx];
 	if (lg_find_func(L, mi, tmp_name, &fi)) {
 #ifdef LUAGTK_win32
 found_func:
@@ -243,14 +243,15 @@ static int _fe_check_function(lua_State *L, int recursed, typespec_t ts)
     /* check for a (not yet mapped) function? */
     attr_name = lua_tostring(L, 2);
     class_name = lg_get_type_name(ts);
-    if (lg_make_func_name(tmp_name, sizeof(tmp_name), class_name, attr_name))
+    cmi mi = modules[ts.module_idx];
+    if (lg_make_func_name(mi, tmp_name, sizeof(tmp_name), class_name,
+	attr_name))
 	return 0;
 
     if (_check_override(L, ts.module_idx, tmp_name))
 	return 1;
 
     // look in the module that handles that type
-    cmi mi = modules[ts.module_idx];
     if (lg_find_func(L, mi, tmp_name, &fi))
 	return _found_function(L, tmp_name, &fi);
 

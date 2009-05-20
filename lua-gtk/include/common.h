@@ -251,6 +251,7 @@ struct module_info {
     const char *prefix_func;			// prefix for functions
     const char *prefix_constant;		// prefix for constants
     const char *prefix_type;			// prefix for types
+    const char *prefix_func_remap;		// class name -> func prefix
 
     // only required during initialization
     const char *depends;
