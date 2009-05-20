@@ -27,10 +27,8 @@ end
 -- hashing tool.  Note that constants with a type that is not otherwise
 -- used is omitted.
 --
--- Each entry consist of the name, ",", the 16 bit number of the structure
--- number (describing this constant), and the actual value in a low to high
--- byte order.  Only as many bytes are output as are required to represent the
--- given value.  The value zero has no bytes.
+-- Each entry consist of the name, ",", and the encoded value of the constant,
+-- depending on the method selected in xml-const.lua.
 --
 -- Call this function _after_ output_structs, because there the type_ids
 -- are assigned.
