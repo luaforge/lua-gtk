@@ -7,7 +7,7 @@
 # this library, see doc/INSTALL.
 #
 
-.PHONY: all tags doc clean mrproper tests wc size diff tar
+.PHONY: all tags doc clean mrproper tests wc size diff tar install
 submake = $(MAKE) -r --no-print-directory
 
 # first build the core module, the others depend on it.
@@ -51,6 +51,10 @@ tar:
 		--exclude CVS; \
 	rm $$D; \
 	)
+
+install:
+	@ $(submake) -f script/Makefile.common install
+
 
 # type "make bit" to build the bit library from the included .c file.
 bit: bit.so
