@@ -472,7 +472,7 @@ function parse_header_file(fname, nums)
 	    -- numeric defines
 	    if nums then
 		name, value = string.match(line,
-		    "^#define ([A-Z][A-Za-z0-9_]+) +([0-9a-fx]+)$")
+		    "^#define ([A-Z][A-Za-z0-9_]+)%s+([0-9a-fx]+)$")
 		if name and value then
 		    assert(not enums[name])
 		    enums[name] = { val=tonumber(value), context="__dummy" }
