@@ -590,6 +590,10 @@ mark_all_enums_as_used()
 analyze_structs_native()
 promote_enum_typedefs()
 
+if true then
+    count_const_usage()
+end
+
 -- before writing the structures, the functions must be looked at to
 -- find prototypes that need registering.
 
