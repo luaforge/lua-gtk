@@ -196,7 +196,26 @@ settings are currently known:
 
   <dt>module_info</dt><dd>A map with settings for the automatic generation
     of the <tt>struct module_info</tt> that each module exports.  It defines
-    prefixes for functions, constants and types, 
+    prefixes for functions, constants and types, prefix overrides, function
+    overrides, dependencies on other modules and more.
+    <ul>
+	    <li>prefix_func_remap: give the name of a constant string that
+	    specifies the function prefix to use for one or more types
+	    (classes).  This prefix is normally computed automatically, like
+	    gtk_vbox_ for GtkVBox, but somtimes the function (method) names are
+	    not so regular.  Each entry in this string has this components:
+	    	<ul>
+			<li> 1 byte: the total length of this entry including
+			the length byte and the last zero byte after the
+			function prefix </li>
+			<li> class name (zero terminated) </li>
+			<li> function prefix (also zero-terminated) </li>
+		</ul>
+	    The end of this list is marked by a zero byte.  For an example see
+	    the modules "gnet" or "gconf".
+	    </li>
+    </ul>
+    </dd>
 
 </dl>
 
