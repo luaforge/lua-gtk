@@ -2,39 +2,47 @@
 # Common Makefile rules to build a library module.  Following variables need
 # to be set before including this file:
 #
-# MODULE
-# Name of the module.  Source is in src/$(MODULE), and the build directory
+# MODULE (optional)
+# Name of the module to build.  Source is in src/$(MODULE), and the build directory
 # (with configure-generated config files) is in build/$(ARCH)/$(MODULE).
+# If not given, only targets not related to individual modules are available (i.e., install)
 #
-# SRC
-# (optional) list of module specific source files in addition to init.c and the
+# SRC (optional)
+# list of module specific source files in addition to init.c and the
 # files generated from the headers (types, functions etc.)
 #
-
-ifeq ($(MODULE), )
- $(error You have to define $$MODULE)
-endif
-
-all: module_$(MODULE) dummy
-
-dummy:
-	@true
 
 # Read state file if exists.  Don't use :=, because then the new state (if
 # changed) wouldn't be used in the submake invocation.  May be overridden on
 # the command line.
-FILE := $(wildcard build/make.state)
+FILE = $(wildcard build/make.state)
 ifneq ($(FILE), )
     include $(FILE)
 endif
 
+
+# The $(MODULE) is defined in src/*/Makefile
+ifeq ($(MODULE), )
+
+all:
+	$(error You have to define $$MODULE)
+
+install:
+	script/install.lua build/$(ARCH)
+else
+
+# include the config file, which must exist.
 ifeq ($(wildcard build/$(ARCH)/$(MODULE)/config.make), )
     $(error Library $(ARCH)/$(MODULE) not yet configured)
 endif
 
-# $(warning Building $(ARCH) $(MODULE)...)
 
-# include the config file
+all: module_$(MODULE) dummy
+
+# avoid "nothing to do for ..." messages
+dummy:
+	@true
+
 include build/$(ARCH)/$(MODULE)/config.make
 
 ifdef NOT_AVAILABLE
@@ -44,7 +52,6 @@ module_$(MODULE):
 else
 
 # -- general configuration --
-#HASH	:=hash-$(HASHF)
 O	:=o
 LIBINSTALL := cp
 LIBFINAL := touch
@@ -89,6 +96,8 @@ clean:
 		$(ODIR)types.* $(ODIR)fundamentals.* \
 		$(ODIR)types.xml $(ODIR)globals.c $(ODIR)generated.c \
 		$(ODIR)parse-xml.log
+
+
 
 mrproper: clean
 	$H rm -f $(ODIR)config.{h,lua,make}
@@ -226,3 +235,4 @@ ${ODIR}%.luac: $(IDIR)/%.lua
 
 endif
 
+endif
