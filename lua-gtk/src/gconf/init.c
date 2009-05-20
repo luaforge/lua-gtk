@@ -10,6 +10,10 @@
 
 typedef struct _GConfEngine GConfEngine;
 
+const char gconf_func_remap[] =
+    "\14GConf\0gconf"
+    "\0";
+
 /**
  * Handle refcounting of GConfEngine objects, which are not derived from
  * GObject - unfortunately.

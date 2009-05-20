@@ -34,6 +34,7 @@ module_info = {
     prefix_func = '"gconf_"',
     prefix_constant = '"GCONF_"',
     prefix_type = '"GConf"',
+    prefix_func_remap = 'gconf_func_remap',
     depends = '"glib\\0"',
 }
 
