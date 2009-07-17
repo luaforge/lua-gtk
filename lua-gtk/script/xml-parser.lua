@@ -151,6 +151,20 @@ end
 
 
 
+-- Common handler for constructors and destructors, which are both not used
+-- but must be handled.
+local function ignore_member(p, el, name)
+    if check_fields(el, "id", "context") then return end
+    local t = typedefs[el.context]
+    if not t then
+	parse_error(name .. " for unknown structure %s", el.context)
+	return
+    end
+    local st = t.struct
+    st.fields[el.id] = { type=name, name=el.name or el.demangled }
+    curr_func = nil
+end
+
 
 local xml_tags = {
 
@@ -206,15 +220,17 @@ local xml_tags = {
     -- Not interested much in constructors.  Store anyway to avoid
     -- dangling references.
     Constructor = function(p, el)
-	if check_fields(el, "id", "context") then return end
-	local t = typedefs[el.context]
-	if not t then
-	    parse_error("Constructor for unknown structure %s", el.context)
-	    return
-	end
-	local st = t.struct
-	st.fields[el.id] = { type="constructor", name=el.name or el.demangled }
-	curr_func = nil
+	return ignore_member(p, el, "constructor")
+    end,
+
+    -- Ignore these items, they are not relevant but are emitted by
+    -- newer versions of gccxml (starting with 20090701)
+    Destructor = function(p, el)
+	return ignore_member(p, el, "destructor")
+    end,
+
+    OperatorMethod = function(p, el)
+	return ignore_member(p, el, "operatormethod")
     end,
 
     -- structures and unions
@@ -323,7 +339,8 @@ local xml_tags = {
     end,
 
     -- a function parameter that is passed by reference; only used in the
-    -- automatically generated and not useful constructors.
+    -- automatically generated constructors and destructors, which are not
+    -- relevant.
     ReferenceType = function(p, el)
     end,
 
@@ -333,6 +350,7 @@ local xml_tags = {
     File = function(p, el)
 	filelist[el.id] = el.name
     end,
+
 }
 
 

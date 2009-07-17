@@ -15,6 +15,7 @@
 --  register_prototype
 --  register_function_prototypes
 --  assign_type_idx
+--  ignore_xml_tags
 --
 
 
@@ -34,6 +35,10 @@ require "include/fundamental"
 -- the name as there are indirections.  The entries are added as found and
 -- therefore are all in use.
 ffi_type_map = {}
+
+-- List of XML types that are not further resolved
+ignore_xml_tags = { constructor=true, union=true, struct=true,
+    destructor=true, operatormethod=true }
 
 
 -- Bytes required for extra type bytes.  This is for statistics to be shown
@@ -155,7 +160,7 @@ function resolve_type(type_id, path, may_be_incomplete)
     -- first typedef
     top_type_id = type_id
     t = typedefs[type_id]
-    assert(t)
+    assert(t, "Unknown typedef with id " .. type_id)
 
     -- already seen?
     if t.full_name and not path then return t end
@@ -333,7 +338,6 @@ end
 --   have a type name, esp. functions.  Carry the higher level name.
 --
 local function _mark_typedef_in_use(t, typename)
-    local ignore_types = { constructor=true, union=true, struct=true }
     local field
 
     typename = typename or t.name
@@ -353,7 +357,7 @@ local function _mark_typedef_in_use(t, typename)
 	    if not field then
 		print(string.format("ERROR: structure %s doesn't have the "
 		    .. "field %s", st.name, member_id))
-	    elseif not ignore_types[field.type] then
+	    elseif not ignore_xml_tags[field.type] then
 		mark_type_id_in_use(field.type, string.format("%s.%s",
 		    typename, field.name or member_id))
 	    elseif field.type ~= "constructor" then
@@ -391,7 +395,7 @@ end
 -- only applies to structure elements and is specified there.
 --
 -- @param type_id  ID of the type, i.e. index into typedefs
--- @param name  Variable or argument name.  Might be required for something?
+-- @param varname  Variable or argument name.  Might be required for something?
 -- @return  The type entry
 --
 function mark_type_id_in_use(type_id, varname)
@@ -418,7 +422,7 @@ function mark_type_id_in_use(type_id, varname)
 	    -- print("synthetic function name", type_id, t.full_name)
 	    assert(t.detail.prototype)
 	end
-	-- print("mark_typedef_in_use detail", t.name)
+	-- print("mark_typedef_in_use detail", t.name, varname)
 	_mark_typedef_in_use(t.detail, t.name)
     end
     

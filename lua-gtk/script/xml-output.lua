@@ -147,6 +147,7 @@ end
 --
 function output_one_struct(ofile, tp, struct_name)
     local st, member, ofs
+    local ignore_xml_tags = types.ignore_xml_tags
     st = tp.struct
 
     -- already stored?
@@ -166,8 +167,9 @@ function output_one_struct(ofile, tp, struct_name)
 	-- ignore these member types.  constructors are irrelevant;
 	-- substructures (and sub unions) are listed twice, once as a regular
 	-- field and once as the union/struct; ignore this second instance.
-	elseif member.type == "constructor" or member.type == "union"
-	    or member.type == "struct" then
+	elseif ignore_xml_tags[member.type] then
+--	elseif member.type == "constructor" or member.type == "union"
+--	    or member.type == "struct" then
 	    -- nothing
 	else
 	    ofs = store_string("elem", member.name or member_name)

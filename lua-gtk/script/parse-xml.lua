@@ -326,11 +326,11 @@ end
 -- For each member of the structure, mark their type in use.
 function _analyze_struct(id, t)
     local st = t.struct
-    local ignorelist = { constructor=true, union=true, struct=true }
+    local ignore_xml_tags = types.ignore_xml_tags
 
     for _, member_name in ipairs(st.members) do
 	member = st.fields[member_name]
-	if member and not ignorelist[member.type] then
+	if member and not ignore_xml_tags[member.type] then
 	    types.mark_type_id_in_use(member.type,
 		string.format("%s.%s", t.name, member.name or member_name))
 	end
