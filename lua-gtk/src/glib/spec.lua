@@ -259,6 +259,8 @@ linklist = {
     "g_malloc",
     "g_iconv",
     "g_idle_add",
+    "g_main_loop_ref",
+    "g_main_loop_unref",
     "g_object_class_find_property",
     "g_object_get_property",
     "g_object_set_property",
