@@ -92,6 +92,11 @@ function configure_gnome()
 	ar[#ar + 1] = string.gsub(name, '^"(.*)"$', '%1\\0')
     end
     cfg_h("#define LUAGTK_LIBRARIES \"" .. table.concat(ar) .. '"')
+
+    -- just for information; sometimes the XML can be downloaded, so
+    -- gccxml is not absolutely required.
+    local gccxml_version = run("*l", "gccxml", "--version")
+    summary("GCCXML", gccxml_version)
 end
 
 -- MAIN --
