@@ -4,6 +4,8 @@
 -- Configure script for the core library and modules.  It is to be called
 -- with a "spec.lua" file argument, and accepts optional flags.
 --
+-- Exit code: 0=ok, 1..9=some error, continue, >10 = stop configuring
+--
 -- Copyright (C) 2008 Wolfgang Oertl
 --
 
@@ -31,6 +33,7 @@ arch_cpus = { "alpha", "amd64", "arm", "arml", "armel", "hppa", "i386", "ia64",
 
 spec = nil		    -- parsed contents of the module's spec file
 err = 0			    -- global error counter
+fatal_err = false
 cflags = "-Wall -I include" -- cflags setting for the Makefile
 -- without = {}		    -- list of libraries to exclude
 programs = {}		    -- key=program name, value=full path or false
@@ -105,6 +108,7 @@ Known CPUs: %s.
 Known modules: %s.
 
     ]], arg[0], _get_arch_list(), _get_cpu_list(), _get_lib_list()))
+    fatal_err = true
 end
 
 
@@ -143,7 +147,7 @@ option_handlers = {
 function parse_cmdline()
     local i2, s
     local i = 1
-    local err = 0
+    local c_err = 0
 
     while i <= #arg do
 	s = arg[i]
@@ -153,24 +157,24 @@ function parse_cmdline()
 	    h = option_handlers[string.sub(s, 3)]
 	    if not h then
 		print("Unknown option " .. s)
-		err = err + 1
+		c_err = c_err + 1
 	    else
 		i2 = h(i)
 		if i2 then i = i + i2 end
 	    end
 	else
 	    print("Unknown option " .. s)
-	    err = err + 1
+	    c_err = c_err + 1
 	end
     end
 
     if do_show_help then
 	show_help()
-	err = err + 1
+	c_err = c_err + 1
     end
 
-    if err > 0 then
-	os.exit(1)
+    if c_err > 0 then
+	os.exit(fatal_err and 10 or 1)
     end
 end
 
