@@ -8,8 +8,8 @@ gnome.set_debug_flags "memory"
 
 win_count = 0
 
-function mywin_new(msg)
-    local self = { pixmap=nil, msg=msg }
+function mywin_new(msg, color)
+    local self = { pixmap=nil, msg=msg, color=color }
     self.win = gtk.window_new(gtk.WINDOW_TOPLEVEL)
     self.win:connect('destroy', on_destroy, self)
     self.win:set_title('Pixmap Test')
@@ -35,20 +35,19 @@ end
 --
 function on_configure(da, ev, ifo)
     local window = ifo.win.window
-    -- print("WINDOW", window)
-    -- gnome.breakfunc()
     local width, height = window:get_size(0, 0)
-    -- print("WIDTH, HEIGHT", width, height)
+
     assert(width)
     assert(height)
 
+    -- If a previous pixmap exists, use the "destroy" function to release
+    -- all resources right away.  Waiting for the garbage collection would
+    -- lead to lots of memory allocated (in the X server).
     if ifo.pixmap then
-	-- mostly seems to work.  maybe check some more
 	gnome.destroy(ifo.pixmap)
     end
 
     -- allocates memory in X server... default drawable, width, height, depth
-    -- loses the reference to the previous pixmap, if any.
     ifo.pixmap = gdk.pixmap_new(window, width, height, -1)
 
     local style = ifo.win:get_style()
@@ -64,6 +63,18 @@ function on_configure(da, ev, ifo)
 	    height - 20)
     end
 
+    -- draw a background
+    if width > 80 and height > 80 then
+	local gc = gdk.gc_new(ifo.pixmap)
+	local color = gdk.new "Color"
+	color.red = 0
+	color.green = ifo.color
+	color.blue = 0
+	gc:set_rgb_fg_color(color)
+	ifo.pixmap:draw_rectangle(gc, true, 40, 40, width - 80,
+	    height - 80)
+    end
+
     -- draw a text message
     local message = "Hello, World! " .. ifo.msg
     local layout = ifo.win:create_pango_layout(message)
@@ -77,11 +88,6 @@ function on_configure(da, ev, ifo)
 	ifo.pixmap:draw_layout(black_gc, width - 15 - rect.width,
 	    height - 15 - rect.height, layout)
     end
-
-    -- Make sure that the unreferenced pixmap is freed NOW and not eventually,
-    -- because this can eat up loads of memory of the X server.
-    -- collectgarbage()
-    -- collectgarbage()
 
     return true
 end
@@ -104,8 +110,8 @@ function on_expose(da, ev, ifo)
 end
 
 -- gnome.set_debug_flags("memory")
-mywin1 = mywin_new("One")
-mywin2 = mywin_new("Two")
+mywin1 = mywin_new("One", 32767)
+mywin2 = mywin_new("Two", 65535)
 gtk.main()
 
 mywin1 = nil
