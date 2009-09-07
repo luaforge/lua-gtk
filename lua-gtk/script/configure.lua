@@ -191,7 +191,7 @@ function find_program(prg)
 	fh = io.popen("which " .. prg)
 	if not fh then
 	    print "Can't run the command \"which\", aborting"
-	    os.exit(1)
+	    os.exit(10)
 	end
 	s = fh:read "*l"
 	fh:close()
@@ -258,7 +258,7 @@ end
 function pkg_config_exists(package)
     s = find_program "pkg-config"
     assert(s, "Can't find pkg-config.")
-    s = os.execute(s .. " --exists " .. package)
+    s = os.execute(s .. " --print-errors --exists " .. package)
     return s == 0
 end
 
@@ -289,7 +289,7 @@ function detect_architecture()
 	print(string.format("Unsupported result %s from uname -m.  Please "
 	    .. "fix the script\n%s and send the patches to the author.",
 	    arch_cpu, arg[0]))
-	os.exit(1)
+	os.exit(10)
     end
 
     host_arch="linux-" .. arch_cpu
@@ -302,10 +302,10 @@ end
 function check_architecture()
     arch_os, arch_cpu = string.match(arch, "^(%w-)-(%w-)$")
     if not arch_cpu or arch_cpu == "" then
-	print(string.format("Please specify the CPU part of the architecture, "
-	    .. "e.g. %s-i386.\nKnown architectures: %s", arch_os or arch,
-	    _get_cpu_list()))
-	os.exit(1)
+	print(string.format("Please specify both architecture and CPU parts "
+	    .. "of the target, e.g. linux-%s.\nKnown architectures: %s",
+	    arch_os or arch, _get_cpu_list()))
+	os.exit(10)
     end
 
     local ok = false
@@ -316,7 +316,7 @@ function check_architecture()
     if not ok then
 	print(string.format("Unknown CPU %s.  Add it to the script %s if "
 	    .. "desired.", arch_cpu, arg[0]))
-	os.exit(1)
+	os.exit(10)
     end
 
     -- determine the appropriate config files.
@@ -328,7 +328,7 @@ function check_architecture()
 	    print(string.format("Unknown architecture %s: neither %s%s.lua "
 		.. "nor\n%s%s.lua are available.", arch, script_prefix, arch,
 		script_prefix, arch_os))
-	    os.exit(1)
+	    os.exit(10)
 	end
     end
   
@@ -358,6 +358,12 @@ end
 function cfg_err(fmt, ...)
     print(string.format(fmt, ...))
     err = err + 1
+end
+
+function cfg_fatal(...)
+    fatal_err = true
+    cfg_err(...)
+    os.exit(11)
 end
 
 function general_setup(libname)
@@ -486,7 +492,8 @@ function _setup_library(cfg)
 	if cfg.required then
 	    return cfg_err("Required library %s doesn't exist.", cfg.name)
 	end
-	print(string.format("The optional package %s doesn't exist.", cfg.name))
+	print(string.format("The optional package %s (%s) doesn't exist.",
+	    cfg.name, cfg.pkg_config_name))
 	cfg_m("NOT_AVAILABLE", 1)
 	return
     end
@@ -649,7 +656,11 @@ function configure_main()
     s = string.format("src/%s/configure.lua", module_name)
     if lfs.attributes(s, "mode") then
 	load_config(s, _G)
-	return main()
+	main()
+	if err > 0 then
+	    os.exit(fatal_err and 10 or 1)
+	end
+	return
     end
 
     configure_base()
@@ -677,7 +688,7 @@ function configure_base()
     if not _setup_library(spec) then
 	show_summary = false
 	configure_done()
-	error()
+	os.exit(2)
     end
 
     -- don't add libraries from additional module specs, only cflags
