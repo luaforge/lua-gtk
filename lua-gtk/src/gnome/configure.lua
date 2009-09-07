@@ -22,8 +22,7 @@ function setup_ffi()
     
     ifile = "src/gnome/test-ffi.c"
     if not lfs.attributes(ifile) then
-	cfg_err("Missing source file %s", ifile)
-	return
+	return cfg_fatal("Missing source file %s", ifile)
     end
 
     cfg_m("LIBFFI_LIB", libffi_lib)
@@ -35,7 +34,7 @@ function setup_ffi()
     if verbose then print(cmd2) end
     rc = os.execute(cmd2)
     if rc ~= 0 then
-	return cfg_err("Failed to compile test-ffi (code)")
+	return cfg_fatal("Failed to compile test-ffi (code)")
     end
 
     cmd3 = string.format("%s%s/test-ffi%s",
@@ -53,7 +52,7 @@ function setup_ffi()
     if verbose then print(cmd2) end
     rc = os.execute(cmd2)
     if rc ~= 0 then
-	return cfg_err("Failed to compile test-ffi (closure)")
+	return cfg_fatal("Failed to compile test-ffi (closure)")
     end
 
     rc = os.execute(cmd3)
@@ -63,7 +62,7 @@ function setup_ffi()
 	return
     end
 
-    cfg_err("Libffi closure calling failed.")
+    cfg_fatal("Libffi closure calling failed.")
 end
 
 
