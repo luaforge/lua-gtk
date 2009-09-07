@@ -31,9 +31,22 @@ function parse_cmdline()
 	end
     end
 
+    -- The "gnome" module must be configured first.
+    for i, name in ipairs(modules) do
+	if name == "gnome" and i > 1 then
+	    table.insert(modules, 1, table.remove(modules, i))
+	    break
+	end
+    end
+
     return last_opt, modules
 end
 
+
+---
+-- Run the configure script for each module.
+-- @return  true on success, false on error
+--
 function run_sub_configure(last_opt, modules)
     local cmd, n, rc
 
@@ -43,16 +56,19 @@ function run_sub_configure(last_opt, modules)
 	cmd[n] = mod
 	rc = os.execute(table.concat(cmd, " "))
 	-- stop on fatal error, or when --help was used.
-	if rc >= 10 then
-	    break
+	if rc >= 10 * 256 then
+	    return false
 	end
     end
+
+    return true
 end
 
 function main()
     local last_opt, modules = parse_cmdline()
-    run_sub_configure(last_opt, modules)
-    print'Type "make" to build all modules.'
+    if run_sub_configure(last_opt, modules) then
+	print'Type "make" to build all modules.'
+    end
 end
 
 main()
