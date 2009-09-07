@@ -13,7 +13,7 @@ end
 
 function detect_ffi()
 
-    if false and pkg_config_exists "libffi" then
+    if pkg_config_exists "libffi" then
 	libffi_version, libffi_lib, libffi_inc = pkg_config("--modversion",
 	    "--libs", "--cflags", "libffi")
 	libffi_inc = libffi_inc or ""
@@ -44,7 +44,7 @@ if host_arch ~= arch then
     local ar = {}
     for dir in lfs.dir("/usr") do
 	if string.match(dir, "^" .. arch_cpu) and
-	    lfs.attribute(dir .. "/include", "mode") then
+	    lfs.attributes(dir .. "/include", "mode") then
 	    ar[#ar + 1] = dir .. "/include"
 	end
     end
