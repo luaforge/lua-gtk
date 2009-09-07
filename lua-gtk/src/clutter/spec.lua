@@ -1,14 +1,14 @@
 -- vim:sw=4:sts=4
 
 name = "Clutter"
-pkg_config_name = "clutter-0.8"
+pkg_config_name = "clutter-1.0"
 
-include_dirs = { "clutter-0.8" }
+include_dirs = { "clutter-1.0" }
 
 libraries = {}
-libraries.linux = { "/usr/lib/libclutter-glx-0.8.so",
-    "/usr/lib/libclutter-cairo-0.8.so" }
-libraries.win32 = { "libclutter-glx-0.8.dll" }
+libraries.linux = { "/usr/lib/libclutter-glx-1.0.so",
+    "/usr/lib/libclutter-cairo-1.0.so" }
+libraries.win32 = { "libclutter-glx-1.0.dll" }
 
 includes = {}
 includes.all = {
