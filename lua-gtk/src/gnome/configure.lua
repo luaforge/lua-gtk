@@ -95,7 +95,7 @@ function configure_gnome()
     -- just for information; sometimes the XML can be downloaded, so
     -- gccxml is not absolutely required.
     local gccxml_version = run("*l", "gccxml", "--version")
-    summary("GCCXML", gccxml_version)
+    summary("GCCXML", gccxml_version or "not available")
 end
 
 -- MAIN --
@@ -109,7 +109,7 @@ function main()
 
     -- make.state is used by the toplevel makefile to automatically select the
     -- architecture.
-    ar =  { "ARCH=" .. arch }
+    ar =  { "ARCH?=" .. arch }
     write_config_file("build/make.state", ar)
 end
 
