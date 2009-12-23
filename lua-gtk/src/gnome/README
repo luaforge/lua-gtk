@@ -1,0 +1,5 @@
+
+A note about the build process: even though this module doesn't contain
+any functions or types, it still has a list of fundamental data types.
+This is the reason why types.xml must be generated.
+
