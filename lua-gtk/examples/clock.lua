@@ -5,13 +5,13 @@
 require "gtk"
 
 win = gtk.window_new(gtk.WINDOW_TOPLEVEL)
-win:set_size_request(400, 300)
+win:set_size_request(230, 100)
 win:set_title("Clock")
 win:connect('destroy', gtk.main_quit)
 
 function onTimeout(ar)
     local lbl = ar.lbl
-    lbl:set_text(os.date('%H:%M:%S'))
+    lbl:set_markup('<span font="36">' .. os.date('%H:%M:%S') .. '</span>')
     return true
 end
 
