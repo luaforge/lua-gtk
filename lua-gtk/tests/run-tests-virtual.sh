@@ -105,9 +105,19 @@ echo "** Running tests. `date`"
 
 # Start the virtual server, and wait for it to initialize.
 if test $VIEW -eq 0; then
-    Xvfb -ac -nolisten tcp -noreset $VIRTDISP 2> /dev/null &
+    if which Xvfb; then
+	Xvfb -ac -nolisten tcp -noreset $VIRTDISP 2> /dev/null &
+    else
+	echo "Xvfb is not installed."
+	exit 1
+    fi
 else
-    Xephyr -ac -nolisten tcp -noreset $VIRTDISP 2> /dev/null &
+    if which Xephyr; then
+	Xephyr -ac -nolisten tcp -noreset $VIRTDISP 2> /dev/null &
+    else
+	echo "Xephyr is not installed."
+	exit 1
+    fi
 fi
 SERVER_PID=$!
 sleep 1
