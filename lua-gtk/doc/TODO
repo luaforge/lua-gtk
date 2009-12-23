@@ -4,6 +4,7 @@
 	sparc: builds; all tests fail; gtk.window_new not found.
 	powerpc: builds; all tests fail; gtk.window_new not found
 	i386: builds; test #11 fails
+	amd64: builds; some tests fail
 	hppa: builds; all tests fail; gtk.window_new not found
 	s390: builds; all testse fail; gtk.window_new not found;
 		gtk.GTK_CAN_DEFAULT not found
@@ -12,9 +13,29 @@
 	armel: 0.9 port works thanks to the access to such a box thanks to
 	Martin Guy.  The changes have to be ported forward to trunk.
 
+determine .so to link to at configure time, should be /usr/lib/libatk-1.0.so.0
+etc.
+
+provide an option to statically link to libffi5
+
+
 
 CURRENT
 =======
+
+ - failures in tests 016, 018, 023, 030
+   due to loading of older versions of modules. Ensure that some kind
+   of versioning catches this.
+   	1. remove the "hash_method" field of the API.  The core module
+	   supports multiple hash methods.
+	2. the struct module should say which hash method is used.
+	   in lg_register_module check that this is a supported method.
+	3. maybe add version numbers to the supported hash methods so
+	   that enhancements can be made.
+
+ - build on linux-amd64: va_list is not available, because its full_name
+   is va_list[0].  script/parse-xml.lua:mark_override() works with the
+   full names, though.
 
  - src/gtk/spec.lua (and others) contain the absolute path to the library
    to load.  This is not correct, it should be retrieved using pkg-config
@@ -32,6 +53,8 @@ CURRENT
 	  requires the modules that should provide the type to be already
 	  built.
 
+ - support cmph 0.9 and its new algorithm CHD, see http://cmph.sf.net/
+
  - make the use of arg_flags clearer.
  	1. bits 0-3 are reserved by the core module.
 	2. a per-module callback handles values with bits set 4-7
@@ -41,6 +64,9 @@ CURRENT
 	- hashes of fundamental type names
 	- hashes of names of non-native types
 	- stored again for each hash table
+   Does it make sense to compile hash algorithms, methods separately and load
+   them on demand?  Probably not.  But anyway the core module should be able
+   to provide more than one hash method.
 
  - test build-time linking
 
@@ -50,7 +76,6 @@ CURRENT
    An additional mechanism would be required to replace the "FSO" overrides;
    maybe keep them.
 
- - wrapper for g_object_get not yet implemented, see src/glib/override.c.
 
 
 BUGS
@@ -145,11 +170,13 @@ MISSING FEATURES
   blocked (by a slow DNS server, for example).
 	getaddrinfo_a in libc.  available in mingw?
 		libws2_32.a has _getaddrinfo@16, but not getaddrinfo_w.
-  	libc-ares1
-	adns -- quite "fat" according to udns description
+  	libc-ares2, 123 kB
+	adns -- quite "fat" according to udns description.  160 kB
 	write an own non-recursing simple dns resolver?  might be easy.
 	http://www.network-research.org/udns.html
 	udns
+	libunbound1
+	libldns1
 
 - handle data type float*, e.g. GtkCurve.ctlpoint
 
@@ -316,7 +343,13 @@ IMPROVEMENTS
   libxml2, libxslt, libglade, gconf.
 
   Still missing:
-  at-spi, gail, libxslt, libglade, gconf.
+  at-spi, gail, libxslt, libglade.
+
+  Other non-Gnome libraries that build on GObject:
+  vte, webkit, gstreamer, libgtkimageview0, gtask
+
+  Other libraries that could also be supported, but are not based on GObject:
+  libunique
 
 
 	gio
@@ -331,19 +364,12 @@ IMPROVEMENTS
 	at-spi
 		install libatspi-dev, libatspi1.0-0
 
-  - cairo - http://cairographics.org/
-  	partly working, not tested much
-
   - GL
   	libgtkgl2.0-dev
 	libgtkglext1-dev
 
   - GDA
   	libgda3-dev
-
-  - GConf2
-  	libgconf2-dev
-	liborbit2-dev
 
   - GD2
   	libgd2-xpm-dev
