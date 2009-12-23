@@ -39,7 +39,7 @@ else
 end
 
 -- don't use qemu - it can't run windows executables.
-cross_run = ""
+cross_run = "wine"
 
 cfg_m("INDIR1", "/usr/local/lib/lua/5.1")
 cfg_m("INDIR2", "/usr/local/share/lua/5.1")
