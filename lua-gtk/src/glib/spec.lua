@@ -1,4 +1,5 @@
 -- vim:sw=4:sts=4
+-- Specification of the base libraries: GObject, GLib.
 
 name = "GObject"
 pkg_config_name = "gobject-2.0"
@@ -6,16 +7,17 @@ required = true
 
 include_dirs = { "glib-2.0" }
 
-libraries = {}
-libraries.linux = {
-    "/usr/lib/libgobject-2.0.so",
-    "/usr/lib/libgmodule-2.0.so",
-    "/usr/lib/libgthread-2.0.so",
-}
-libraries.win32 = {
-    "libglib-2.0-0.dll",
-    "libgobject-2.0-0.dll",
-    "libgmodule-2.0-0.dll",
+libraries = {
+    linux = {
+	"/usr/lib/libgobject-2.0.so.0",
+	"/usr/lib/libgmodule-2.0.so.0",
+	"/usr/lib/libgthread-2.0.so.0",
+    },
+    win32 = {
+	"libglib-2.0-0.dll",
+	"libgobject-2.0-0.dll",
+	"libgmodule-2.0-0.dll",
+    },
 }
 
 path_glib = "/usr/include/glib-2.0"
@@ -53,7 +55,7 @@ include_types = {		-- used in which other module:
     "stat*",
     "time_t",
     "time_t*",
-    "timespec",
+--    "timespec",			-- only available in Linux, not Win32!
     "FILE*",
 --    "va_list",
 
@@ -78,6 +80,10 @@ include_types = {		-- used in which other module:
     "GSList**",			-- gtkhtml
 
     "short int*",		-- clutter
+}
+
+include_types.linux = {
+    "timespec",
 }
 
 function_flags = {
