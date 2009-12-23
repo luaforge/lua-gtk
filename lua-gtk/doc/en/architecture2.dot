@@ -3,6 +3,11 @@
 
 digraph constants {
   node [ fontsize=10, fontname=vera ];
-  firstbyte [ shape=record, label="7\nhas_type|6\nis_string|5\nis_negative|4-0\nvalue" ];
+
+  // version 2:
+  firstbyte [ shape=record, label="7,6\nflags|5-0\nvalue" ];
+
+// version 1:
+//  firstbyte [ shape=record, label="7\nhas_type|6\nis_string|5\nis_negative|4-0\nvalue" ];
 }
 
