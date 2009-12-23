@@ -6,21 +6,26 @@ pkg_config_name = "clutter-1.0"
 include_dirs = { "clutter-1.0" }
 
 libraries = {}
-libraries.linux = { "/usr/lib/libclutter-glx-1.0.so",
-    "/usr/lib/libclutter-cairo-1.0.so" }
+libraries.linux = { "/usr/lib/libclutter-glx-1.0.so.0",
+    -- "/usr/lib/libclutter-cairo-1.0.so"
+}
 libraries.win32 = { "libclutter-glx-1.0.dll" }
 
 includes = {}
 includes.all = {
     "<clutter/clutter.h>",
-    "<clutter/glx/clutter-glx.h>",
-    "<clutter/x11/clutter-x11.h>",
     "<clutter/json/json-glib.h>",
     "<clutter/json/json-marshal.h>",
-    "<clutter-cairo/clutter-cairo.h>",	    -- optional
+--    "<clutter-cairo/clutter-cairo.h>",	    -- optional
 --    "<clutter-gtk/gtk-clutter-embed.h>",    -- optional
 --    "<clutter-gtk/gtk-clutter-util.h>",	    -- optional
     "<cogl/cogl.h>",			    -- optional
+}
+
+-- include files only on Linux
+includes.linux = {
+    "<clutter/glx/clutter-glx.h>",
+    "<clutter/x11/clutter-x11.h>",
 }
 
 function_flags = {
