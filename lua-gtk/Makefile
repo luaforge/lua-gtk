@@ -8,22 +8,26 @@
 #
 
 .PHONY: all tags doc clean mrproper tests wc size diff tar install
-submake = $(MAKE) -r --no-print-directory
+MAKEFLAGS	+=-r --no-print-directory
+
+ifneq ($(wildcard build/make.state),)
+include build/make.state
+endif
 
 # first build the core module, the others depend on it.
 all: build/make.state
-	@$(submake) -f src/gnome/Makefile
-	@for file in src/*/Makefile; do $(submake) -f $$file || break; done
+	@$(MAKE) -f src/gnome/Makefile
+	@for file in src/*/Makefile; do $(MAKE) -f $$file || break; done
 
 clean mrproper:
-	@for file in src/*/Makefile; do $(submake) -f $$file $@; done
+	@for file in src/*/Makefile; do $(MAKE) -f $$file $@; done
 
 build/make.state:
 	$(error build/make.state not found.  Please run configure)
 
 # Requires an improved version of luadoc that can read C files
 doc:
-	$H $(submake) -f doc/Makefile
+	$H $(MAKE) -f doc/Makefile
 
 tags:
 	ctags $$(find src include -name "*.[ch]")
@@ -32,7 +36,7 @@ wc:
 	wc src/*/*.{c,h,lua} script/*.lua lib/*.lua
 
 size:
-	size -t build/*/*/*.so
+	size -t build/$(ARCH)/*/*.so
 
 tests:
 	tests/run-tests.sh
@@ -53,7 +57,7 @@ tar:
 	)
 
 install:
-	@ $(submake) -f script/Makefile.common install
+	@ $(MAKE) -f script/Makefile.common install
 
 
 # type "make bit" to build the bit library from the included .c file.
@@ -64,5 +68,5 @@ bit.so: src/bit.c
 
 
 .DEFAULT:
-	@$(submake) -f src/$(MAKECMDGOALS)/Makefile
+	@$(MAKE) -f src/$(MAKECMDGOALS)/Makefile
 
