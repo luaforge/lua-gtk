@@ -14,7 +14,7 @@ function build_gui()
     -- create a HtmlDocument
     doc = gtkhtml.document_new()
     doc:open_stream("text/html")
-    s = "<html><body><p>Hello, World!</p></body></html>"
+    s = '<html><body><p style="color:#f00;">Hello, World!</p></body></html>'
     doc:write_stream(s, #s)
     doc:close_stream()
 
