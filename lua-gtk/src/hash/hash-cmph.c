@@ -5,7 +5,24 @@
 
 #include "../gnome/luagnome.h"	    /* lua_State, msgprefix */
 #include "lg-hash.h"		    /* hash_info, bdz_search etc. */
+#include <cmph_types.h>
 #include <stdio.h>		    /* NULL */
+
+
+/**
+ * Convert the hash function number as used by CMPH to LuaGnome's numbering.
+ * This ensures that the numbers in LuaGnome modules always mean the same,
+ * regardless of the CMPH library version.
+ */
+int lg_cmph_hashfunc_nr(CMPH_HASH func_nr)
+{
+    if (func_nr == CMPH_HASH_JENKINS)
+	return HASHFUNC_JENKINS;
+
+    printf("could not convert hashfunc from cmph to luagnome: %d\n",
+	func_nr);
+    return -1;
+}
 
 #if 0
 #ifdef LUAGTK_win32_i386

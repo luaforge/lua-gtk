@@ -27,28 +27,33 @@ function setup_cmph()
 	end
 	version = "available"
     elseif pkg_config_exists "cmph" then
-	have_cmph = true
 	version, cmph_libs, cmph_cflags = pkg_config("--modversion",
 	    "--libs", "--cflags", "cmph")
-	cmph_cflags = cmph_cflags or ""
-	cmph_cflags = string.gsub(cmph_cflags, "^%s*$", "")
+	if version < "0.8" then
+	    version = version .. " (too old, at least 0.8 required)"
+	else
+	    have_cmph = true
+	    cmph_cflags = cmph_cflags or ""
+	    cmph_cflags = string.gsub(cmph_cflags, "^%s*$", "")
 
-	-- if cmph_cflags is empty, then the includes are in the default
-	-- include path, which is not necessarily used, e.g. for MingW or
-	-- when cross compiling.  Therefore copy the required include file.
-	if cmph_cflags == "" then
-	    f = find_file("cmph_types.h", "/usr/include", "/usr/local/include")
-	    if f then
-		os.execute(string.format("cp %s %s", f, odir))
+	    -- if cmph_cflags is empty, then the includes are in the default
+	    -- include path, which is not necessarily used, e.g. for MingW or
+	    -- when cross compiling.  Therefore copy the required include file.
+	    if cmph_cflags == "" then
+		f = find_file("cmph_types.h", "/usr/include",
+		    "/usr/local/include")
+		if f then
+		    os.execute(string.format("cp %s %s", f, odir))
+		end
 	    end
-	end
 
-	-- What about the private include files?
-	_, dir = find_file("cmph_structs.h", "/usr/local/include/cmph/private",
-	    "/usr/include/cmph/private")
-	if dir then
-	    cmph_cflags = cmph_cflags .. " -I " .. dir
-	    cmph_incdir = dir
+	    -- What about the private include files?
+	    _, dir = find_file("cmph_structs.h",
+		"/usr/local/include/cmph/private", "/usr/include/cmph/private")
+	    if dir then
+		cmph_cflags = cmph_cflags .. " -I " .. dir
+		cmph_incdir = dir
+	    end
 	end
     else
 	version = "not available"
@@ -92,6 +97,7 @@ function configure_hash()
     setup_cmph()
     if have_cmph then
 	hash_method = "cmph-" .. cmph_algo
+	cfg_h("#define LG_CMPH_ALGO CMPH_" .. string.upper(cmph_algo))
     else
 	hash_method = "simple"
     end

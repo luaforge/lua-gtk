@@ -61,39 +61,9 @@ struct hash_info_cmph {
     method_t method;
     unsigned int hash_mask;
     unsigned int offset_bits, length_bits;
-    const unsigned int *index;	// hash value, data offset and length
-    const unsigned char *data;	// actual data
-};
-
-// Extra data for FCH algorithm (from CMPH)
-struct hash_info_fch {
-    struct hash_info_cmph cmph;
-
-    unsigned int m, b;		// m=number of buckets
-    unsigned int g_size;	// 16 or 32
-    unsigned int p1, p2;	// magic parameters
-    struct hash_state h1, h2;
-    unsigned short g[];		// 16 or 32 bit entries
-};
-// b = ceil(c * m / log(m) / log(2) + 1)
-// p1 = ceil(0.6 * m)
-// p2 = ceil(0.3 * b)
-
-// Extra data for the BDZ algorithm (from CMPH)
-struct hash_info_bdz {
-    struct hash_info_cmph cmph;
-
-    unsigned int
-	m,		/* edges (words) count */
-	n,		/* vertex count */
-	r,		/* partition vertex count */
-	k,		/* kth index in ranktable = log2(n=3r)/epsilon */
-	b,		/* number of bits of k */
-	ranktablesize,	/* number of entries in ranktable, n/k+1 */
-	rt_item_size;	/* bytes per item in ranktable */
-    unsigned char *ranktable;	/* items in high...low byte order */
-    struct hash_state hl;
-    unsigned char g[];
+    const unsigned int *index;	    // hash value, data offset and length
+    const unsigned char *data;	    // actual data
+    const unsigned char packed[];    // packed hash function
 };
 
 extern const char *hash_method_names[];

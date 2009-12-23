@@ -9,27 +9,27 @@
 #include <string.h>
 #include <stdio.h>
 
-static int find_cmph_algo(const char *name)
-{
-    const char **s;
-
-    for (s=cmph_names; *s; s++)
-	if (!strcmp(*s, name)) {
-	    printf("%s\n", name);
-	    return 1;
-	}
-
-    return 0;
-}
-
+static const char *supported[] = {
+    // "chd_ph",
+    "bdz",
+    "fch",
+    NULL
+};
 
 int main(int argc, char **argv)
 {
-    if (!find_cmph_algo("bdz") && !find_cmph_algo("fch")) {
-	fprintf(stderr, "neither bdz nor fch algorithm is supported.");
-	return 1;
+    const char **algo, **s;
+
+    for (algo=supported; *algo; algo++) {
+	for (s=cmph_names; *s; s++)
+	    if (!strcmp(*s, *algo)) {
+		printf("%s\n", *algo);
+		return 0;
+	    }
     }
 
-    return 0;
+    fprintf(stderr,
+	"hash-cmph-detect: no supported algorithm found in your cmph library.");
+    return 1;
 }
 

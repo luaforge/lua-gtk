@@ -32,7 +32,7 @@
  *  - write an index table with part of the hash value, one offset per bucket
  *    and optionally a length.
  *
- * Copyright (C) 2007, 2008 Wolfgang Oertl
+ * Copyright (C) 2007, 2009 Wolfgang Oertl
  * This program is free software and can be used under the terms of the
  * GNU Lesser General Public License version 2.1.  You can find the
  * full text of this license here:
@@ -43,15 +43,7 @@
 #include "config.h"
 #include <cmph.h>
 #include <cmph_types.h>
-#include <cmph_structs.h>   // cmph_t definition
-#ifdef CMPH_USE_fch
- #include <fch_structs.h>    // jenkins_state_t, __fch_data_t
- #define LG_CMPH_ALGO CMPH_FCH
-#endif
-#ifdef CMPH_USE_bdz
- #include <bdz_structs.h>
- #define LG_CMPH_ALGO CMPH_BDZ
-#endif
+#include "hash-cmph.h"
 #include <string.h>	    // strlen, strchr, strdup, memset
 #include <errno.h>	    // errno
 #include <lauxlib.h>	    // luaL_error
@@ -78,173 +70,33 @@ struct bucket_t *buckets = NULL;
 struct value_t *values = NULL;
 int value_count = 0;
 cmph_t *mphf = NULL;
+unsigned char *packed_mphf = NULL;
+int packed_length = 0;
 const char *prefix = NULL;
 int offset_size = 0;
 int total_data_size = 0;
 int max_data_length = 0;
 
-
-
-/**
- * Given a CMPH hash function number, convert that to the numbers used within
- * LuaGnome.
- */
-static int convert_funcnr(int nr)
-{
-// #ifdef CMPH_HASH_JENKINS
-    if (nr == CMPH_HASH_JENKINS)
-	return HASHFUNC_JENKINS;
-// #endif
-    fprintf(stderr, "Unsupported hash function %s (%d)\n",
-	cmph_hash_names[nr], nr);
-    exit(1);
-}
-
-
-#ifdef CMPH_USE_fch
-/**
- * Output the data structure for fch.
- * Required fields:
- *  h1, h2, m, b, p1, p2, g
- */
-static int dump_fch(FILE *ofile)
-{
-    struct __fch_data_t *f = (struct __fch_data_t*) mphf->data;
-    jenkins_state_t *js1, *js2;
-    int i, g_size, cnt=0;
-    unsigned int maxval = 0;
-
-    /* analyze the "g" table to find the maximum value. */
-    for (i=0; i<f->b; i++)
-	if (maxval < f->g[i])
-	    maxval = f->g[i];
-    g_size = maxval < 65536 ? 16 : 32;
-    js1 = (jenkins_state_t*) f->h1;
-    js2 = (jenkins_state_t*) f->h2;
-
-    fprintf(ofile, "/* max. value in g is %d */\n"
-	"  m: %d,\n"
-	"  b: %d,\n"
-	"  g_size: %d,\n"
-	"  p1: %u,\n"
-	"  p2: %u,\n"
-	"  h1: { %d, %d },\n"
-	"  h2: { %d, %d },\n"
-	"  g: { ",
-	maxval, f->m, f->b, g_size, (unsigned int) f->p1,
-	(unsigned int) f->p2,
-	convert_funcnr(js1->hashfunc), js1->seed,
-	convert_funcnr(js2->hashfunc), js2->seed);
-
-    for (i=0; i<f->b; i++) {
-	fprintf(ofile, "%d,", f->g[i] & 0xffff);
-	cnt ++;
-
-	/* optionally 16 more bits */
-	if (g_size == 32)
-	    fprintf(ofile, "%d,", f->g[i] >> 16);
-	cnt ++;
-
-	/* add linebreaks */
-	if (cnt > 20) {
-	    fprintf(ofile, "\n  ");
-	    cnt = 0;
-	}
-    }
-
-    fprintf(ofile, " },\n");
-    fprintf(ofile, "};\n\n");
-
-    return 0;
-}
-#endif
-
-#ifdef CMPH_USE_bdz
-
-/**
- * Output the additional data fields specific for the BDZ algorithm.
- */
-static int dump_bdz(FILE *f)
-{
-    struct __bdz_data_t *b = (struct __bdz_data_t*) mphf->data;
-    jenkins_state_t *js;
-    int i, g_size, g_count, cnt=0;
-    unsigned int maxval = 0;
-
-    /* analyze the "g" table to find the maximum value. */
-    g_count = (b->n >> 2) + 1;
-    for (i=0; i<g_count; i++)
-	if (maxval < b->g[i])
-	    maxval = b->g[i];
-    g_size = maxval < 65536 ? 16 : 32;
-
-    fprintf(f, "/* max. value in g is %d */\n"
-	"  m: %d,\n"
-	"  n: %d,\n"
-	"  r: %d,\n"
-	"  k: %d,\n"
-	"  b: %d,\n",
-	maxval, b->m, b->n, b->r, b->k, b->b);
-
-    /* dump the rank table - as a string to avoid a separate array */
-    int rt_bytes = 2, v, j;
-    fprintf(f, "  ranktablesize: %d,\n"
-	"  rt_item_size: %d,\n"
-	"  ranktable: (unsigned char*) \"",
-	b->ranktablesize, rt_bytes);
-
-    for (i=0; i<b->ranktablesize; i++) {
-	v = b->ranktable[i];
-	for (j=rt_bytes-1; j >= 0; j--)
-	    fprintf(f, "\\%03o", (v >> (j<<3)) & 0xff);
-    }
-    fprintf(f, "\",\n");
-    js = (jenkins_state_t*) b->hl;
-    fprintf(f, "  hl: { %d, %d },\n", convert_funcnr(js->hashfunc), js->seed);
-
-    /* dump the "g" table, which is the bulk of the data */
-    fprintf(f, "  g: { ");
-
-    for (i=0; i<g_count; i++) {
-	fprintf(f, "%d,", b->g[i]);
-	cnt ++;
-	if (cnt > 16) {
-	    fprintf(f, "\n   ");
-	    cnt = 0;
-	}
-    }
-    fprintf(f, " },\n"
-	"};\n\n");
-
-    return 0;
-}
-
-#endif
+/* ------------------------------------------------------------------------- */
 
 /**
  * Calculate the first hash value - again, it already happened in cmph_search,
  * but it doesn't return it anywhere.  This is an unfortunate intrusion into
  * cmph internals!
+ *
+ * Fortunately the format of the packed hash function always starts like
+ * this:
+ *
+ *   Length	Content
+ *	4	CMPH_HASH, i.e. the number of the (first) hash algorithm
+ *	4	seed for the (first) hash algorithm
  */
 static unsigned int get_hash_value(const unsigned char *key, int keylen)
 {
-#ifdef CMPH_USE_fch
-    if (mphf->algo == CMPH_FCH) {
-	struct __fch_data_t *fch = (struct __fch_data_t*) mphf->data;
-	return hash(fch->h1, (char*) key, keylen);
-    }
-#endif
-
-#ifdef CMPH_USE_bdz
-    if (mphf->algo == CMPH_BDZ) {
-	struct __bdz_data_t *bdz = (struct __bdz_data_t*) mphf->data;
-	return hash(bdz->hl, (char*) key, keylen);
-    }
-#endif
-	    
-    fprintf(stderr, "internal error #1 - unsupported hash algorithm %d\n",
-	mphf->algo);
-    exit(1);
+    struct lg_cmph_packed *p = (struct lg_cmph_packed*) packed_mphf;
+    struct hash_state state = { hashfunc: lg_cmph_hashfunc_nr(p->hashfunc),
+	seed: p->seed};
+    return compute_hash(&state, (unsigned char*) key, keylen, NULL);
 }
 
 
@@ -288,27 +140,6 @@ struct value_t {
 };
 
 
-/**
- * Call the appropriate dump function to create C code containing the data
- * of the cmph hash function.  It is written on stdout.
- *
- * @return 0 on success, 1 on error.
- */
-static int dump_mphf(lua_State *L, FILE *f)
-{
-#ifdef CMPH_USE_fch
-    if (mphf->algo == CMPH_FCH)
-	return dump_fch(f);
-#endif
-
-#ifdef CMPH_USE_bdz
-    if (mphf->algo == CMPH_BDZ)
-	return dump_bdz(f);
-#endif
-    
-    return luaL_error(L, "Unsupported algorithm %s used.",
-	cmph_names[mphf->algo]);
-}
 
 static int value_cmp(const void *a, const void *b)
 {
@@ -374,7 +205,8 @@ static void _read_keys_and_values(lua_State *L, FILE *ifile)
 	if (bucket->value)
 	    luaL_error(L, "Collision at %d\n", bucket_nr);
 
-	// store the hash value.
+	// Get the (internal) hash value, which is used to detect lookup
+	// of strings which are not in the input list.
 	hash_value = get_hash_value((unsigned char*) key, keylen);
 	bucket->hash_value = hash_value;
 
@@ -436,6 +268,11 @@ static void _compute_sizes()
 }
 
 
+/**
+ * The data table has the contents of the buckets.  At runtime, the hash
+ * function is used to compute a bucket number, which is an index into
+ * the index table.
+ */
 static void _output_values(lua_State *L, FILE *ofile)
 {
     unsigned int data_offset = 0;
@@ -524,8 +361,9 @@ static void _output_buckets(lua_State *L, FILE *ofile)
 
 static void _output_meta(lua_State *L, FILE *ofile)
 {
-    char *upper_algo_name = strdup(cmph_names[mphf->algo]), *s;
+    char *upper_algo_name = strdup(cmph_names[LG_CMPH_ALGO]), *s;
     unsigned int hash_mask;
+    int i, cnt;
 
     for (s=upper_algo_name; *s; s++)
 	*s = toupper(*s);
@@ -536,16 +374,15 @@ static void _output_meta(lua_State *L, FILE *ofile)
     // Output the master structure.
     fprintf(ofile,
 	"#include \"lg-hash.h\"\n\n"
-	"const struct hash_info_%s hash_info_%s = {\n"
-	"  cmph: {\n"
+	"const struct hash_info_cmph hash_info_%s = {\n"
 	"    method: HASH_CMPH_%s,\n"
 	"    hash_mask: 0x%08x,\n"
 	"    offset_bits: %d,\n"
 	"    length_bits: %d, /* max. length is %d */\n"
 	"    index: _%s_index,\n"
 	"    data: _%s_data,\n"
-	"  },\n",
-	cmph_names[mphf->algo],
+	"    packed: { ",
+//	cmph_names[LG_CMPH_ALGO],
 	prefix,
 	upper_algo_name,
 	hash_mask,
@@ -553,7 +390,16 @@ static void _output_meta(lua_State *L, FILE *ofile)
 
     free(upper_algo_name);
 
-    dump_mphf(L, ofile);
+    for (i=0, cnt=0; i<packed_length; i++) {
+	fprintf(ofile, "%d,", packed_mphf[i]);
+	cnt ++;
+	if (cnt > 16) {
+	    fprintf(ofile, "\n   ");
+	    cnt = 0;
+	}
+    }
+
+    fprintf(ofile, "}\n};\n\n");
 
 #ifdef SHOW_DATA_HISTO
     // dump histogram to stderr
@@ -689,6 +535,10 @@ int generate_hash_cmph(lua_State *L, const char *datafile_name,
 
     // generate
     datafile = fopen(datafile_name, "r");
+    if (!datafile)
+	return luaL_error(L, "Unable to open data file %s: %s",
+	    datafile_name, strerror(errno));
+
     source = io_datafile_adapter(L, datafile_name, datafile);
     config = cmph_config_new(source);
     cmph_config_set_algo(config, LG_CMPH_ALGO);
@@ -702,6 +552,13 @@ int generate_hash_cmph(lua_State *L, const char *datafile_name,
     if (!mphf)
 	return luaL_error(L, "Unable to compute the minimal perfect hash "
 	    "function for %s.", datafile_name);
+
+    /* convert to the packed form.  This is used for later writing, but
+     * also to compute hash values */
+    packed_length = cmph_packed_size(mphf);
+    printf("packed length: %d\n", packed_length);
+    packed_mphf = (unsigned char*) malloc(packed_length);
+    cmph_pack(mphf, (void*) packed_mphf);
 
     ofile = fopen(ofname, "w");
     if (!ofile)

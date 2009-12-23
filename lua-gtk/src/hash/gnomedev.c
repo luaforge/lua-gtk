@@ -48,7 +48,7 @@ static int l_generate_hash(lua_State *L)
     const char *prefix = luaL_checkstring(L, 2);
     const char *ofname = luaL_checkstring(L, 3);
 
-#if (defined(CMPH_USE_bdz) || defined(CMPH_USE_fch))
+#if (defined(LG_CMPH_ALGO))
     return generate_hash_cmph(L, datafile_name, prefix, ofname);
 #else
     return generate_hash_simple(L, datafile_name, prefix, ofname);
