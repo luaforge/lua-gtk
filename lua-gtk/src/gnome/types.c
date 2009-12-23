@@ -1361,7 +1361,7 @@ static int ffi2lua_char_ptr_ptr(struct argconv_t *ar)
 
     // If the is_output was set by lua2ffi_char_ptr_ptr, then a NULL value was
     // passed, but now it it not NULL anymore -> most likely needs to be freed.
-    if (is_output && !ar->arg_flags & FLAG_DONT_FREE) {
+    if (is_output && !(ar->arg_flags & FLAG_DONT_FREE)) {
 	printf("free char** retval %d of function %s\n",
 	    ar->func_arg_nr, ar->ci->fi->name);
 	g_free(*s);

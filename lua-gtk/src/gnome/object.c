@@ -290,7 +290,7 @@ static int _get_object_meta_parent(lua_State *L, GType type_nr)
     */
     if (!parent_name) {
 	fprintf(stderr, "%s Unknown GType 0x%x, supposed parent of %s\n",
-	    msgprefix, parent_type_nr, g_type_name(type_nr));
+	    msgprefix, (unsigned int) parent_type_nr, g_type_name(type_nr));
 	return 1;
     }
 
