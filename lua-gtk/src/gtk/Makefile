@@ -5,6 +5,6 @@ include script/Makefile.common
 
 # dependencies
 
-$(ODIR)override.$O: $(IDIR)/override.c $(DEP) include/override.h
+$(ODIR)/override.$O: $(IDIR)/override.c $(DEP) include/override.h
 
 

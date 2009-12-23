@@ -3,9 +3,10 @@
 # to be set before including this file:
 #
 # MODULE (optional)
-# Name of the module to build.  Source is in src/$(MODULE), and the build directory
-# (with configure-generated config files) is in build/$(ARCH)/$(MODULE).
-# If not given, only targets not related to individual modules are available (i.e., install)
+# Name of the module to build.  Source is in src/$(MODULE), and the build
+# directory (with configure-generated config files) is in
+# build/$(ARCH)/$(MODULE).  If not given, only targets not related to
+# individual modules are available (i.e., install)
 #
 # SRC (optional)
 # list of module specific source files in addition to init.c and the
@@ -19,7 +20,6 @@ FILE = $(wildcard build/make.state)
 ifneq ($(FILE), )
     include $(FILE)
 endif
-
 
 # The $(MODULE) is defined in src/*/Makefile
 ifeq ($(MODULE), )
@@ -45,6 +45,7 @@ dummy:
 
 include build/$(ARCH)/$(MODULE)/config.make
 
+
 ifdef NOT_AVAILABLE
   $(warning The module $(MODULE) is not buildable.)
 module_$(MODULE):
@@ -60,6 +61,11 @@ DYNLINK_PREFIX :=$(MODULE)
 BINDIR	=build/$(ARCH)/
 DEVMOD	:=build/$(ARCH)/gnomedev.so
 # -- end general configuration --
+
+# use the compiler as linker, unless it has been set in the environment.
+ifeq "$(origin LD)" "default"
+LD	:=$(CC)
+endif
 
 # -- non-core-module settings --
 ifeq ($(COREMODULE), )
@@ -83,43 +89,44 @@ else
 endif
 
 # how to recursively call make (if required)
-submake = $(MAKE) -r --no-print-directory
+#submake = $(MAKE) -r --no-print-directory
+#MAKEFLAGS	+=-r --no-print-directory
 
 
-module_$(MODULE): $(ODIR)$(MODULE)$(DLLEXT)
+module_$(MODULE): $(ODIR)/$(MODULE)$(DLLEXT)
 
 # cleanup
 clean:
-	$H rm -f $(addprefix $(ODIR),$(addsuffix .$O,$(OFILES)) $(CLEAN)) \
-		$(ODIR)$(MODULE)$(DLLEXT) \
-		$(ODIR)constants* $(ODIR)functions* $(ODIR)link.[ch] \
-		$(ODIR)types.* $(ODIR)fundamentals.* \
-		$(ODIR)types.xml $(ODIR)globals.c $(ODIR)generated.c \
-		$(ODIR)parse-xml.log
+	$H rm -f $(addprefix $(ODIR)/,$(addsuffix .$O,$(OFILES)) $(CLEAN)) \
+		$(ODIR)/$(MODULE)$(DLLEXT) \
+		$(ODIR)/constants* $(ODIR)/functions* $(ODIR)/link.[ch] \
+		$(ODIR)/types.* $(ODIR)/fundamentals.* \
+		$(ODIR)/types.xml $(ODIR)/globals.c $(ODIR)/generated.c \
+		$(ODIR)/parse-xml.log
 
 
 
 mrproper: clean
-	$H rm -f $(ODIR)config.{h,lua,make}
+	$H rm -f $(ODIR)/config.{h,lua,make}
 
-size: $(addprefix $(ODIR), $(addsuffix .$O,$(OFILES)))
-	$H size -t $(addprefix $(ODIR), $(addsuffix .$O,$(OFILES)))
-	$H size $(ODIR)$(MODULE)$(DLLEXT)
+size: $(addprefix $(ODIR)/, $(addsuffix .$O,$(OFILES)))
+	$H size -t $(addprefix $(ODIR)/, $(addsuffix .$O,$(OFILES)))
+	$H size $(ODIR)/$(MODULE)$(DLLEXT)
 
 wc:
 	$H wc $(IDIR)/*.[ch]
 
 .PHONY:	tags wc tar install mrproper clean tests config_h doc size
-.PRECIOUS: $(ODIR)%.txt $(ODIR)%.c
+.PRECIOUS: $(ODIR)/%.txt $(ODIR)/%.c
 
 # headers for dependencies
-DEP	:=include/common.h include/module.h $(ODIR)config.h
+DEP	:=include/common.h include/module.h $(ODIR)/config.h
 
 ifeq ($(DYNLINK), 0)
-LIBS	+=$(GTK_LIBS)
+LIBS	+=$(MOD_LIBS)
 else
 OFILES	+=link
-DEP	+=$(ODIR)link.h
+DEP	+=$(ODIR)/link.h
 endif
 
 # configure hash files depending on the setting in build/make.state.
@@ -134,60 +141,66 @@ else
 endif
 
 # the target library
-$(ODIR)$(MODULE)$(DLLEXT): $(addprefix $(ODIR),$(addsuffix .$O,$(OFILES)))
+$(ODIR)/$(MODULE)$(DLLEXT): $(addprefix $(ODIR)/,$(addsuffix .$O,$(OFILES)))
 	$I
-	$H $(CC) $(LDFLAGS) -shared -o $@ $^ $(LIBS)
+	$H $(LD) $(LDFLAGS) -shared -o $@ $^ $(LIBS)
 
 # if config.h changes, chances are that make-xml must be run again.
-${ODIR}types.xml: script/make-xml.lua $(ODIR)config.h $(ODIR)config.lua $(IDIR)/spec.lua
+$(ODIR)/types.xml: script/make-xml.lua $(ODIR)/config.h $(ODIR)/config.lua $(IDIR)/spec.lua
 	$I
 	$H script/make-xml.lua "$(ODIR)"
 
 # changed spec.lua - must reconfigure.  This may or may not change config.lua,
 # but to avoid configures every time, the timestamp is updated.
-$(ODIR)config.lua: $(IDIR)/spec.lua
+$(ODIR)/config.lua: $(IDIR)/spec.lua
 	$I
 	$H script/configure.lua $(CONFIG_ARGS) $(MODULE)
 	$H touch "$@"
 
-$(ODIR)%.$O: $(ODIR)%.c
+$(ODIR)/%.$O: $(ODIR)/%.c
 	$I
 	$H ${CC} ${CFLAGS} -c -o $@ $<
 
-$(ODIR)%.$O: $(IDIR)/%.c $(DEP)
+$(ODIR)/%.$O: $(IDIR)/%.c $(DEP)
 	$I
 	$H $(CC) $(CFLAGS) -c -o $@ $<
 
 # module.c is code required by modules to hook up with the core module and
 # must therefore be compiled into each module.
-$(ODIR)module.$O: include/module.c $(DEP)
+$(ODIR)/module.$O: include/module.c $(DEP)
 	$I
 	$H $(CC) $(CFLAGS) -c -o $@ $<
 
 
 # - Dependencies for modules -
-$(ODIR)init.$O: $(IDIR)/init.c
-$(ODIR)constants.$O: include/lg-hash.h
-$(ODIR)functions.$O: include/lg-hash.h
-$(ODIR)types.$O: include/common.h $(ODIR)config.h
+$(ODIR)/init.$O: $(IDIR)/init.c
+$(ODIR)/constants.$O: include/lg-hash.h
+$(ODIR)/functions.$O: include/lg-hash.h
+$(ODIR)/types.$O: include/common.h $(ODIR)/config.h
 
 
 # -- dynamic runtime linking --
-linkh: ${ODIR}link.h
-${ODIR}link.c ${ODIR}link.h: $(IDIR)/spec.lua script/make-link.lua \
-	${ODIR}types.xml
+linkh: $(ODIR)/link.h
+$(ODIR)/link.c $(ODIR)/link.h: $(IDIR)/spec.lua script/make-link.lua \
+	$(ODIR)/types.xml
 	$I
-	$H script/make-link.lua ${ODIR}types.xml $(IDIR)/spec.lua \
-		${ODIR}link.h ${ODIR}link.c $(DYNLINK_PREFIX)_dynlink
+	$H script/make-link.lua $(ODIR)/types.xml $(IDIR)/spec.lua \
+		$(ODIR)/link.h $(ODIR)/link.c $(DYNLINK_PREFIX)_dynlink
 
 # Generation of data from the XML file
 
-$(ODIR)functions.txt $(ODIR)constants.txt $(ODIR)types.c \
-	$(ODIR)globals.c $(ODIR)fundamentals.c $(ODIR)generated.c: \
-	${ODIR}types.xml script/parse-xml.lua include/fundamental.lua \
-	$(ODIR)config.lua $(DEVMOD) $(IDIR)/spec.lua
+# XXX with parallel building (-j), this runs multiple times at once!
+# How can this be avoided?
+$(ODIR)/functions.txt: $(ODIR)/types.xml script/parse-xml.lua \
+	include/fundamental.lua $(ODIR)/config.lua $(DEVMOD) $(IDIR)/spec.lua
 	$I
-	$H script/parse-xml.lua "${ODIR}" "$<" "$(ODIR)config.lua"
+	$H script/parse-xml.lua "$(ODIR)/" "$<" "$(ODIR)/config.lua"
+
+$(ODIR)/constants.txt $(ODIR)/types.c $(ODIR)/globals.c \
+	$(ODIR)/fundamentals.c $(ODIR)/generated.c: $(ODIR)/functions.txt
+
+#$(ODIR)/functions.txt $(ODIR)/constants.txt $(ODIR)/types.c \
+#	$(ODIR)/globals.c $(ODIR)/fundamentals.c $(ODIR)/generated.c: \
 
 ifeq ($(COREMODULE), )
 endif
@@ -199,37 +212,37 @@ script/parse-xml.lua: script/xml-types.lua script/xml-parser.lua \
 	touch $@
 
 # XXX unused
-#${ODIR}_override.c: ${ODIR}override.luac ${ODIR}file2c
+#$(ODIR)/_override.c: $(ODIR)/override.luac $(ODIR)/file2c
 #	$I
-#	$H ${ODIR}file2c override < $< > $@
+#	$H $(ODIR)/file2c override < $< > $@
 #
 
 # -- hash generation --
 
-$(ODIR)%.c: $(ODIR)%.txt $(DEVMOD)
+$(ODIR)/%.c: $(ODIR)/%.txt $(DEVMOD)
 	$I
 	$H lua -lgnomedev -e 'gnomedev.generate_hash("$<", "$*", "$@")'
 
 # -- general rules --
 
-${ODIR}%.$O: $(IDIR)/%.c
+$(ODIR)/%.$O: $(IDIR)/%.c
 	$I
 	$H ${CC} ${CFLAGS} -c -o $@ $<
 
-$(ODIR)%.$O: $(ODIR)%.c
+$(ODIR)/%.$O: $(ODIR)/%.c
 	$I
 	$H $(CC) $(CFLAGS) -c -o $@ $<
 
-${ODIR}%.s: $(IDIR)/%.c
+$(ODIR)/%.s: $(IDIR)/%.c
 	$I
 	$H ${CC} ${CFLAGS} -S -o $@ $<
 
-${ODIR}%.c: $(IDIR)/%.c
+$(ODIR)/%.c: $(IDIR)/%.c
 	$I
 	$H ${CC} ${CFLAGS} -E -o $@ $<
 
 # could use -s to remove debugging info
-${ODIR}%.luac: $(IDIR)/%.lua
+$(ODIR)/%.luac: $(IDIR)/%.lua
 	$I
 	$H luac -o $@ $<
 
