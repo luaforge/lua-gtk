@@ -4,7 +4,7 @@ name = "Atk"
 pkg_config_name = "atk"
 
 libraries = {}
-libraries.linux = { "/usr/lib/libatk-1.0.so" }
+libraries.linux = { "/usr/lib/libatk-1.0.so.0" }
 libraries.win32 = { "libatk-1.0-0.dll" }
 
 include_dirs = { "atk-1.0" }

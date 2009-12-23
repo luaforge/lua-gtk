@@ -6,7 +6,7 @@ pkg_config_name = "cairo"
 include_dirs = { "cairo" }
 
 libraries = {}
-libraries.linux = { "/usr/lib/libcairo.so" }
+libraries.linux = { "/usr/lib/libcairo.so.2" }
 libraries.win32 = { "libcairo-2.dll" }
 
 includes = {}

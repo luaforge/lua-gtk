@@ -4,9 +4,10 @@ name = "Gtk"
 pkg_config_name = "gtk+-2.0"
 required = true
 
-libraries = {}
-libraries.linux = { "/usr/lib/libgtk-x11-2.0.so" }
-libraries.win32 = { "libgtk-win32-2.0-0.dll" }
+libraries = {
+    linux = { "/usr/lib/libgtk-x11-2.0.so.0" },
+    win32 = { "libgtk-win32-2.0-0.dll" },
+}
 
 include_dirs = { "gtk-2.0/gtk" }
 

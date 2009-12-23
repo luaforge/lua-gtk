@@ -3,9 +3,10 @@
 name = "GNet"
 pkg_config_name = "gnet-2.0"
 
-libraries = {}
-libraries.linux = { "/usr/lib/libgnet-2.0.so" }
-libraries.win32 = { "libgnet-2.0-0.dll" }
+libraries = {
+    linux = { "/usr/lib/libgnet-2.0.so.0" },
+    win32 = { "libgnet-2.0-0.dll" },
+}
 
 include_dirs = { "gnet-2.0" }
 

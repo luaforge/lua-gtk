@@ -3,9 +3,10 @@
 name = "gtkspell"
 pkg_config_name = "gtkspell-2.0"
 
-libraries = {}
-libraries.linux = { "/usr/lib/libgtkspell.so" }
-libraries.win32 = { "libgtkspell.dll" }
+libraries = {
+    linux = { "/usr/lib/libgtkspell.so.0" },
+    win32 = { "libgtkspell.dll" },
+}
 
 include_dirs = { "gtkspell-2.0" }
 

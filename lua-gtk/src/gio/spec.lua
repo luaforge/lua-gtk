@@ -1,9 +1,10 @@
 name = "GIO"
 pkg_config_name = "gio-2.0"
 
-libraries = {}
-libraries.linux = { "/usr/lib/libgio-2.0.so" }
-libraries.win32 = { "libgio-2.0-0.dll" }
+libraries = {
+	linux = { "/usr/lib/libgio-2.0.so.0" },
+	win32 = { "libgio-2.0-0.dll" },
+}
 
 include_dirs = { "gio" }
 

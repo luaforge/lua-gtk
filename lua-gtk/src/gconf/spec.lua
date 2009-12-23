@@ -4,7 +4,7 @@ name = "gconf"
 pkg_config_name = "gconf-2.0"
 
 libraries = {}
-libraries.linux = { "/usr/lib/libgconf-2.so" }
+libraries.linux = { "/usr/lib/libgconf-2.so.4" }
 libraries.win32 = { "libgconf-2.dll" }
 
 include_dirs = { "gconf/2" }

@@ -3,9 +3,10 @@
 name = "GtkSourceView"
 pkg_config_name = "gtksourceview-2.0"
 
-libraries = {}
-libraries.linux = { "/usr/lib/libgtksourceview-2.0.so" }
-libraries.win32 = { "libgtksourceview-2.0-0.dll" }
+libraries = {
+    linux = { "/usr/lib/libgtksourceview-2.0.so.0" },
+    win32 = { "libgtksourceview-2.0-0.dll" },
+}
 
 include_dirs = { "gtksourceview-2.0" }
 

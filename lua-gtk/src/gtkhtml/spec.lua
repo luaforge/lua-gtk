@@ -2,7 +2,7 @@ name = "GtkHTML"
 pkg_config_name = "libgtkhtml-2.0"
 
 libraries = {}
-libraries.linux = { "/usr/lib/libgtkhtml-2.so" }
+libraries.linux = { "/usr/lib/libgtkhtml-2.so.0" }
 
 -- Note: this library is not available from the precompiled binaries,
 -- see script/download-gtk-win.lua.

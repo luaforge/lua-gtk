@@ -3,9 +3,10 @@
 name = "libxml2"
 pkg_config_name = "libxml-2.0"
 
-libraries = {}
-libraries.linux = { "/usr/lib/libxml2.so" }
-libraries.win32 = { "libxml2.dll" }
+libraries = {
+    linux = { "/usr/lib/libxml2.so.2" },
+    win32 = { "libxml2.dll" },
+}
 
 include_dirs = { "libxml2" }
 
