@@ -24,7 +24,7 @@ This is the list of constant types currently supported:
 
 <p>
 Once again this information should be encoded in a most space efficient manner. The algorithm to encode is in script/xml-const.lua, while the decoder is in
-src/gnome/data.c:_find_constant().
+src/gnome/data.c:_decode_constant_v2().
 </p>
 
 <p>
@@ -34,6 +34,18 @@ The <b>first byte</b> has following bits:
 <img src="img/architecture2.png" alt="First byte of constants" />
 
 <ul>
+ <li>the two "flags" bit can have following values: 00=no type, 01=8 bit type,
+   10=16 bit type, 11=string.  If the (16 bit) type has the top bit set, this
+   means a negative number. <li>
+ <li> The remaining 6 bits of the first byte are used as high bits of the
+ value, unless it is a string. </li>
+ <li> Zero, one or two bytes of the type ID follow, depending on the flags.
+ </li>
+ <li> The rest of the entry is the value; for strings, the characters, and
+ for numerical values, as many bytes as are needed to represent the number,
+ with high order bytes being stored first. </li>
+
+<!--
  <li>bit 7 is set if a type index is present.  In this case, bits 4-0 are the
   high bits of that index, while the second byte has the low 8 bits.  Otherwise,
   bits 4-0 are used for the (numerical) value of the constant.</li>
@@ -41,6 +53,7 @@ The <b>first byte</b> has following bits:
  <li>bit 5 is set for negative numerical constants.</li>
  <li>bits 4 to 0 are part of the type index, or for untyped constants, already
   part of the numerical value.</li>
+-->
 </ul>
 
 <p>
