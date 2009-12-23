@@ -7,7 +7,7 @@ if use_dynlink then
 else
     assert(spec)
     assert(spec.pkg_config_name)
-    gtk_libs = pkg_config("--libs", spec.pkg_config_name)
+    mod_libs = pkg_config("--libs", spec.pkg_config_name)
 end
 
 
