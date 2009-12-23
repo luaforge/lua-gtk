@@ -148,9 +148,10 @@ end
 -- Second version.  First byte with 6 bits of data and a 2-bit indicator for
 -- no type, 8 bit type, 16 bit type or string.  negative values have bit 15
 -- set in their type (which may be zero); this is very scarce.
+--
 function encode_enum_v2(name, val, type_idx)
 
-    local first, buf, t
+    local first, buf, t, pos
 
     buf = {}
     type_idx = type_idx or 0
@@ -190,8 +191,9 @@ function encode_enum_v2(name, val, type_idx)
 	end
 
 	-- the first byte contains the high 6 bits of the value.
+	pos = #buf + 1
 	while val > 0x3f do
-	    buf[#buf + 1] = encode_byte(bit.band(val, 255))
+	    table.insert(buf, pos, encode_byte(bit.band(val, 255)))
 	    val = bit.rshift(val, 8)
 	end
 
@@ -204,10 +206,11 @@ function encode_enum_v2(name, val, type_idx)
     return string.format("%s,%s%s", name, encode_byte(first), table.concat(buf))
 end
 
-
--- third version: always have two bytes at the beginning with the type idx,
+---
+-- Third version: always have two bytes at the beginning with the type idx,
 -- as most entries have a type_idx anyway.  10 bits for type_idx, 1
 -- bit for negative flag, 5 bits for high bits of value.
+--
 function encode_enum_v3(name, val, type_idx)
 
     local first, buf, s, t
