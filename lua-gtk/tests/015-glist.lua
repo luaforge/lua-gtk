@@ -2,11 +2,11 @@
 require "glib"
 
 -- Helper to show the elements of a list.  It uses the foreach function, which
--- requires callbacks from C to Lua, which requires closures; this is actually
--- tricky, but works :)
+-- requires callbacks from C to Lua, which requires closures (automatically
+-- generated, so you don't have to worry).
 function list2string(ls)
    local t = {}
-   ls:foreach(gnome.closure(function(x) t[#t + 1] = tostring(x.value) end), nil)
+   ls:foreach(function(x) t[#t + 1] = tostring(x.value) end, nil)
    return table.concat(t, ' ')
 end
 
@@ -40,7 +40,7 @@ ls:append(3)
 ls:append(94)
 
 -- sort using a callback (in a closure)
-ls = ls:sort(gnome.closure(function(a, b) return a.value - b.value end))
+ls = ls:sort(function(a, b) return a.value - b.value end)
 assert(list2string(ls) == "3 10 15 30 94")
 
 
