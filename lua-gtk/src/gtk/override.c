@@ -208,9 +208,9 @@ static int l_gtk_builder_connect_signals_full(lua_State *L)
 	    return luaL_error(L, "too many arguments");
     }
 
-    printf("building\n");
+    // printf("building\n");
     func(builder, _connect_func, L);
-    printf("builder done\n");
+    // printf("builder done\n");
     return 0;
 }
 
