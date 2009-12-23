@@ -1,6 +1,9 @@
 
 # Build the english documentation.
 
+# Note: to generate the png files from the dot files, the
+# package graphviz is required.
+
 H	:=@
 IDIR	:=doc/en
 ODIR	:=build/$(IDIR)
