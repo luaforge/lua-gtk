@@ -802,6 +802,26 @@ int lg_register_module(lua_State *L, struct module_info *mi)
 
 
 /**
+ * This function allows a module to find another module's structure,
+ * which can be used to call the other module's hooks.
+ */
+struct module_info *lg_find_module(const char *name)
+{
+    int i;
+    struct module_info *mi;
+
+    for (i=1; i<module_count; i++) {
+	mi = modules[i];
+	if (!strcmp(mi->name, name))
+	    return mi;
+    }
+
+    return NULL;
+}
+	
+
+
+/**
  * Look for a structure (class) of the given name in the specified module,
  * or in all modules if module_idx isn't set.
  *

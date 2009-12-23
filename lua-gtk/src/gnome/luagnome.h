@@ -237,6 +237,7 @@ struct call_info {
 // in data.c
 void lg_create_fundamental_map(lua_State *L);
 int lg_register_module(lua_State *L, struct module_info *mi);
+struct module_info *lg_find_module(const char *name);
 int lg_dl_init(lua_State *L, struct dynlink *dyn);
 int lg_make_func_name(cmi mi, char *buf, int buf_size, const char *class_name,
     const char *attr_name);

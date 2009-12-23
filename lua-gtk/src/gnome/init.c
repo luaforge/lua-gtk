@@ -535,6 +535,7 @@ static struct lg_module_api module_api = {
     lg_push_constant,
     lg_get_constant,
     lg_empty_table,
+    lg_find_module,
 };
 
 #ifdef RUNTIME_LINKING

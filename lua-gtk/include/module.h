@@ -53,8 +53,9 @@ struct lg_module_api {
 	int raise_error);
 
     void (*empty_table)(lua_State *L, int index);
+    struct module_info *(*find_module)(const char *name);	/* added 2009-11-27 */
 };
 #define LUAGNOME_MODULE_MAJOR 0
-#define LUAGNOME_MODULE_MINOR 9
+#define LUAGNOME_MODULE_MINOR 10
 
 
