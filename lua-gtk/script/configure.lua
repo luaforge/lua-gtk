@@ -6,7 +6,7 @@
 --
 -- Exit code: 0=ok, 1..9=some error, continue, >10 = stop configuring
 --
--- Copyright (C) 2008 Wolfgang Oertl
+-- Copyright (C) 2008, 2009 Wolfgang Oertl
 --
 
 require "lfs"
@@ -37,7 +37,9 @@ fatal_err = false
 cflags = "-Wall -I include" -- cflags setting for the Makefile
 -- without = {}		    -- list of libraries to exclude
 programs = {}		    -- key=program name, value=full path or false
-arch = nil		    -- architecture to configure for
+arch = nil		    -- architecture to configure for (from cmd line)
+arch_os = nil		    -- OS part of the target (e.g. linux)
+arch_cpu = nil		    -- CPU part of the target (e.g. i386)
 config_script = nil	    -- architecture specific config file to include
 cmph_dir = nil		    -- if a cmph directory was given, this is it
 cfg = { h={}, m={}, l={} }
@@ -47,9 +49,10 @@ cross_run = nil
 libraries = {}		    -- list of libraries to load at runtime
 exe_suffix = ""		    -- suffix for executables (cross compiled)
 lua_lib = ""
+local logfile		    -- log summary and additional messages here
 
 ---
--- Output one line of summary
+-- Append one line to the summary.
 --
 function summary(label, s)
     summary_ar[#summary_ar + 1] = string.format("   %-30s %s", label, s)
@@ -303,8 +306,8 @@ function check_architecture()
     arch_os, arch_cpu = string.match(arch, "^(%w-)-(%w-)$")
     if not arch_cpu or arch_cpu == "" then
 	print(string.format("Please specify both architecture and CPU parts "
-	    .. "of the target, e.g. linux-%s.\nKnown architectures: %s",
-	    arch_os or arch, _get_cpu_list()))
+	    .. "of the target, e.g. linux-i386.\nKnown architectures: %s",
+	    _get_cpu_list()))
 	os.exit(10)
     end
 
@@ -367,7 +370,7 @@ function cfg_fatal(...)
 end
 
 function general_setup(libname)
-    local odir1 = "build/" .. arch .. "/"
+    local odir1 = "build/" .. arch -- .. "/"
 
     err = 0
     if not is_dir("build") then
@@ -378,13 +381,15 @@ function general_setup(libname)
     end
 
     if libname then
-	odir = odir1 .. libname .. "/"
+	odir = odir1 .. "/" .. libname	    --  .. "/"
 	if not is_dir(odir) then
 	    assert(lfs.mkdir(odir))
 	end
     else
 	odir = odir1
     end
+
+    logfile = assert(io.open(odir .. "/config.log", "w"))
 
     cfg_m("ARCH", arch)
     cfg_m("ODIR", odir)
@@ -417,9 +422,9 @@ function write_config()
     if lua_lib ~= "" then
 	cfg_m("LUA_LIB", lua_lib)
     end
-    write_config_file(odir .. "config.h", cfg.h)
-    write_config_file(odir .. "config.make", cfg.m)
-    write_config_file(odir .. "config.lua", cfg.l)
+    write_config_file(odir .. "/config.h", cfg.h)
+    write_config_file(odir .. "/config.make", cfg.m)
+    write_config_file(odir .. "/config.lua", cfg.l)
 end
 
 function write_config_file(ofile, ar)
@@ -474,9 +479,17 @@ end
 
 
 function do_show_summary()
-    print(string.format("\nLuaGnome module %s configured successfully.  "
-	.. "Settings:\n", spec.basename))
-    print(table.concat(summary_ar, "\n"))
+    local s
+
+    s = string.format("\nLuaGnome module %s configured successfully.  "
+	.. "Settings:\n", spec.basename)
+    print(s)
+    logfile:write(s)
+
+    s = table.concat(summary_ar, "\n")
+    print(s)
+    logfile:write(s .. "\n")
+
     print(string.format("\nType \"make %s\" to build.\n", spec.basename))
 end
 
@@ -600,7 +613,7 @@ end
 -- Load and run the architecture specific config file.  It should do the
 -- following settings:
 --  libffi_*
---  gtk_libs
+--  mod_libs
 --  use_liblist
 --
 function load_arch_config()
@@ -608,7 +621,7 @@ function load_arch_config()
     chunk()
 
     if not use_dynlink then
-	cfg_m("GTK_LIBS", gtk_libs)
+	cfg_m("MOD_LIBS", mod_libs or "")
     else
 	cfg_h("#define RUNTIME_LINKING")
 	cfg_l('runtime_linking = true')
@@ -663,12 +676,15 @@ function configure_main()
 	return
     end
 
+    -- The default action is to call these two functions.  If a module-specific
+    -- configure script is available, it will call these two and perform
+    -- additional tasks.
     configure_base()
     configure_done()
 end
 
 function configure_base()
-    local modname, tmp
+    local modname, tmp, s
 
     modname = spec.basename
     parse_cmdline()
