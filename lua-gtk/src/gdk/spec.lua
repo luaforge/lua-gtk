@@ -5,7 +5,7 @@ pkg_config_name = "gtk+-2.0"
 required = true
 
 libraries = {}
-libraries.linux = { "/usr/lib/libgtk-x11-2.0.so" }
+libraries.linux = { "/usr/lib/libgtk-x11-2.0.so.0" }
 libraries.win32 = { "libgdk-win32-2.0-0.dll", "libgdk_pixbuf-2.0-0.dll" }
 
 include_dirs = { "gtk-2.0/gdk", "gtk-2.0/gdk-pixbuf",
@@ -62,7 +62,19 @@ include_types = {
     "GdkDrawable",
     "GdkAtom",
 
-    -- types that some GDK functions use.
+
+    -- types required by other modules
+    "GdkAtom**",		-- gtk
+    "GdkColor**",		-- gtk
+    "GdkEventExpose*",		-- gtk
+    "GdkEventKey*",		-- gtk
+    "GdkEventKey*",		-- gtk
+    "GdkImage**",		-- gtk
+    "GdkPoint**",		-- gtk
+}
+
+-- X types that some GDK functions use - but only on Linux.
+include_types.linux = {
     "Atom",
     "Colormap",
     "Display*",
@@ -74,17 +86,6 @@ include_types = {
     "Cursor",
     "Window",
     "XExtData*",
-
-    -- types required by other modules
-    "GdkAtom**",		-- gtk
-    "GdkColor**",		-- gtk
-    "GdkEventExpose*",		-- gtk
-    "GdkEventKey*",		-- gtk
-    "GdkEventKey*",		-- gtk
-    "GdkImage**",		-- gtk
-    "GdkPoint**",		-- gtk
-
-
 }
 
 function_flags = {
