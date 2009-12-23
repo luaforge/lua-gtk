@@ -10,25 +10,16 @@
   - recursively reads all files, processes the .html files and copies files
     with a given list of extensions, like jpg, png, css and others.
 
-  - uses a template file with header and document layout.
+  - uses a template file with header and document layout that contains
+    the following placeholders: #TITLE#, #MAINMENU#, #SIDEMENU#, #CONTENT#,
+    #FOOTNOTES#, or Lua code in the form of <%= expression %>
 
-  - parses the input HTML files and processes following patterns:
-    {{item ...}}
-    An item can be:
-	#label		anchor, can be referenced.  No whitespace in label.
-	*		hide this entry (no text output)
-	=label		reference to that anchor.  If not text is given,
-			use the text of the referenced element.
-	noindex		don't add to the index
-	footnote	Make a footnote of the following text
-	Any text	text content of this directive; must be the last
-			item and may contain spaces.
-
-    - All menu entries automatically have an anchor (but not an index entry)
-      with the basename of the file.
+  - parses the input HTML files and processes inline directives surrounded
+    by double curly parenthesis: {{...}}.  See below for a list of supported
+    directives.
 
   - Can generate a sorted index of keywords in multiple columns with sections
-    headed by the first letter of keywords in the section
+    headed by the first letter of keywords in the section.
 
   - Generates a short horizontal and detailed vertical menu linking to all
     the pages using the menu definition in the file "menu.lua" in the
@@ -43,6 +34,26 @@
     structure and appear in the menu.
 
  menu_entry structure: [1]=basename, [2]=title, [3]=submenu, [seen]=true
+
+
+ Directives:
+
+ - Some of them can be combined, i.e. you write them separated by a space,
+   e.g. {{#info * This is some Info.}}
+
+ #label			anchor, can be referenced.  No whitespace in label.
+ *			hide this entry (no text output)
+ =label [TITLE]		reference to that anchor.  If the optional TITLE is
+			not given, use the text of the referenced element.
+ noindex		don't add to the index
+ footnote TEXT		Make a footnote of the following text
+ KEYWORD		User defined substitution from the menu file
+
+ TEXT			text content of this directive; must be the last item
+			and may contain spaces.
+
+ - All menu entries automatically have an anchor (but not an index entry)
+   with the basename of the file.
 
 --]]
 
@@ -539,13 +550,66 @@ function split(s, delim, is_plain)
 end
 
 local directives = {
-    footnote = function(str)
+    footnote = function(args)
 	local nr = #curr_file.footnotes + 1
-	curr_file.footnotes[nr] = string.sub(str, 10)
+	curr_file.footnotes[nr] = args.str
 	return string.format('<sup id="ref%d"><a href="#foot%d">[%d]</a></sup>',
 	    nr, nr, nr)
     end,
 }
+
+---
+-- Handler to substitute a {{keyword ...}} with the output of the
+-- appropriate function.  The string is parsed to extract the arguments,
+-- which are named like this: #argname [parameters]
+--
+local function _call_directive(fn, s)
+    local pos, start, stop, argname, args, prev_stop, prev_argname, tmp, store
+
+    s = " " .. s .. " "
+    args = {}
+    pos = 1
+
+    store = function()
+	if prev_stop then
+	    tmp = string.sub(s, prev_stop+1, start-1)
+	    tmp = string.gsub(tmp, "^%s+", "")
+	    tmp = string.gsub(tmp, "%s+$", "")
+	    args[prev_argname] = tmp
+        else
+	    tmp = string.sub(s, 2, start-1)
+	    tmp = string.gsub(tmp, "^%s+", "")
+	    tmp = string.gsub(tmp, "%s+$", "")
+	    args.str = tmp
+	end
+    end
+
+    while pos < #s do
+	start, stop, argname = string.find(s, "%s#(%S+)%s*", pos)
+	if not start then break end
+	store()
+	prev_argname = argname
+	prev_stop = stop
+	pos = stop
+    end
+
+    start = #s
+    store()
+--[[
+    if prev_stop then
+	args[prev_argname] = string.sub(s, prev_stop+1, #s-1)
+    else
+	args.str = string.sub(s, 2, #s-1)
+    end
+--]]
+
+    local rc, msg = pcall(fn, args)
+    if not rc then
+	error("Error with argument string " .. s .. ": " .. msg)
+    end
+
+    return msg
+end
 
 function _append_footnotes(f)
     local buf
@@ -571,9 +635,9 @@ function _html_pass1(str)
     local c, item
 
     -- The first word may trigger special handling
-    c = string.match(str, "^([^ ]+)")
+    c, item = string.match(str, "^(%S+)(.*)")
     if directives[c] then
-	return directives[c](str)
+	return _call_directive(directives[c], item)
     end
 
     -- Split the string into elements and fill "item" with data.
@@ -778,7 +842,7 @@ function _read_config(ifname)
     local s = ifile:read "*a"
     ifile:close()
     local closure = assert(loadstring(s))
-    config = {}
+    config = {string=string, assert=assert, table=table}
     setfenv(closure, config)
     closure()
 
@@ -792,6 +856,11 @@ function _read_config(ifname)
 
     config.menu_index = {}
     _prepare_menu(config.menu)
+
+    -- add the user defined substitutions
+    for k, v in pairs(config.directives or {}) do
+	directives[k] = v
+    end
 
 end
 
