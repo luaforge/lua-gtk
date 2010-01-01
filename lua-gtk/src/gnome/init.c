@@ -507,6 +507,7 @@ static int lg_cast(lua_State *L)
 int lg_dump_vwrappers(lua_State *L);
 int lg_get_vwrapper_count(lua_State *L);
 
+
 /* methods directly callable from Lua; most go through __index of
  * the individual modules, which call api->generic_index. */
 static const luaL_reg gnome_methods[] = {
