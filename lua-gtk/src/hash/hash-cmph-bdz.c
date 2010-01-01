@@ -8,11 +8,37 @@
  * This code is derived from the cmph library (http://cmph.sourceforge.net/)
  * version 0.9 by Davi de Castro Reis and Fabiano Cupertino Botelho.
  *
- * by Wolfgang Oertl 2008, 2009
+ * by Wolfgang Oertl 2008, 2010
  */
 
-#include "lg-hash.h"
 #include <cmph_types.h>
+
+/* The BDZ data is packed into this structure */
+struct cmph_packed_bdz {
+    cmph_uint32	algorithm, hashfunc, seed, r, ranktablesize;
+    cmph_uint32 ranktable[0];	    // length is "ranktablesize" uint32's
+    // after this: "b" (one byte) and the array "g" (with bytes in it).
+};
+
+#ifdef ONLY_GET_HASH_VALUE
+
+/**
+ * This function is required during generation of the hash function, not for
+ * lookup.
+ */
+unsigned int get_hash_value_bdz(void *packed_mphf, const unsigned char *key,
+    int keylen)
+{
+    struct cmph_packed_bdz *p = (struct cmph_packed_bdz*) packed_mphf;
+    struct hash_state state = { hashfunc: lg_cmph_hashfunc_nr(p->hashfunc),
+	seed: p->seed};
+    return compute_hash(&state, (unsigned char*) key, keylen, NULL);
+}
+
+
+#else
+
+#include "lg-hash.h"
 #include "hash-cmph.h"
 
 /* Get two bits from the array, i being the index */
@@ -121,14 +147,6 @@ const unsigned char *hash_search_bdz(lua_State *L, const struct hash_info *hi2,
     cmph_uint8 b = *g++;
     cmph_uint32 r = bdz->r;
 
-    /*
-    printf("hash-search-bdz: hi=%p, method=%d, mask=%08x, offset_bits=%d,\n"
-	"  length_bits=%d, index=%p, data=%p, bdz=%p, hashfunc=%d\n",
-	hi, hi->method, hi->hash_mask, hi->offset_bits, hi->length_bits,
-	hi->index, hi->data,
-	bdz, bdz->hashfunc);
-    */
-
     struct hash_state state = { hashfunc: lg_cmph_hashfunc_nr(bdz->hashfunc),
 	seed: bdz->seed };
 
@@ -143,4 +161,6 @@ const unsigned char *hash_search_bdz(lua_State *L, const struct hash_info *hi2,
     return hash_search_cmph(L, hi2, datalen, hash_value, rank(b, bdz->ranktable,
 	g, vertex));
 }
+
+#endif
 
