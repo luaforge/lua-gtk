@@ -34,12 +34,14 @@ int lg_cmph_hashfunc_nr(CMPH_HASH func_nr)
 #endif
 
 /**
- * Hash table lookup.  The key is used to calculate a bucket number.  The
- * hash value stored there is verified; if it matches, then an entry has
- * been found.  The offset stored in the bucket is used to find the data.
- * The length of the entry is determined by looking at the following bucket;
- * the data of all buckets is stored in order.
+ * After computing a hash value and a bucket number using whatever CMPH hash
+ * function was used, verify that the key exists and then retrieve the
+ * associated value.
  *
+ * Each bucket is 32 bit in size and contains, in a variable number of bits,
+ * part of the hash value and the offset to the data.  If bucket merging
+ * is enabled, the data length is also stored.
+ * 
  * Returns: NULL on failure, otherwise the pointer to the data; *datalen is
  * filled with the length in bytes of the data.
  */
