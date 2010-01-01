@@ -49,6 +49,9 @@
 #include <lauxlib.h>	    // luaL_error
 #include <ctype.h>	    // toupper
 #include "lg-hash.h"
+#define ONLY_GET_HASH_VALUE
+#include "hash-cmph-bdz.c"
+
 
 // line buffer length.
 static int buf_len = 200;
@@ -79,24 +82,26 @@ int max_data_length = 0;
 
 /* ------------------------------------------------------------------------- */
 
+
 /**
  * Calculate the first hash value - again, it already happened in cmph_search,
- * but it doesn't return it anywhere.  This is an unfortunate intrusion into
- * cmph internals!
- *
- * Fortunately the format of the packed hash function always starts like
- * this:
- *
- *   Length	Content
- *	4	CMPH_HASH, i.e. the number of the (first) hash algorithm
- *	4	seed for the (first) hash algorithm
+ * but it doesn't return it anywhere.  So I need a custom function for each
+ * cmph algorithm.
  */
 static unsigned int get_hash_value(const unsigned char *key, int keylen)
 {
-    struct lg_cmph_packed *p = (struct lg_cmph_packed*) packed_mphf;
-    struct hash_state state = { hashfunc: lg_cmph_hashfunc_nr(p->hashfunc),
-	seed: p->seed};
-    return compute_hash(&state, (unsigned char*) key, keylen, NULL);
+    int algorithm = * (cmph_uint32*) packed_mphf;
+    switch (algorithm) {
+	case CMPH_BDZ:
+	return get_hash_value_bdz(packed_mphf, key, keylen);
+
+	default:
+	break;
+    }
+
+    fprintf(stderr, "Unsupported algorithm %d in get_hash_value.\n",
+	algorithm);
+    return 0;
 }
 
 
