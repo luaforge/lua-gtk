@@ -39,7 +39,7 @@ static int vwrapper_count = 0,	    /* number of currently existant wrappers */
     vwrapper_objects = 0;	    /* Lua wrappers for void* wrappers */
 
 
-int l_dump_vwrappers(lua_State *L)
+int lg_dump_vwrappers(lua_State *L)
 {
     struct value_wrapper *w;
     printf("%s void* wrappers: current=%d, total=%d, Lua objects=%d\n",
@@ -51,7 +51,7 @@ int l_dump_vwrappers(lua_State *L)
     return 0;
 }
 
-int l_get_vwrapper_count(lua_State *L)
+int lg_get_vwrapper_count(lua_State *L)
 {
     lua_pushinteger(L, vwrapper_count);
     lua_pushinteger(L, vwrapper_total_count);
@@ -59,13 +59,13 @@ int l_get_vwrapper_count(lua_State *L)
     return 3;
 }
 #else
-int l_dump_vwrappers(lua_State *L)
+int lg_dump_vwrappers(lua_State *L)
 {
     printf("dump_vwrappers: compiled without debug functions.\n");
     return 0;
 }
 
-int l_get_vwrapper_count(lua_State *L)
+int lg_get_vwrapper_count(lua_State *L)
 {
     printf("get_vwappers_count: compiled without debug functions.\n");
     return 0;
