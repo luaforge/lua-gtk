@@ -410,7 +410,7 @@ static int lg_generic_new_array(lua_State *L, cmi mi, int is_array)
  * @luareturn  The the operating system, e.g. "win32" or "linux".
  * @luareturn  The CPU, e.g. "i386", "amd64"
  */
-static int l_get_osname(lua_State *L)
+static int lg_get_osname(lua_State *L)
 {
     luaL_checktype(L, 1, LUA_TNONE);
     lua_pushliteral(L, LUAGTK_ARCH_OS);
@@ -418,7 +418,7 @@ static int l_get_osname(lua_State *L)
     return 2;
 }
 
-static int l_void_ptr(lua_State *L)
+static int lg_void_ptr(lua_State *L)
 {
     luaL_checkany(L, 1);
     luaL_checktype(L, 2, LUA_TNONE);
@@ -457,7 +457,7 @@ static void _init_module_info(lua_State *L)
  * When a proxy object should be destroyed right away, without waiting for
  * the garbage collection, this can be used.
  */
-static int l_destroy(lua_State *L)
+static int lg_destroy(lua_State *L)
 {
     struct object *o = (struct object*) lua_touserdata(L, 1);
 
@@ -471,37 +471,53 @@ static int l_destroy(lua_State *L)
     return 0;
 }
 
-static int l_cast(lua_State *L)
+
+/**
+ * An object (or a simple pointer) should be cast to another type.
+ */
+static int lg_cast(lua_State *L)
 {
-    luaL_checktype(L, 1, LUA_TUSERDATA);
-    struct object *o = (struct object*) lua_topointer(L, 1);
-    if (!o)
-	return luaL_error(L, "%s cast with NULL object", msgprefix);
+    int t;
+    void *p;
+
+    t = lua_type(L, 1);
+
+    if (t == LUA_TLIGHTUSERDATA) {
+	p = (void*) lua_topointer(L, 1);
+    } else if (t == LUA_TUSERDATA) {
+	struct object *o = (struct object*) lua_topointer(L, 1);
+	if (!o)
+	    return luaL_error(L, "%s cast with NULL object", msgprefix);
+	p = o->p;
+    } else
+	return luaL_argerror(L, 1,
+	    "Either a widget or a simple pointer expected.");
+
+    /* second argument is the requested type */
     const char *type_name = luaL_checkstring(L, 2);
     typespec_t ts = lg_find_struct(L, type_name, 1);
     if (!ts.value)
 	    return luaL_error(L, "%s cast to unknown type %s", msgprefix,
 		type_name);
-    lg_get_object(L, o->p, ts, FLAG_NOT_NEW_OBJECT);
+    lg_get_object(L, p, ts, FLAG_NOT_NEW_OBJECT);
     return 1;
 }
 
-int l_dump_vwrappers(lua_State *L);
-int l_get_vwrapper_count(lua_State *L);
+/* in voidptr.c */
+int lg_dump_vwrappers(lua_State *L);
+int lg_get_vwrapper_count(lua_State *L);
 
 /* methods directly callable from Lua; most go through __index of
  * the individual modules, which call api->generic_index. */
 static const luaL_reg gnome_methods[] = {
-    {"get_osname",	l_get_osname },
-    {"void_ptr",	l_void_ptr },
-    {"dump_vwrappers",	l_dump_vwrappers },
-    {"get_vwrapper_count", l_get_vwrapper_count },
-    {"destroy",		l_destroy },
-    {"cast",		l_cast },
+    {"get_osname",	lg_get_osname },
+    {"void_ptr",	lg_void_ptr },
+    {"dump_vwrappers",	lg_dump_vwrappers },
+    {"get_vwrapper_count", lg_get_vwrapper_count },
+    {"destroy",		lg_destroy },
+    {"cast",		lg_cast },
     { NULL, NULL }
 };
-
-
 
 
 /*-
