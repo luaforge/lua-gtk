@@ -1,4 +1,15 @@
 -- vim:sw=4:sts=4
+--
+-- This is the module to provide bindings to libgtkhtml3, which should replace
+-- libgtkthml2.  Unfortunately, it has a quite different API than the latter,
+-- and doesn't support CSS (yet).  It's part of Evolution:
+--
+-- http://projects.gnome.org/evolution/
+-- http://projects.gnome.org/evolution/git.shtml
+--
+-- Documentation is scarce.  You can look at the include files in
+-- /usr/include/libgtkhtml-3.14/gtkhtml at best.
+--
 
 name = "GtkHTML"
 lib_version = "3.14"
