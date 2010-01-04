@@ -1,0 +1,7 @@
+
+2010-01-04
+* first version with process tree on the left (own processes in bold) and some
+memory information on the right, including the content of /proc/$$/smaps.  A
+toggle button shows all or only own processes.  A rather empty About Dialog
+exists.
+
