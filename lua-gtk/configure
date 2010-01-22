@@ -67,7 +67,8 @@ end
 function main()
     local last_opt, modules = parse_cmdline()
     if run_sub_configure(last_opt, modules) then
-	print'Type "make" to build all modules.'
+	print'Type "make" to build all modules.  On multi-core or '
+	print'multi-processor machines, try "make -j"'
     end
 end
 
