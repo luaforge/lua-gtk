@@ -1,0 +1,9 @@
+
+* show memory usage for each service.  This includes the main process and
+all children of it
+
+* button to start or stop any service.  requires root privileges or at least
+a working sudo for initctl
+
+* read the configuration files in /etc/init, and show dependencies
+
