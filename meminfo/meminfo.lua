@@ -9,6 +9,7 @@ local proc_dir = "/proc"
 local my_uid		-- own UID is stored here
 local only_own		-- true if only own processes should be shown
 local proclist		-- last read process list
+local pagesize = 4
 
 -- If only own processes are to be shown, non-own processes in the path to
 -- own processes still have to be shown.  Determine if the process "pid"
@@ -143,7 +144,12 @@ function read_process_tree()
 	    f = io.open(d .. "statm")
 	    s = f:read"*a"
 	    f:close()
+
+	    -- these sizes are in pages, not in kB.
 	    p.vmsize, p.rss, p.shared = string.match(s, "^(%d+) (%d+) (%d+)")
+	    p.vmsize = p.vmsize * pagesize
+	    p.rss = p.rss * pagesize
+	    p.shared = p.shared * pagesize
 	    ar = proclist[p.ppid] or {}
 	    ar[#ar + 1] = p
 	    proclist[p.ppid] = ar
