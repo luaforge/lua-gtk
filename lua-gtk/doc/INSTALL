@@ -173,9 +173,17 @@ Build Instructions for MingW32
 To build this package for Windows please use MingW32.  The resulting binaries
 run on native Windows.  In other words, you'll be cross-compiling from Linux
 to Windows; I don't have a development environment under Windows to build it
-natively.  Therefore, install the mingw32 build environment, e.g. for Debian,
-"apt-get install mingw32".
+natively.  Therefore, install the mingw32 build environment.  For Debian,
+install the following packages:
 
+	mingw32			The actual cross compiler.
+	gcc-mingw32		The actual cross compiler (alternative).
+	wine			To run the cross compiled binaries
+	lib32nss-mdns		on amd64, required for Wine.
+	libwine-dev		Contains headers like windows.h
+
+Note that the package gcc-mingw32 is smaller and more up-to-date, so you
+should probably install that.
 
 
 Step 1
