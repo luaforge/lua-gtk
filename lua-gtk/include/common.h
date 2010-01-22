@@ -12,11 +12,18 @@
 #include <glib-object.h>
 
 /*-
- * To specify the type of an object, we need to know which module and there
- * which type.  Each type can be present in multiple modules, but only one
- * is the "native" module (that has the whole definition), and so typespecs
- * usually refer to this native module.  When this is not so, this should
- * be documented in the code.
+ * To specify the type of an object, we need to know which module and, within
+ * the module, which type.  Each type can be present in multiple modules, but
+ * only one is the "native" module (that has the whole definition), and so
+ * typespecs usually refer to this native module.  When this is not so, this
+ * should be documented in the code.
+ *
+ * The types for function arguments and structure elements are expressed with
+ * a type_idx of the module's own type list.  "Non-native" entries in this
+ * type list refer by its hash value to a type defined in another module.
+ *
+ * The module_idx found in the type_spec is computed at runtime, as each
+ * module gets the next free module_idx when it is loaded.
  *
  * flag: used only in special situations (see lg_enum_t).
  * value: can be used to quickly compare for equality, or to store/retrieve
@@ -39,12 +46,14 @@ typedef union type_spec typespec_t;
  */
 typedef void (*linkfuncptr)();
 
+// const module info - a pointer to some module info structure.
 typedef const struct module_info *cmi;
 
 
 /*-
  * Each entry in a module's type list describes one data type.  The "type of
- * the type" is named "genus" here for want of a better term.  
+ * the type" is named "genus" here for want of a better term.  The size
+ * of each entry is 64 bit.
  */
 union type_info {
     // non-native types
@@ -52,7 +61,7 @@ union type_info {
 	unsigned int
 	    genus : 2,			// is GENUS_NON_NATIVE (0)
 	    name_is_module : 1,		// 0=name is typename; else is modname
-	    padding : 13,
+	    padding : 13,		// unused
 	    name_ofs : 16,
 	    name_hash : 32;		// hash value of the type's name
     } nn;
@@ -62,15 +71,15 @@ union type_info {
 	unsigned int
 	    genus : 2,			// is 1, or 3 for fundamental types
 	    fundamental_idx : 6,	// refers to struct, union or struct*...
-	    name_ofs : 16,
-	    indirections : 2,
-
+	    name_ofs : 16,		// offset to module_info.type_names
+	    indirections : 2,		// 1=pointer, 2=pointer to pointer etc.
 	    padding: 4,
 	    is_const : 1,
 	    is_array : 1,
-	    struct_size : 11,
-	    elem_start : 13,
-	    elem_count : 8;
+
+	    struct_size : 11,		// total size in bytes
+	    elem_start : 13,		// index to module_info.elem_list
+	    elem_count : 8;		// number of elements in structure
     } st;
 
     // functions
@@ -80,9 +89,9 @@ union type_info {
 	    fundamental_idx : 6,
 	    name_ofs : 16,
 	    indirections : 2,
-
 	    padding1: 6,
-	    signature_ofs : 16,
+
+	    signature_ofs : 16,		// offset in module_info.prototypes
 	    padding2: 16;
     } fu;
 
@@ -90,7 +99,7 @@ union type_info {
 typedef const union type_info *type_info_t;
 
 // possible values of genus:
-#define GENUS_NON_NATIVE	0
+#define GENUS_NON_NATIVE 0
 #define GENUS_STRUCTURE 1
 #define GENUS_FUNCTION 2
 #define GENUS_FUNDAMENTAL 3
@@ -102,7 +111,7 @@ struct array_info {
 };
 
 
-/* Information about a function in the shared library.  This structure
+/* Information about a C function in the shared library.  This structure
  * is filled before calling lg_call. */
 struct func_info {
     void *func;			/* address of the function */
@@ -113,8 +122,9 @@ struct func_info {
     int args_len;
 };
 
+
 /*-
- * Description of one structure element.  Size: 6 bytes (48 bits).
+ * Description of one structure element.  Size: 7 bytes (56 bits).
  *
  * name_ofs: offset into type_strings_elem where the name of the element can be
  * found.
@@ -123,7 +133,8 @@ struct func_info {
  * type_idx: index into the module's type_list
  *
  * 8 bits are still unused; the compiler probably pads to 64 bit.  It could
- * reduced to about 50 bit.
+ * reduced to about 50 bit.  It might be more efficient to expand all the
+ * fields to 16 bit to avoid unaligned access on in 32 bit systems.
  */
 struct struct_elem {
     unsigned int
@@ -153,7 +164,15 @@ struct dynlink {
  */
 
 /*-
- * Entry in the "aliases" table.
+ * Entry in the "aliases" table.  These structures are allocated with
+ * lua_newuserdata, and represent objects (widgets etc.) to the Lua code.
+ * So whenever a widget is returned by a function, or expected as an
+ * argument, this userdata is used.  It points to the actual object and
+ * contains the LuaGnome typespec_t along with some flags.
+ *
+ * Because an object may be accessed using more than one type (like
+ * GObject, GtkWidget, GtkWindow for example, or GEvent and GKeyEvent),
+ * there may be multiple such structures for each object.
  *
  * Note: storing a reference to the next entry is not enough.  During garbage
  * collection, some or all of the entries in "aliases" might be removed before
@@ -178,7 +197,7 @@ struct object {
 
 // The fundamental_idx stored in module_info.type_info is an index to the
 // fundamental_map, which points to the appropriate entries in ffi_type_map.
-// This allows for runtime mapping of a module's ffi types to the numberes
+// This allows for runtime mapping of a module's ffi types to the numbers
 // used in the core library.
 
 // operations defined on object type handlers
@@ -242,6 +261,7 @@ struct module_info {
     const struct hash_info *hash_functions;
     const struct hash_info *hash_constants;
 
+    // hooks called by the core module
     void *(*allocate_object)(cmi mi, lua_State *L, typespec_t ts, int count,
 	int *flags);
     void (*call_hook)(lua_State *L, struct func_info *fi);
