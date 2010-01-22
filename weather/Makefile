@@ -1,6 +1,5 @@
 
-all: weather.ui
+# nothing required to build.
 
-weather.ui: weather.glade
-	gtk-builder-convert $^ $@
+all:
 
