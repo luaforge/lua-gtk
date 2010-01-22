@@ -122,8 +122,6 @@ int lg_use_c_closure(struct argconv_t *ar)
 }
 
 
-
-
 /**
  * The specified Lua value might contain a closure created with the function
  * above, or contain a .  If so, return the func_info embedded in it, otherwise raise an
@@ -154,12 +152,12 @@ struct func_info *lg_get_closure(lua_State *L, int index)
 
 /**
  * Look up a name in the given module.  This works for functions, like
- * gtk.window_new(), and constants, like gtk.WINDOW_TOPLEVEL.
+ * gtk.window_new(), constants, like gtk.WINDOW_TOPLEVEL, and global variables.
  * Lua Stack: [1]=gnome [2]=name
  *
  * @name __index
- * @luaparam table     The table to look in
- * @luaparam key       The name of the item to look up
+ * @luaparam mod    The module to look in (a table)
+ * @luaparam key    The name of the item to look up
  * @luareturn          Either a userdata (for ENUMs) or a closure (for
  *			functions)
  */
@@ -433,7 +431,7 @@ static const char _module_info[] =
     "LuaGnome is a binding to the Gnome family of librarlies, like GLib, GDK,\n"
     "Gtk and others for easy development of GUI applications.\0"
     "_COPYRIGHT\0"
-    "Copyright (C) 2006, 2008 Wolfgang Oertl\0"
+    "Copyright (C) 2006, 2010 Wolfgang Oertl\0"
     "\0";
 
 /**
