@@ -39,6 +39,12 @@ that the vararg argument should be a boxed value: either you call the function
 </p>
 
 <p>
+Note that the column type must be <i>gnome.boxed_type</i>, which is not
+available when you create the GtkListStore or GtkTreeStore in Glade.
+Unfortunately you have to create the store in your code as shown above.
+</p>
+
+<p>
 To access these values again, do the following:
 </p>
 
