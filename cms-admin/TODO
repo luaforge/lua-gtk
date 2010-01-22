@@ -1,0 +1,72 @@
+
+To Do
+=====
+
+- configuration of the languages (settings.lua); or use site languages
+- variable number of languages
+- upload as an example to luaforge.net
+
+- instead of GET, POST requests should be used; after all, some requests
+  can change the data on the server.  If only read-only requests are made,
+  a GET could be used nevertheless.
+
+- slow performance when loading images - where's the slowness?
+
+- when viewing the preview, display the description.  Actually, show
+  both description and title in an entry field and allow to change & save.
+
+- retrieve the languages from the site, and use those instead of the hardcoded
+  language list.
+  	(OK) retrieval
+	(MISSING) construct the Description page dynamically.
+
+- when using the back/forward buttons etc., automatically select the
+  corresponding icon in the icon list.
+
+- create albums
+  - ask for the name in all languages
+  - create them, already linked together with a new trid.
+
+- rename albums.
+
+- move an image to another album - drag & drop!
+  - drag into another album: put it there.  check the language.
+
+- when loading the thumbnails, check the language of each one.  if it doesn't
+  match the album's language, show a warning; if the album has a connected
+  other album of the correct language, offer to move the image(s) there.
+  collect all warnings together and ask just once, or once every 10 messages.
+
+- mark multiple icons; then delete, move.
+
+- configure
+  - host, username, password
+  - default image size, e.g. 1024x768
+  - default startup directory
+  - size of image cache
+  - thumbnail cache on disk - size, location.
+
+  - save configuration in a lua file.  parse it at startup.
+
+- When adding an image, also add it to the album if it is currently being
+  displayed?  not an issue, re-read from server.
+
+- Thumbnail cache on disk.  The file writer could also be working in the
+  background.  At startup, get a directory listing; name is by image_id
+  and size code, e.g. 345t is thumbnail for image #345.  This loading should,
+  of course, be asynchronous.
+
+  This is not useful when running this app from a memory stick, which is
+  rather slow, and I want as little writes as required.
+
+- Show the average bytes/s communication with the server.
+
+- Disallow activation of the page with the text unless an image is being
+  uploaded.
+
+- Make sure the Abort button always works.
+
+- Only one function can use the progress bar at a time.  If it is in use,
+  the second (third...) user cannot display anything.  When finished, the
+  next one can then display the information.
+

@@ -1,0 +1,8 @@
+
+ - more help
+ - full path of the executable: see smaps, most likely the first entry.
+   Match with the name from stat, which is max. 15 characters long.
+ - automatically refresh.
+ - tree refresh: try not to disturb the existing tree, i.e. add and remove
+   new/vanished entries, but otherwise don't change.  Note that processes
+   might reparent; in this case, move to the new position.
