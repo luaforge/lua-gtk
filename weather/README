@@ -1,0 +1,41 @@
+
+Weather Update
+==============
+
+This simple program retrieves weather information for locations selected
+from a list.  This list is currently to be configured manually by editing
+the weather.cfg file.  Later, this might be configurable through the GUI.
+
+Currently, only weather data from accuweather.com is supported properly.
+weather.com used to work, but as their terms of service are now
+prohibitive, this is deprecated.
+
+
+
+
+Possible data sources
+---------------------
+
+weather.com
+	1.5.2008: weather.com is requesting their icons be used, ads with links
+	as provided to be displayed and being sued unless their conditions are
+	met.  I am now looking for an alternative data source.
+
+
+accuweather.com
+	e-mail with request sent 1.5.2008
+	reply is here, basic support implemented 5.5.2008
+
+intellicast.com
+	message from support form sent 1.5.2008
+
+wunderground.com
+	has an API:
+	http://wiki.wunderground.com/index.php/API_-_XML
+
+datameteo.com
+wxmaps.org
+washingtonpost.com
+http://www.dmoz.org/News/Weather/
+weathercity.com - xml feed for a "nominal fee".  contact for info
+

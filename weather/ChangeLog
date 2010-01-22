@@ -1,0 +1,13 @@
+2007-11-29
+* use GtkBuilder instead of glade.lua
+
+2008-05-05
+* allow different data providers
+* basic support for accuweather.com, including a logo.
+
+2008-08-26
+* update to LuaGnome 1.0 API
+
+2010-01-22
+* update all entries in weather.cfg to use accuweather
+
