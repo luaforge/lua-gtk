@@ -458,7 +458,7 @@ static int _ptr_ptr_helper(struct argconv_t *ar, int type)
 {
     void *ptr = NULL;
     lua_State *L = ar->L;
-    int is_output = 0;
+    int is_output = 0, n, i;
 
     switch (ar->lua_type) {
 
@@ -481,13 +481,28 @@ static int _ptr_ptr_helper(struct argconv_t *ar, int type)
 	case LUA_TNIL:
 	    break;
 
+	// a table of strings to fill a char** array
+	case LUA_TTABLE:
+	    if (type != 0)
+		break;
+	    // count
+	    n = lua_objlen(L, ar->index);
+	    const char **p = (const char**) call_info_alloc_item(ar->ci,
+		sizeof(*p) * n);
+	    for (i=0; i<n; i++) {
+		lua_rawgeti(L, ar->index, i + 1);
+		p[i] = lua_tostring(L, -1);
+		lua_pop(L, 1);
+	    }
+	    goto fin;
+
 	case LUA_TSTRING:
 	    if (type == 0) {
 		ptr = (void*) lua_tostring(L, ar->index);
 		break;
 	    }
 	    /* fall through */
-	
+
 	err:
 	default:
 	    LG_ARGERROR(ar->func_arg_nr, 1, "Lua type %s can't be used for %s",
@@ -497,6 +512,8 @@ static int _ptr_ptr_helper(struct argconv_t *ar, int type)
 
     void **p = (void**) call_info_alloc_item(ar->ci, sizeof(*p));
     *p = ptr;
+
+fin:
     ar->arg->p = (void*) p;
 
     // set the arg_flag if this is an output argument.
