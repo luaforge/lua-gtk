@@ -43,7 +43,7 @@ int _callback(int *a2, ...)
 typedef int (*func_t)(int *a, int b, double c, int d);
 
 
-#ifdef LUAGTK_linux_amd64
+#ifdef LUAGNOME_amd64
 static int _callback_amd64(void *dummy, ...);
 asm(
 ".text\n"
