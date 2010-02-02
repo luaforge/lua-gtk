@@ -361,11 +361,26 @@ end
 -- additional pointers.
 --
 function mark_override()
-    local ar = {}
-    local name2id = {}
+    local it, ar, name2id
 
-    for _, name in ipairs(config.lib.include_types or {}) do
+    it = config.lib.include_types or {}
+    ar = {}
+    name2id = {}
+
+    -- collect type names that should be available to LuaGnome.
+    for _, name in ipairs(it) do
 	ar[name] = true
+    end
+
+    -- collect OS specific types (if any)
+    it = it[config.arch_os] or {}
+    for _, name in ipairs(it) do
+	ar[name] = true
+    end
+
+    -- skip this if no include_types are set.
+    if not next(ar) then
+	return
     end
 
     -- Scan all typedefs, resolve their names.  Requested types that can be
@@ -382,7 +397,7 @@ function mark_override()
 		if verbose > 1 then
 		    print("mark_override", id, t.type, t.full_name)
 		end
-		types.mark_type_id_in_use(id)
+		types.mark_type_id_in_use(id, nil, true)
 		t.is_native = true  -- all types in include_types are native.
 		ar[t.full_name] = nil
 	    elseif not name2id[t.full_name] then
