@@ -221,7 +221,7 @@ static int lua2ffi_enum(struct argconv_t *ar)
 	    if (ar->arg->l != 0) {
 		LG_MESSAGE(13, "Arg %d enum (type %s) given as number\n",
 		    ar->func_arg_nr, lg_get_type_name(ar->ts));
-		call_info_msg(L, ar->ci, LUAGTK_WARNING);
+		call_info_msg(L, ar->ci, LUAGNOME_WARNING);
 	    }
 	    return 1;
 	
@@ -233,7 +233,7 @@ static int lua2ffi_enum(struct argconv_t *ar)
 		    ar->func_arg_nr,
 		    lg_get_type_name(ar->ts),
 		    lg_get_type_name(e->ts));
-		call_info_msg(L, ar->ci, LUAGTK_WARNING);
+		call_info_msg(L, ar->ci, LUAGNOME_WARNING);
 	    }
 	    ar->arg->l = e->value;
 	    return 1;
@@ -290,7 +290,7 @@ static int lua2ffi_ptr(struct argconv_t *ar)
 
     LG_MESSAGE(15, "Arg #%d type %s not supported, replaced by NULL\n",
 	ar->func_arg_nr, FTYPE_NAME(ar->arg_type));
-    call_info_msg(L, ar->ci, LUAGTK_WARNING);
+    call_info_msg(L, ar->ci, LUAGNOME_WARNING);
 
     ar->arg->p = NULL;
     return 0;
@@ -456,7 +456,7 @@ static int lua2ffi_func_ptr(struct argconv_t *ar)
  */
 static int _ptr_ptr_helper(struct argconv_t *ar, int type)
 {
-    void *ptr = NULL;
+    void *ptr = NULL, **p = NULL;
     lua_State *L = ar->L;
     int is_output = 0, n, i;
 
@@ -479,7 +479,7 @@ static int _ptr_ptr_helper(struct argconv_t *ar, int type)
 	
 	// use a NULL pointer
 	case LUA_TNIL:
-	    break;
+	    goto fin;
 
 	// a table of strings to fill a char** array
 	case LUA_TTABLE:
@@ -487,13 +487,17 @@ static int _ptr_ptr_helper(struct argconv_t *ar, int type)
 		break;
 	    // count
 	    n = lua_objlen(L, ar->index);
-	    const char **p = (const char**) call_info_alloc_item(ar->ci,
-		sizeof(*p) * n);
+	    const char **p2 = (const char**) call_info_alloc_item(ar->ci,
+		sizeof(*p2) * n);
 	    for (i=0; i<n; i++) {
 		lua_rawgeti(L, ar->index, i + 1);
-		p[i] = lua_tostring(L, -1);
+		if (lua_type(L, -1) == LUA_TLIGHTUSERDATA)
+		    p2[i] = lua_topointer(L, -1);
+		else
+		    p2[i] = lua_tostring(L, -1);
 		lua_pop(L, 1);
 	    }
+	    p = (void**) p2;
 	    goto fin;
 
 	case LUA_TSTRING:
@@ -510,7 +514,7 @@ static int _ptr_ptr_helper(struct argconv_t *ar, int type)
 		type ? "struct**" : "char**"); 
     }
 
-    void **p = (void**) call_info_alloc_item(ar->ci, sizeof(*p));
+    p = (void**) call_info_alloc_item(ar->ci, sizeof(*p));
     *p = ptr;
 
 fin:
@@ -694,7 +698,7 @@ static int lua2ffi_vararg(struct argconv_t *ar)
 	    default:
 		LG_MESSAGE(16, "Arg %d: Unhandled vararg type %s\n", arg_nr+1,
 		    lua_typename(L, type));
-		call_info_msg(L, ci, LUAGTK_WARNING);
+		call_info_msg(L, ci, LUAGNOME_WARNING);
 	    }
     }
 
@@ -1262,7 +1266,7 @@ static int ffi2lua_void_ptr(struct argconv_t *ar)
 	lua_State *L = ar->L;
 	LG_MESSAGE(17, "Return value of arg %d (void*) discarded.\n",
 	    ar->func_arg_nr);
-	call_info_msg(L, ar->ci, LUAGTK_WARNING);
+	call_info_msg(L, ar->ci, LUAGNOME_WARNING);
     }
 
     return 1;
@@ -1578,7 +1582,7 @@ static lua_Number _tonumber(lua_State *L, int index)
 	    return lua_toboolean(L, index) ? 1 : 0;
 	
 	case LUA_TUSERDATA:;
-	    struct lg_enum_t *e = LUAGTK_TO_ENUM(L, index);
+	    struct lg_enum_t *e = LUAGNOME_TO_ENUM(L, index);
 	    return e->value;
     }
 
