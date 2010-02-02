@@ -310,7 +310,7 @@ struct lg_enum_t {
     typespec_t	ts;		// ts.flag: 1=enum, 2=flags
 };
 #define ENUM_META "enum_flags"
-#define LUAGTK_TO_ENUM(L, idx) (struct lg_enum_t*) luaL_checkudata(L, idx, \
+#define LUAGNOME_TO_ENUM(L, idx) (struct lg_enum_t*) luaL_checkudata(L, idx, \
     ENUM_META)
 
 
