@@ -191,11 +191,14 @@ function output_one_struct(ofile, tp, struct_name)
 	    end
 
 	    -- The structure element might not have a type idx; this can happen
-	    -- for undefined types (?)
+	    -- for undefined types (incomplete types)
 	    local type_idx = tp.type_idx
 	    if not type_idx then
 		print("Warning: No type_idx set for " .. struct_name .. "."
-		    .. tostring(tp.name) .. " type_id " .. member.type)
+		    .. tostring(member.name or member_name)
+		    .. ": type_id=" .. member.type .. "("
+		    .. tostring(tp.name or tp.full_name) .. ")")
+		-- for k, v in pairs(tp) do print("...", k, v) end
 		type_idx = 0
 	    else
 		assert(type_idx ~= 0, "invalid type_idx zero for "
@@ -498,7 +501,7 @@ function output_fundamental_types(ofname)
 	    ffitype[3] and "STRUCTCONV_" .. string.upper(ffitype[3]) or 0,
 
 
-	    ffitype[1] and "LUAGTK_FFI_TYPE_" .. string.upper(ffitype[1])
+	    ffitype[1] and "LUAGNOME_FFI_TYPE_" .. string.upper(ffitype[1])
 		or 0,
 	    i, v.name
 	))
