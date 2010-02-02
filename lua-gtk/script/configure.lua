@@ -393,11 +393,11 @@ function general_setup(libname)
 
     cfg_m("ARCH", arch)
     cfg_m("ODIR", odir)
-    cfg_h("#define LUAGTK_%s_%s", arch_os, arch_cpu)
-    cfg_h("#define LUAGTK_%s", arch_os)
-    cfg_h("#define LUAGTK_%s", arch_cpu)
-    cfg_h("#define LUAGTK_ARCH_OS \"%s\"", arch_os)
-    cfg_h("#define LUAGTK_ARCH_CPU \"%s\"", arch_cpu)
+    cfg_h("#define LUAGNOME_%s_%s", arch_os, arch_cpu)
+    cfg_h("#define LUAGNOME_%s", arch_os)
+    cfg_h("#define LUAGNOME_%s", arch_cpu)
+    cfg_h("#define LUAGNOME_ARCH_OS \"%s\"", arch_os)
+    cfg_h("#define LUAGNOME_ARCH_CPU \"%s\"", arch_cpu)
 
     local name = "script/Makefile." .. arch_os
     if is_file(name) then
