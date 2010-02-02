@@ -87,7 +87,7 @@ static int enum_tostring(lua_State *L)
  */
 static int enum_tonumber(lua_State *L)
 {
-    struct lg_enum_t *e = LUAGTK_TO_ENUM(L, 1);
+    struct lg_enum_t *e = LUAGNOME_TO_ENUM(L, 1);
     lua_pushnumber(L, (int) e->value);
     return 1;
 }
@@ -111,7 +111,7 @@ static int enum_add_sub(lua_State *L, int mode)
 	e1 = NULL;
 	v1 = lua_tonumber(L, 1);
     } else {
-	e1 = LUAGTK_TO_ENUM(L, 1);
+	e1 = LUAGNOME_TO_ENUM(L, 1);
 	v1 = e1->value;
     }
 
@@ -119,7 +119,7 @@ static int enum_add_sub(lua_State *L, int mode)
 	e2 = NULL;
 	v2 = lua_tonumber(L, 2);
     } else {
-	e2 = LUAGTK_TO_ENUM(L, 2);
+	e2 = LUAGNOME_TO_ENUM(L, 2);
 	v2 = e2->value;
     }
 
@@ -159,8 +159,8 @@ static int enum_eq(lua_State *L)
 {
     struct lg_enum_t *e1, *e2;
 
-    e1 = LUAGTK_TO_ENUM(L, 1);
-    e2 = LUAGTK_TO_ENUM(L, 2);
+    e1 = LUAGNOME_TO_ENUM(L, 1);
+    e2 = LUAGNOME_TO_ENUM(L, 2);
     if (e1->ts.value != e2->ts.value) {
 	TYPE_NAME_VAR(name1, e1->ts);
 	TYPE_NAME_VAR(name2, e2->ts);
@@ -171,11 +171,32 @@ static int enum_eq(lua_State *L)
     return 1;
 }
 
+/**
+ * Use this to check a FLAG
+ */
+static int enum_mod(lua_State *L)
+{
+    struct lg_enum_t *e1, *e2;
+
+    e1 = LUAGNOME_TO_ENUM(L, 1);
+    e2 = LUAGNOME_TO_ENUM(L, 2);
+    if (e1->ts.value != e2->ts.value) {
+	TYPE_NAME_VAR(name1, e1->ts);
+	TYPE_NAME_VAR(name2, e2->ts);
+	luaL_error(L, "Can't compare different enum types: %s vs. %s",
+	    name1, name2);
+    }
+    lua_pushboolean(L, e1->value & e2->value);
+    return 1;
+}
+
+
 static const luaL_reg enum_methods[] = {
     {"__tostring", enum_tostring },
     {"__add", enum_add },
     {"__sub", enum_sub },
     {"__eq", enum_eq },
+    {"__mod", enum_mod },
     {"tonumber", enum_tonumber },
     { NULL, NULL }
 };
