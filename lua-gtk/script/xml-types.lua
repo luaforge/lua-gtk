@@ -92,7 +92,10 @@ function register_fundamental(t)
 
     name = t.fname .. string.rep("*", t.pointer)
     fid = ffi_type_name2id[name]
-    if fid then t.fid = fid; return end
+    if fid then
+	t.fid = fid
+	return
+    end
 
     -- size is meaningless for "struct"
     size = t.size or 0
@@ -396,9 +399,11 @@ end
 --
 -- @param type_id  ID of the type, i.e. index into typedefs
 -- @param varname  Variable or argument name.  Might be required for something?
+-- @param override  Included due to an entry in include_types.  Don't check
+--  for "good_files".
 -- @return  The type entry
 --
-function mark_type_id_in_use(type_id, varname)
+function mark_type_id_in_use(type_id, varname, override)
 
     -- resolve this type ID, resulting in a fundamental type.  These are
     -- all available; but if it is a structure, union, enum, function etc.
@@ -409,7 +414,7 @@ function mark_type_id_in_use(type_id, varname)
     -- for native types, go into the detail, i.e. make sure the types of the
     -- elements of the struct, union, enum or function are available, too.
     -- if no file information is present, follow.
-    if t.detail and (not t.file_id or good_files[t.file_id]) then
+    if t.detail and (override or not t.file_id or good_files[t.file_id]) then
 
 	-- unnamed function types are quite common.  During type_idx assignment
 	-- in assign_type_idx each type must have a unique name, therefore
