@@ -86,6 +86,9 @@ include_types.linux = {
     "Cursor",
     "Window",
     "XExtData*",
+
+    "XPointer",
+    "Depth*",
 }
 
 function_flags = {
