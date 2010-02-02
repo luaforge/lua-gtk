@@ -14,7 +14,7 @@
 #include "luagnome.h"
 #include <string.h>	    // strcmp
 
-#define LUAGTK_WRAPPER "void* wrapper"
+#define LUAGNOME_WRAPPER "void* wrapper"
 #define VALUE_WRAPPER_MAGIC1 0x89737948
 #define VALUE_WRAPPER_MAGIC2 0xa0d7dfaa
 
@@ -23,14 +23,14 @@ struct value_wrapper {
     unsigned int magic2;
     int ref;
     int refcount;			/* count Lua objects for this wrapper */
-#ifdef LUAGTK_DEBUG_FUNCS
+#ifdef LUAGNOME_DEBUG_FUNCS
     struct value_wrapper *prev, *next;	/* for debugging */
     int currentline;
     char *short_src;
 #endif
 };
 
-#ifdef LUAGTK_DEBUG_FUNCS
+#ifdef LUAGNOME_DEBUG_FUNCS
 static struct value_wrapper *wrap_first = NULL;
 
 /* Keep track of how many wrappers exist.  Use this to catch leaks. */
@@ -148,7 +148,7 @@ void lg_userdata_to_ffi(struct argconv_t *ar, ffi_type **argtype,
     lua_pop(L, 1);
 
     // Is this a value wrapper wrapper?  If so, pass the wrapper.
-    lua_getfield(L, LUA_REGISTRYINDEX, LUAGTK_WRAPPER);
+    lua_getfield(L, LUA_REGISTRYINDEX, LUAGNOME_WRAPPER);
     if (lua_rawequal(L, -1, -2)) {
 	struct _value_wrapper2 *wrp = (struct _value_wrapper2*) p;
 	dest->p = wrp->wrapper;
@@ -194,7 +194,7 @@ static int wrapper_gc(lua_State *L)
     struct _value_wrapper2 *a = (struct _value_wrapper2*) lua_touserdata(L, 1);
     struct value_wrapper *wrp = a->wrapper;
 
-#ifdef LUAGTK_DEBUG_FUNCS
+#ifdef LUAGNOME_DEBUG_FUNCS
     vwrapper_objects --;
 #endif
     if (wrp->refcount <= 0) {
@@ -208,7 +208,7 @@ static int wrapper_gc(lua_State *L)
 	wrp->ref = 0;
 	// wrp->magic1 = 0;
 	// wrp->magic2 = 0;
-#ifdef LUAGTK_DEBUG_FUNCS
+#ifdef LUAGNOME_DEBUG_FUNCS
 	if (wrp->prev)
 	    wrp->prev->next = wrp->next;
 	if (wrp->next)
@@ -345,7 +345,7 @@ struct value_wrapper *lg_make_value_wrapper(lua_State *L, int index)
     lua_pushvalue(L, index);
     struct value_wrapper *wrp = (struct value_wrapper*) g_malloc(sizeof(*wrp));
 
-#ifdef LUAGTK_DEBUG_FUNCS
+#ifdef LUAGNOME_DEBUG_FUNCS
     wrp->next = wrap_first;
     wrp->prev = NULL;
     if (wrap_first)
@@ -385,12 +385,12 @@ int lg_push_vwrapper_wrapper(lua_State *L, struct value_wrapper *wrp)
     struct _value_wrapper2 *p = lua_newuserdata(L, sizeof(*p));
     p->wrapper = wrp;
     wrp->refcount ++;
-#ifdef LUAGTK_DEBUG_FUNCS
+#ifdef LUAGNOME_DEBUG_FUNCS
     vwrapper_objects ++;
 #endif
 
     // add a metatable with some methods
-    if (luaL_newmetatable(L, LUAGTK_WRAPPER))
+    if (luaL_newmetatable(L, LUAGNOME_WRAPPER))
 	luaL_register(L, NULL, wrapper_methods);
 
     lua_setmetatable(L, -2);

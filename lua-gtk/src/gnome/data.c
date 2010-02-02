@@ -40,14 +40,14 @@ const struct module_info *curr_module;	// needed for qsort and bsearch
 
 // --- Windows ---
 
-#ifdef LUAGTK_win32
+#ifdef LUAGNOME_win32
  #define DLLOOKUP(dl_handle, name) (FARPROC) GetProcAddress(dl_handle, name)
  #define DLCLOSE(name)
 #endif
 
 // --- Linux ---
 
-#ifdef LUAGTK_linux
+#ifdef LUAGNOME_linux
  #define DLLOOKUP(dl_handle, name) dlsym(dl_handle, name)
  #define DLCLOSE(name) dlclose(name)
 #endif
@@ -791,7 +791,7 @@ int lg_register_module(lua_State *L, struct module_info *mi)
     lua_pushvalue(L, -1);
     mi->module_ref = luaL_ref(L, LUA_REGISTRYINDEX);
 
-#ifdef LUAGTK_DEBUG_FUNCS
+#ifdef LUAGNOME_DEBUG_FUNCS
     // add _modinfo, which is required for debugging.
     lua_pushlightuserdata(L, mi);
     lua_setfield(L, -2, "_modinfo");
@@ -996,14 +996,14 @@ static void unavailable_function()
     exit(1);
 }
 
-#ifdef LUAGTK_linux
+#ifdef LUAGNOME_linux
 static void *dll_load(struct dynlink *dyn, const char *name)
 {
     return dlopen(name, RTLD_LAZY | RTLD_GLOBAL);
 }
 #endif
 
-#ifdef LUAGTK_win32
+#ifdef LUAGNOME_win32
 static void *dll_load(struct dynlink *dyn, const char *name)
 {
     if (!dyn || dyn->dynlink_names)

@@ -21,7 +21,7 @@
 int runtime_flags = 0;	    // see RUNTIME_xxx constants in luagtk.h
 
 
-#ifdef LUAGTK_DEBUG_FUNCS
+#ifdef LUAGNOME_DEBUG_FUNCS
 
 /**
  * While debugging you can add a call to this function anywhere in the C code,
@@ -312,7 +312,7 @@ void lg_call_trace(lua_State *L, struct func_info *fi, int index)
     }
 }
 
-#ifdef LUAGTK_DEBUG_FUNCS
+#ifdef LUAGNOME_DEBUG_FUNCS
 
 static char spaces[] = "                                                      ";
 
@@ -838,7 +838,7 @@ int lg_debug_flags_global(lua_State *L)
 static const luaL_reg debug_methods[] = {
     {"function_sig",	l_function_sig },
 
-#ifdef LUAGTK_DEBUG_FUNCS
+#ifdef LUAGNOME_DEBUG_FUNCS
     {"set_debug_flags", l_set_debug_flags },
     {"unset_debug_flags", l_unset_debug_flags },
     {"dump_struct",	l_dump_struct },

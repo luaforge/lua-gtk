@@ -67,8 +67,8 @@ struct object *lg_check_object(lua_State *L, int index)
  */
 static void _set_object_pointer(lua_State *L, void *p, int ref, int old_ref)
 {
-    lua_getglobal(L, LUAGTK_TBL);
-    lua_getfield(L, -1, LUAGTK_WIDGETS);	// gtk gtk.objects
+    lua_getglobal(L, LUAGNOME_TBL);
+    lua_getfield(L, -1, LUAGNOME_WIDGETS);	// gtk gtk.objects
 
     // check that the entry in objects currently points to old_ref.  If not,
     // don't update.
@@ -105,8 +105,8 @@ static int _get_object_ref(lua_State *L, void *p)
 {
     int ref_nr = -1;
 
-    lua_getglobal(L, LUAGTK_TBL);		// gtk
-    lua_getfield(L, -1, LUAGTK_WIDGETS);	// gtk gtk.objects
+    lua_getglobal(L, LUAGNOME_TBL);		// gtk
+    lua_getfield(L, -1, LUAGNOME_WIDGETS);	// gtk gtk.objects
     lua_pushlightuserdata(L, p);		// gtk gtk.objects p
     lua_rawget(L, -2);				// gtk gtk.objects ref
     if (!lua_isnil(L, -1))
@@ -374,8 +374,8 @@ static int _get_object_meta(lua_State *L, typespec_t ts)
 {
     const char *type_name = lg_get_type_name(ts);
 
-    lua_getglobal(L, LUAGTK_TBL);
-    lua_getfield(L, -1, LUAGTK_METATABLES);
+    lua_getglobal(L, LUAGNOME_TBL);
+    lua_getfield(L, -1, LUAGNOME_METATABLES);
     lua_remove(L, -2);				// _meta_tables
     lua_pushstring(L, type_name);		// _meta_tables name
     lua_rawget(L, -2);				// _meta_tables meta|nil
@@ -596,9 +596,9 @@ void lg_get_object(lua_State *L, void *p, typespec_t ts, int flags)
     }
 
     // translate the address to a reference in the aliases table
-    lua_getglobal(L, LUAGTK_TBL);
-    lua_getfield(L, -1, LUAGTK_WIDGETS);
-    lua_getfield(L, -2, LUAGTK_ALIASES);	// gtk gtk.objects gtk.aliases
+    lua_getglobal(L, LUAGNOME_TBL);
+    lua_getfield(L, -1, LUAGNOME_WIDGETS);
+    lua_getfield(L, -2, LUAGNOME_ALIASES);	// gtk gtk.objects gtk.aliases
     lua_remove(L, -3);				// objects w_a
 
     lua_pushlightuserdata(L, p);		// objects w_a *w
@@ -744,8 +744,8 @@ static int _make_object(lua_State *L, void *p, typespec_t ts, int flags)
      * having an unused table for each object, use the same for all and replace
      * with a private table when the first data is stored.
      */
-    lua_getglobal(L, LUAGTK_TBL);		// w gtk
-    lua_getfield(L, -1, LUAGTK_EMPTYATTR);	// w gtk emptyattr
+    lua_getglobal(L, LUAGNOME_TBL);		// w gtk
+    lua_getfield(L, -1, LUAGNOME_EMPTYATTR);	// w gtk emptyattr
     lua_setfenv(L, -3);				// w gtk
 
     // Increase refcount (but not always - see ffi2lua_struct_ptr).  flags
@@ -762,7 +762,7 @@ static int _make_object(lua_State *L, void *p, typespec_t ts, int flags)
 
     // Store it in the objects aliases table, using the next index.  Can't
     // use luaL_ref, because the object IDs must not be reused.
-    lua_getfield(L, -1, LUAGTK_ALIASES);	// w gtk aliases
+    lua_getfield(L, -1, LUAGNOME_ALIASES);	// w gtk aliases
     lua_remove(L, -2);				// w w_a
     lua_rawgeti(L, -1, 0);			// w w_a idx
     int ref = lua_tonumber(L, -1) + 1;

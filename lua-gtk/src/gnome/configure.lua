@@ -30,7 +30,7 @@ function setup_ffi()
 	cc, odir, exe_suffix, odir, libffi_inc, ifile, libffi_lib)
 
     -- try calling the code, which is the logical API
-    cmd2 = cmd .. " -D LUAGTK_FFI_CODE"
+    cmd2 = cmd .. " -D LUAGNOME_FFI_CODE"
     if verbose then print(cmd2) end
     rc = os.execute(cmd2)
     if rc ~= 0 then
@@ -43,12 +43,12 @@ function setup_ffi()
     rc = os.execute(cmd3)
     if rc == 0 then
 	libffi_call = "code"
-	cfg_h("#define LUAGTK_FFI_CODE")
+	cfg_h("#define LUAGNOME_FFI_CODE")
 	return
     end
 
     -- now try calling the closure.
-    cmd2 = cmd .. " -D LUAGTK_FFI_CLOSURE"
+    cmd2 = cmd .. " -D LUAGNOME_FFI_CLOSURE"
     if verbose then print(cmd2) end
     rc = os.execute(cmd2)
     if rc ~= 0 then
@@ -58,7 +58,7 @@ function setup_ffi()
     rc = os.execute(cmd3)
     if rc == 0 then
 	libffi_call = "closure"
-	cfg_h("#define LUAGTK_FFI_CLOSURE")
+	cfg_h("#define LUAGNOME_FFI_CLOSURE")
 	return
     end
 
@@ -71,9 +71,9 @@ end
 --
 function configure_gnome()
     cfg_m("VERSION", lg_version)
-    cfg_h("#define LUAGTK_VERSION \"%s\"", lg_version)
+    cfg_h("#define LUAGNOME_VERSION \"%s\"", lg_version)
     if debug_funcs then
-	cfg_h("#define LUAGTK_DEBUG_FUNCS")
+	cfg_h("#define LUAGNOME_DEBUG_FUNCS")
     end
     summary("Debugging functions", debug_funcs and "enabled" or "disabled")
 
@@ -90,7 +90,7 @@ function configure_gnome()
     for _, name in ipairs(libraries) do
 	ar[#ar + 1] = string.gsub(name, '^"(.*)"$', '%1\\0')
     end
-    cfg_h("#define LUAGTK_LIBRARIES \"" .. table.concat(ar) .. '"')
+    cfg_h("#define LUAGNOME_LIBRARIES \"" .. table.concat(ar) .. '"')
 
     -- just for information; sometimes the XML can be downloaded, so
     -- gccxml is not absolutely required.

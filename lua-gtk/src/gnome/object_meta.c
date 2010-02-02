@@ -174,7 +174,7 @@ static int _fe_check_interfaces(lua_State *L, const char *attr_name)
 
 	// regular function in that module?
 	if (lg_find_func(L, mi, tmp_name, &fi)) {
-#ifdef LUAGTK_win32
+#ifdef LUAGNOME_win32
 found_func:
 #endif
 	    rc = _found_function(L, tmp_name, &fi);
@@ -195,7 +195,7 @@ found_func:
 	    break;
 	}
 
-#ifdef LUAGTK_win32
+#ifdef LUAGNOME_win32
 	strcat(tmp_name, "_utf8");
 	if (lg_find_func(L, mi, tmp_name, &fi))
 	    goto found_func;
@@ -256,7 +256,7 @@ static int _fe_check_function(lua_State *L, int recursed, typespec_t ts)
 	return _found_function(L, tmp_name, &fi);
 
     /* maybe an UTF8 variant for Windows? */
-#ifdef LUAGTK_win32
+#ifdef LUAGNOME_win32
     strcat(tmp_name, "_utf8");
     if (lg_find_func(L, mi, tmp_name, &fi))
 	return _found_function(L, tmp_name, &fi);
@@ -689,8 +689,8 @@ int lg_object_newindex(lua_State *L)
 
     /* Is this the default empty table?  If so, create a new one private to
      * this object. */
-    lua_getglobal(L, LUAGTK_TBL);
-    lua_getfield(L, -1, LUAGTK_EMPTYATTR);	// w k v env gtk ea
+    lua_getglobal(L, LUAGNOME_TBL);
+    lua_getfield(L, -1, LUAGNOME_EMPTYATTR);	// w k v env gtk ea
     if (lua_equal(L, -1, -3)) {
 	lua_newtable(L);			// w k v env gtk ea t
 	lua_pushvalue(L, -1);			// w k v env gtk ea t t

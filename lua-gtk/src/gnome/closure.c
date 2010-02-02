@@ -19,7 +19,7 @@
 #include <string.h>	    // memset
 #include <stdlib.h>	    // exit
 
-#define LUAGTK_CLOSURE "LuaClosure"
+#define LUAGNOME_CLOSURE "LuaClosure"
 #define CLOSURE_MAGIC1 0x8c94aa30
 
 struct lua_closure {
@@ -282,7 +282,7 @@ static int set_ffi_types(lua_State *L, typespec_t ts, ffi_type **arg_types)
 	get_next_argument(L, &sig, &ar);
 	if (arg_types) {
 	    ffi = lg_get_ffi_type(ar.ts);
-	    arg_types[arg_nr] =  LUAGTK_FFI_TYPE(ffi->ffi_type_idx);
+	    arg_types[arg_nr] =  LUAGNOME_FFI_TYPE(ffi->ffi_type_idx);
 	}
 	arg_nr ++;
     }
@@ -360,7 +360,7 @@ static int l_closure_tostring(lua_State *L)
     lua_pushfstring(L, "Closure (%s) at %p", cl->is_automatic ? "automatic"
 	: "manual", cl);
 
-#ifdef LUAGTK_DEBUG_FUNCS
+#ifdef LUAGNOME_DEBUG_FUNCS
     lua_Debug debug;
     lua_rawgeti(L, LUA_REGISTRYINDEX, cl->func_ref);
     lua_getinfo(L, ">S", &debug);
@@ -378,7 +378,7 @@ static const luaL_reg closure_methods[] = {
     { NULL, NULL }
 };
 
-#ifdef LUAGTK_DEBUG_FUNCS
+#ifdef LUAGNOME_DEBUG_FUNCS
 
 
 // There are about 200 functions that have a function pointer as argument.
@@ -567,13 +567,13 @@ void *lg_use_closure(lua_State *L, int index, typespec_t ts, int arg_nr,
 
     // It would be logical to always call "code", but sometimes "closure" must
     // be called instead.  The configure script determines which one works.
-#ifdef LUAGTK_FFI_CODE
+#ifdef LUAGNOME_FFI_CODE
     return (void*) cl->code;
 #else
- #ifdef LUAGTK_FFI_CLOSURE
+ #ifdef LUAGNOME_FFI_CLOSURE
     return (void*) cl->closure;
  #else
-    #error Please define one of LUAGTK_FFI_{CODE,CLOSURE}.
+    #error Please define one of LUAGNOME_FFI_{CODE,CLOSURE}.
  #endif
 #endif
 }
@@ -606,7 +606,7 @@ int lg_create_closure(lua_State *L, int index, int is_automatic)
     memset(cl, 0, sizeof(*cl));
 
     // add a metatable with garbage collection
-    if (luaL_newmetatable(L, LUAGTK_CLOSURE))
+    if (luaL_newmetatable(L, LUAGNOME_CLOSURE))
 	luaL_register(L, NULL, closure_methods);
     lua_setmetatable(L, -2);
 

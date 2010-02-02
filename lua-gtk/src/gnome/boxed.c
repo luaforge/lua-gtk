@@ -20,7 +20,7 @@
 #include "luagnome.h"
 #include "lg_ffi.h"
 #include <string.h>	    // strcmp
-#define LUAGTK_BOXED "LuaValue"
+#define LUAGNOME_BOXED "LuaValue"
 
 int lg_boxed_value_type = 0;
 static int boxed_count = 0; // count currently allocated boxed objects
@@ -76,7 +76,7 @@ static int l_boxed_index(lua_State *L)
 	    struct object *w = lg_check_object(L, -1);
 	    if (!w)
 		return luaL_error(L, "%s %s doesn't contain a object, cast "
-		    "impossible.", msgprefix, LUAGTK_BOXED);
+		    "impossible.", msgprefix, LUAGNOME_BOXED);
 
 	    const char *type_name = lg_get_type_name(b->ts);
 	    typespec_t ts = lg_find_struct(L, type_name, 1);
@@ -100,7 +100,7 @@ static int l_boxed_index(lua_State *L)
 // pretty printing
 static int l_boxed_tostring(lua_State *L)
 {
-    lua_pushfstring(L, LUAGTK_BOXED " at %p", lua_topointer(L, 1));
+    lua_pushfstring(L, LUAGNOME_BOXED " at %p", lua_topointer(L, 1));
     return 1;
 }
 
@@ -198,7 +198,7 @@ void *lg_make_boxed_value(lua_State *L, int index)
     // don't just return it - it will be freed.
     if (type == LUA_TUSERDATA) {
 	lua_getmetatable(L, index);
-	luaL_getmetatable(L, LUAGTK_BOXED);
+	luaL_getmetatable(L, LUAGNOME_BOXED);
 	int rc = lua_rawequal(L, -1, -2);
 	lua_pop(L, 2);
 	if (rc)
@@ -241,7 +241,7 @@ static int l_box(lua_State *L)
     b->is_userdata = 1;
     b->ts = ts;
 
-    if (luaL_newmetatable(L, LUAGTK_BOXED))
+    if (luaL_newmetatable(L, LUAGNOME_BOXED))
 	luaL_register(L, NULL, boxed_methods);
     lua_setmetatable(L, -2);
 
@@ -300,7 +300,7 @@ void lg_boxed_to_ffi(struct argconv_t *ar, ffi_type **argtype)
     ar->lua_type = lua_type(L, ar->index);
 
     int idx = ar->arg_type->ffi_type_idx;
-    *argtype = LUAGTK_FFI_TYPE(idx);
+    *argtype = LUAGNOME_FFI_TYPE(idx);
 
     idx = ar->arg_type->conv_idx;
     if (!idx || !ffi_type_lua2ffi[idx])

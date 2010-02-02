@@ -85,7 +85,7 @@ int main()
 
     // determine distance
     dist = ((char*)info_map[1].t) - ((char*)info_map[0].t);
-    printf("#define LUAGTK_FFI_TYPE(nr) ((ffi_type*)(((char*)&ffi_type_%s)"
+    printf("#define LUAGNOME_FFI_TYPE(nr) ((ffi_type*)(((char*)&ffi_type_%s)"
 	"+((nr)-1)*%d))\n", info_map[0].name, dist);
     for (i=0; i<INFO_MAP_ITEMS; i++) {
 	ofs = ((char*)info_map[i].t) - ((char*)info_map[0].t);
@@ -96,7 +96,7 @@ int main()
 	    err ++;
 	} else {
 	    str_toupper(info_map[i].name, buf);
-	    printf("#define LUAGTK_FFI_TYPE_%s %d\n",
+	    printf("#define LUAGNOME_FFI_TYPE_%s %d\n",
 		buf,
 		ofs / dist + 1);
 	}

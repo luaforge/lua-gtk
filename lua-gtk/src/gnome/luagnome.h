@@ -7,13 +7,13 @@
 
 #include "common.h"
 
-#ifdef LUAGTK_linux
+#ifdef LUAGNOME_linux
 #include <dlfcn.h>
 #include <ffi.h>		/* foreign function interface library */
 // #define EXPORT
 #endif
 
-#ifdef LUAGTK_win32
+#ifdef LUAGNOME_win32
 #include <windows.h>
 #include "ffi.h"
 // #define EXPORT __declspec(dllexport)
@@ -24,11 +24,11 @@
 
 // keys in the gtk module
 extern char *lib_name;
-#define LUAGTK_TBL	    lib_name
-#define LUAGTK_METATABLES   "metatables"
-#define LUAGTK_WIDGETS	    "objects"
-#define LUAGTK_ALIASES	    "aliases"
-#define LUAGTK_EMPTYATTR    "emptyattr"
+#define LUAGNOME_TBL		lib_name
+#define LUAGNOME_METATABLES	"metatables"
+#define LUAGNOME_WIDGETS	"objects"
+#define LUAGNOME_ALIASES	"aliases"
+#define LUAGNOME_EMPTYATTR	"emptyattr"
 
 // Access to type and structure element names
 #define FTYPE_NAME(t) (gnome_ffi_type_names + (t)->name_ofs)
@@ -311,7 +311,8 @@ void	lg_boxed_to_ffi(struct argconv_t *ar, ffi_type **argtype);
 void	lg_boxed_free(gpointer val);
 
 // in call.c
-enum lg_msg_level { LUAGTK_DEBUG=0, LUAGTK_INFO, LUAGTK_WARNING, LUAGTK_ERROR };
+enum lg_msg_level { LUAGNOME_DEBUG=0, LUAGNOME_INFO, LUAGNOME_WARNING,
+    LUAGNOME_ERROR };
 int lg_call(lua_State *L, struct func_info *fi, int index);
 int lg_call_byname(lua_State *L, cmi mi, const char *func_name);
 int lg_call_function(lua_State *L, const char *mod_name, const char *func_name);

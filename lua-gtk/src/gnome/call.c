@@ -23,7 +23,7 @@
 #include <string.h>	    // memset, strcmp, memcpy
 #include <stdarg.h>	    // va_start etc.
 
-#include "lg_ffi.h"	    // LUAGTK_FFI_TYPE() macro
+#include "lg_ffi.h"	    // LUAGNOME_FFI_TYPE() macro
 
 
 /* extra arguments that have to be allocated are kept in this list. */
@@ -337,10 +337,10 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 	if (idx == 0) {
 	    LG_MESSAGE(18, "Argument %d (type %s) has no ffi type.\n",
 		arg_nr, FTYPE_NAME(ar.arg_type));
-	    call_info_msg(L, ci, LUAGTK_ERROR);
+	    call_info_msg(L, ci, LUAGNOME_ERROR);
 	    luaL_error(L, "call error\n");
 	}
-	ci->argtypes[arg_nr] = LUAGTK_FFI_TYPE(idx);
+	ci->argtypes[arg_nr] = LUAGNOME_FFI_TYPE(idx);
 
 	/* the first "argument" is actually the return value; no more work. */
 	if (arg_nr == 0) {
@@ -354,7 +354,7 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 	    // because a vararg doesn't need any extra arguments.
 	    if (strcmp(FTYPE_NAME(ar.arg_type), "vararg")) {
 		LG_MESSAGE(19, "More arguments expected -> nil used\n");
-		call_info_msg(L, ci, LUAGTK_WARNING);
+		call_info_msg(L, ci, LUAGNOME_WARNING);
 	    }
 	    ar.lua_type = LUA_TNIL;
 	} else 
@@ -374,7 +374,7 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 	    // Shouldn't happen.  Can be fixed, but complain anyway
 	    if (lua_gettop(L) != ar.stack_curr_top) {
 		LG_MESSAGE(20, "lua2ffi changed the stack\n");
-		call_info_msg(L, ci, LUAGTK_DEBUG);
+		call_info_msg(L, ci, LUAGNOME_DEBUG);
 		lua_settop(L, ar.stack_curr_top);
 	    }
 
@@ -384,7 +384,7 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
 	} else {
 	    LG_MESSAGE(21, "Argument %d (type %s) not handled\n", arg_nr,
 		FTYPE_NAME(ar.arg_type));
-	    call_info_msg(L, ci, LUAGTK_WARNING);
+	    call_info_msg(L, ci, LUAGNOME_WARNING);
 	    luaL_error(L, "call error\n");
 	    ci->args[arg_nr].ffi_arg.l = 0;
 	}
@@ -397,7 +397,7 @@ static int _call_build_parameters(lua_State *L, int index, struct call_info *ci)
     int n = ar.stack_top - (index+arg_nr-1);
     if (n > 0) {
 	LG_MESSAGE(22, "%d superfluous argument%s\n", n, n==1?"":"s");
-	call_info_msg(L, ci, LUAGTK_WARNING);
+	call_info_msg(L, ci, LUAGNOME_WARNING);
     }
 
     return 1;

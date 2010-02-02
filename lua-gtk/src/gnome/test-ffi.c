@@ -50,13 +50,13 @@ static int test_closure()
 	return 1;
     }
 
-#ifdef LUAGTK_FFI_CODE
+#ifdef LUAGNOME_FFI_CODE
     func_ptr = (int(*)(int,char*)) code;
 #else
- #ifdef LUAGTK_FFI_CLOSURE
+ #ifdef LUAGNOME_FFI_CLOSURE
     func_ptr = (int(*)(int,char*)) closure;
  #else
-    #error Please define one of LUAGTK_FFI_{CODE,CLOSURE}.
+    #error Please define one of LUAGNOME_FFI_{CODE,CLOSURE}.
  #endif
 #endif
 

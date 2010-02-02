@@ -257,7 +257,7 @@ static int lg_generic_index(lua_State *L)
     // Maybe it's Windows and a function with _utf8 suffix?  While there
     // are a few with the gtk_ prefix and _utf8 suffix, most have the
     // g_ or gdk_ prefix, so don't automatically add this prefix.
-#ifdef LUAGTK_win32
+#ifdef LUAGNOME_win32
     strcat(symname, "_utf8");
     // sprintf(symname, "%s%s_utf8", prefix_func, name);
     if (lg_find_func(L, mi, symname, &fi))
@@ -411,8 +411,8 @@ static int lg_generic_new_array(lua_State *L, cmi mi, int is_array)
 static int lg_get_osname(lua_State *L)
 {
     luaL_checktype(L, 1, LUA_TNONE);
-    lua_pushliteral(L, LUAGTK_ARCH_OS);
-    lua_pushliteral(L, LUAGTK_ARCH_CPU);
+    lua_pushliteral(L, LUAGNOME_ARCH_OS);
+    lua_pushliteral(L, LUAGNOME_ARCH_CPU);
     return 2;
 }
 
@@ -426,7 +426,7 @@ static int lg_void_ptr(lua_State *L)
 
 static const char _module_info[] =
     "_VERSION\0"
-    LUAGTK_VERSION "\0"
+    LUAGNOME_VERSION "\0"
     "_DESCRIPTION\0"
     "LuaGnome is a binding to the Gnome family of librarlies, like GLib, GDK,\n"
     "Gtk and others for easy development of GUI applications.\0"
@@ -558,8 +558,8 @@ extern const char gnome_dynlink_names[];
 #endif
 
 static struct dynlink gnome_dynlink = {
-#ifdef LUAGTK_LIBRARIES
-    dll_list: LUAGTK_LIBRARIES,
+#ifdef LUAGNOME_LIBRARIES
+    dll_list: LUAGNOME_LIBRARIES,
 #endif
 #ifdef RUNTIME_LINKING
     dynlink_names: gnome_dynlink_names,
@@ -620,20 +620,20 @@ int luaopen_gnome(lua_State *L)
     // are used; this doesn't make much sense, as a program will most likely
     // use a certain object type again if it is used once.
     lua_newtable(L);			// gnome mt t
-    lua_setfield(L, 1, LUAGTK_METATABLES);	// gnome mt
+    lua_setfield(L, 1, LUAGNOME_METATABLES);	// gnome mt
     
     // objects: not a weak table.  It only contains references to entries
     // in the aliases table; they are removed manually when the last alias
     // is garbage collected.
     lua_newtable(L);			    // gnome mt t
-    lua_setfield(L, 1, LUAGTK_WIDGETS);    // gnome mt
+    lua_setfield(L, 1, LUAGNOME_WIDGETS);    // gnome mt
 
     // gnome.objects_aliases.  It has automatic garbage collection (weak
     // values)
     lua_newtable(L);
     lua_pushvalue(L, -2);
     lua_setmetatable(L, -2);
-    lua_setfield(L, 1, LUAGTK_ALIASES);    // gnome mt
+    lua_setfield(L, 1, LUAGNOME_ALIASES);    // gnome mt
 
     // gnome.typemap is a table that maps hash values of native types to
     // their typespec_t.  It is required in lg_type_normalize.
@@ -649,7 +649,7 @@ int luaopen_gnome(lua_State *L)
 
     /* default attribute table of an object */
     lua_newtable(L);			    // gnome t
-    lua_setfield(L, 1, LUAGTK_EMPTYATTR);
+    lua_setfield(L, 1, LUAGNOME_EMPTYATTR);
 
     /* execute the glue library (compiled in) */
     // XXX this should be moved to the modules

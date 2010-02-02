@@ -97,7 +97,7 @@ static int _callback_return_value(lua_State *L, int return_type,
 }
 
 
-#ifdef LUAGTK_linux_amd64
+#ifdef LUAGNOME_amd64
 
 // must be static so the position independent code logic doesn't mess it up.
 static int _callback_amd64(void *data, ...);
@@ -231,7 +231,7 @@ static int _callback(void *data, ...)
     return val;
 }
 
-#ifdef LUAGTK_linux_amd64
+#ifdef LUAGNOME_amd64
 
 // Avoid a warning about _callback being defined, but not used.  When
 // optimizing, avoids the function being omitted altogether.
