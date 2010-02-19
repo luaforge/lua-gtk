@@ -12,6 +12,6 @@ manual:
 	$H for i in doc/*/Makefile; do $(submake) $$i; done
 
 reference:
-	$H luadoc -d build/doc/reference lib src/*/*.c
+	$H if which luadoc; then luadoc -d build/doc/reference lib src/*/*.c; else echo "LuaDoc not installed, reference not built." >&2; fi
 
 
