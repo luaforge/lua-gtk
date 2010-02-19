@@ -82,14 +82,14 @@ function clock_expose(clock)
 	cr:restore()
     end
 
-    -- pointers
+    -- clock hands
     date = os.date("*t")
     cr:set_source_rgba(unpack(clock._hand_color))
     paint_hand(cr, date.hour / 12 + date.min / 60 / 12, 5, 0.5)
     paint_hand(cr, date.min / 60 + date.sec / 60 / 60, 3.5, 0.66)
     paint_hand(cr, date.sec / 60, 2, 0.833)
 
-    -- optional - would eventually happen automatically.
+    -- optional - eventually happens automatically.
     -- cr:destroy()
 end
 
