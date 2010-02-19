@@ -203,6 +203,17 @@ struct object_type *lg_get_object_type(lua_State *L, struct object *w)
     return NULL;
 }
 
+int lg_call_object_handler(struct object *w, object_op op, int flags,
+    const char *name)
+{
+    int i;
+
+    for (i = 0; i<next_type_nr; i++)
+	if (!strcmp(object_types[i].name, name))
+	    return object_types[i].handler(w, op, flags);
+    
+    return -1;
+}
 
 /**
  * Determine the mm_type for a new object proxy object.  This type
