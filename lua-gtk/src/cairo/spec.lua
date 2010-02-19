@@ -23,6 +23,10 @@ moddep = {
     "glib",
 }
 
+linklist = {
+    "cairo_destroy",
+}
+
 -- extra settings for the module_info structure
 module_info = {
 
@@ -30,5 +34,6 @@ module_info = {
     prefix_constant = '"CAIRO_"',
     prefix_type = '"cairo_"',
     depends = '""',
+    overrides = "cairo_overrides",
 }
 
