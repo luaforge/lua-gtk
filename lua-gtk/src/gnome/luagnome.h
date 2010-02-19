@@ -290,6 +290,8 @@ int lg_get_refcount(lua_State *L, struct object *w);
 void lg_inc_refcount(lua_State *L, struct object *w, int flags);
 void lg_dec_refcount(lua_State *L, struct object *w);
 struct object_type *lg_get_object_type(lua_State *L, struct object *w);
+int lg_call_object_handler(struct object *w, object_op op, int flags,
+    const char *name);
 
 // in object_meta.c
 int lg_object_index(lua_State *L);
