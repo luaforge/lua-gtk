@@ -47,6 +47,7 @@
 			not given, use the text of the referenced element.
  noindex		don't add to the index
  footnote TEXT		Make a footnote of the following text
+ exec			Execute an external Lua script and read its stdout
  KEYWORD		User defined substitution from the menu file
 
  TEXT			text content of this directive; must be the last item
@@ -555,6 +556,22 @@ local directives = {
 	curr_file.footnotes[nr] = args.str
 	return string.format('<sup id="ref%d"><a href="#foot%d">[%d]</a></sup>',
 	    nr, nr, nr)
+    end,
+
+    exec = function(args)
+	local script, f, s, cwd, dir
+	s = args.str .. ".lua"
+	dir, script = string.match(s, "^(.*)/([^/]+)$")
+	if string.match(dir, "%.%.") then
+	    error("No .. path elements allowed in exec: " .. tostring(args.str))
+	end
+	cwd = lfs.currentdir()
+	lfs.chdir(dir)
+	f = io.popen("./" .. script)
+	s = f:read"*a"
+	f:close()
+	lfs.chdir(cwd)
+	return s
     end,
 }
 
