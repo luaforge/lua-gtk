@@ -172,21 +172,36 @@ static int enum_eq(lua_State *L)
 }
 
 /**
- * Use this to check a FLAG
+ * Use this to check a FLAG against a number or another FLAG.
+ *
+ * @luaparam  The first argument must be a FLAG or ENUM of course.
+ * @luaparam  The second may be a FLAG, too, but can be numeric.
+ * @return  A boolean that is true if the two arguments have at least one
+ *	bit in common.
  */
 static int enum_mod(lua_State *L)
 {
     struct lg_enum_t *e1, *e2;
+    int v2;
 
     e1 = LUAGNOME_TO_ENUM(L, 1);
-    e2 = LUAGNOME_TO_ENUM(L, 2);
-    if (e1->ts.value != e2->ts.value) {
-	TYPE_NAME_VAR(name1, e1->ts);
-	TYPE_NAME_VAR(name2, e2->ts);
-	luaL_error(L, "Can't compare different enum types: %s vs. %s",
-	    name1, name2);
+
+    if (lua_isnumber(L, 2))
+	v2 = lua_tonumber(L, 2);
+    else {
+	e2 = LUAGNOME_TO_ENUM(L, 2);
+
+	if (e1->ts.value != e2->ts.value) {
+	    TYPE_NAME_VAR(name1, e1->ts);
+	    TYPE_NAME_VAR(name2, e2->ts);
+	    luaL_error(L, "Can't compare different enum types: %s vs. %s",
+		name1, name2);
+	}
+
+	v2 = e2->value;
     }
-    lua_pushboolean(L, e1->value & e2->value);
+
+    lua_pushboolean(L, e1->value & v2);
     return 1;
 }
 
