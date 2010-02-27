@@ -55,6 +55,18 @@ glib.printf("%f\\n", gnome.box(20, "double"))
 ]] %>
  </dd>
 
+ <dt>Checking a FLAG</dt>
+ <dd>If you want to check whether a FLAG variable has a certain bit set,
+ you can use the modulo operator with a second argument that is a number or
+ another FLAG.  The number is useful because event.key.state is defined to
+ be a number, for some reason.  So you can try this:
+
+<%= inline_code [[
+assert(event.type == gdk.KEY_PRESS or event.type == gdk.KEY_RELEASE)
+has_ctrl = gdk.CONTROL_MASK % event.key.state
+]] %>
+
+ </dd>
 
 </dl>
 
