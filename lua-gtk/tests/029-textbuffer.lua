@@ -3,23 +3,29 @@
 
 require "gtk"
 
-e = gtk.text_buffer_new(nil)
+buf = gtk.text_buffer_new(nil)
 
 -- no problem
-m1 = e:get_insert()
-m2 = e:get_insert()
-m3 = e:get_insert()
+m1 = buf:get_insert()
+m2 = buf:get_insert()
+m3 = buf:get_insert()
 
 -- no problem
 iter = gtk.new "TextIter"
-e:get_start_iter(iter)
+buf:get_start_iter(iter)
 
 -- this used to cause a segfault, but is fixed as of 2008-07-16
 m4 = gtk.text_mark_new("mark1", true)
-e:add_mark(m4, iter)
+buf:add_mark(m4, iter)
 
-m4 = e:get_mark("mark1")
+m4 = buf:get_mark("mark1")
 
-m5 = e:create_mark("mark2", iter, true)
+m5 = buf:create_mark("mark2", iter, true)
+
+-- test text tags
+t1 = buf:create_tag('foo', 'foreground', 'blue', nil)
+assert(t1)
+t2 = buf:create_tag('foo', 'foreground', 'blue', nil)
+assert(t2 == nil)
 
 
