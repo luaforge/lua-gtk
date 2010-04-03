@@ -1138,10 +1138,13 @@ static int ffi2lua_struct_ptr(struct argconv_t *ar)
 {
     // return value of the function, or arguments to a callback?
     if (ar->mode == ARGCONV_CALLBACK || ar->func_arg_nr == 0) {
-	/*
-	if (ar->arg_flags)
-	    printf("arg flags for ffi2lua_struct_ptr: %d\n", ar->arg_flags);
-	*/
+	/* 2010-04-03 some Gtk functions might return an invalid object,
+	 * like gtk_text_buffer_create_tag, instead of NULL.  Catch this. */
+	GObject *o = (GObject*) ar->arg->p;
+	if (o->g_type_instance.g_class == NULL || o->ref_count == 0) {
+	    lua_pushnil(ar->L);
+	    return 1;
+	}
 	lg_get_object(ar->L, ar->arg->p,
 	    _guess_type_idx(ar->L, ar->arg->p, ar->ts), _determine_flags(ar));
 	return 1;
