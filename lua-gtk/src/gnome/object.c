@@ -13,7 +13,8 @@
 #include "luagnome.h"
 #include <string.h>
 
-static int _make_object(lua_State *L, void *p, typespec_t ts, int flags);
+static struct object *_make_object(lua_State *L, void *p, typespec_t ts,
+    int flags);
 static int _get_object_meta(lua_State *L, typespec_t ts);
 
 /**
@@ -57,25 +58,25 @@ struct object *lg_check_object(lua_State *L, int index)
 
 /**
  * Update/remove the entry in objects, which maps the library object's address
- * to a reference.
+ * to the address of one of the aliases.
  *
  * @param L  Lua State
  * @param p  Pointer to the object
- * @param ref  The reference that p should be associated with.  May be 0
- *	to remove an entry.
- * @param old_ref  The expected current reference of p.
+ * @param o  The object to store for that pointer; NULL to remove the entry.
+ * @param old_o  The expected current reference of p; may be NULL.
  */
-static void _set_object_pointer(lua_State *L, void *p, int ref, int old_ref)
+static void _set_object_pointer(lua_State *L, void *p, struct object *o,
+    struct object *old_o)
 {
     lua_getglobal(L, LUAGNOME_TBL);
-    lua_getfield(L, -1, LUAGNOME_WIDGETS);	// gtk gtk.objects
+    lua_getfield(L, -1, LUAGNOME_WIDGETS);	// gnome objects
 
-    // check that the entry in objects currently points to old_ref.  If not,
+    // Check that the entry in objects currently points to old_o.  If not,
     // don't update.
-    if (old_ref) {
+    if (old_o) {
 	lua_pushlightuserdata(L, p);
 	lua_rawget(L, -2);
-	if (lua_tointeger(L, -1) != old_ref) {
+	if (lua_topointer(L, -1) != old_o) {
 	    /*
 	    fprintf(stderr, "NOT setting object[%p] = %d (%d != %d)\n", p, ref,
 		lua_tointeger(L, -1), old_ref);
@@ -86,34 +87,39 @@ static void _set_object_pointer(lua_State *L, void *p, int ref, int old_ref)
 	lua_pop(L, 1);
     }
 
-    lua_pushlightuserdata(L, p);
-    if (ref == 0)
-	lua_pushnil(L);
+    lua_pushlightuserdata(L, p);	    // gnome objects *p
+    if (o)
+	lua_pushlightuserdata(L, o);	    // gnome objects *p *o
     else
-	lua_pushinteger(L, ref);
+	lua_pushnil(L);
+
     lua_rawset(L, -3);
     lua_pop(L, 2);
 }
 
 
 /**
- * Get the ref_nr for the object at the address "p".
+ * Get the address of one of the object's aliases.
  *
- * @return  the reference_nr, or -1 if not found.
+ * @param L  Lua State
+ * @param p  Pointer to the object to find an alias for.
+ * @return  the address, or -1 if not found.
  */
-static int _get_object_ref(lua_State *L, void *p)
+static struct object *_get_object_ref(lua_State *L, void *p)
 {
-    int ref_nr = -1;
+    struct object *o = NULL;
+    // int ref_nr = -1;
 
-    lua_getglobal(L, LUAGNOME_TBL);		// gtk
-    lua_getfield(L, -1, LUAGNOME_WIDGETS);	// gtk gtk.objects
-    lua_pushlightuserdata(L, p);		// gtk gtk.objects p
-    lua_rawget(L, -2);				// gtk gtk.objects ref
+    lua_getglobal(L, LUAGNOME_TBL);		// gnome
+    lua_getfield(L, -1, LUAGNOME_WIDGETS);	// gnome objects
+    lua_pushlightuserdata(L, p);		// gnome objects p
+    lua_rawget(L, -2);				// gnome objects *o
     if (!lua_isnil(L, -1))
-	ref_nr = lua_tonumber(L, -1);
+	o = (struct object*) lua_topointer(L, -1);
+	// ref_nr = lua_tonumber(L, -1);
     lua_pop(L, 3);				// stack empty again
 
-    return ref_nr;
+    return o; // ref_nr;
 }
 
 
@@ -121,39 +127,55 @@ static int _get_object_ref(lua_State *L, void *p)
  * A Lua object is to be garbage collected, but it is not the only entry for
  * this memory location.  Remove this one from the circular list.
  *
- * @param w       The object to release
+ * @param o       The object to release
  *
- * w2: object being looked at
- * w3: the one before w2
+ * o2: object being looked at
  */
-static void _alias_unlink(lua_State *L, struct object *w)
+static void _alias_unlink(lua_State *L, struct object *o)
 {
-    struct object *w2 = w;
-    int curr_ref, have_ref = 0;
+    struct object *o2, *o3;
+
+    /* Find the item o2 in the circular list with o2->next == o, and
+     * remove "o" from this list. */
+    for (o2=o; o2->next != o; o2 = o2->next)
+	/* empty */ ;
+    o2->next = (o->next == o2) ? NULL : o->next;
+
+    /* If the entry in objects points to "o", change it to o2 */
+    o3 = _get_object_ref(L, o2->p);
+    if (o3 == o)
+	_set_object_pointer(L, o2->p, o2, 0);
+
+#if 0
+
+
+
+
 
     // what is the current reference in objects?
-    curr_ref = _get_object_ref(L, w->p);
+    curr_ref = _get_object_ref(L, o->p);
 
-    // Find the item w2 of the circular list, which is just before w.  This
-    // involves walking the whole list until w2->next == w.  At the same time
+    // Find the item o2 of the circular list, which is just before o.  This
+    // involves walking the whole list until o2->next == o.  At the same time
     // check whether any of the items on the list currently holds the reference
     // from gtk.objects.
     for (;;) {
-	if (w2->own_ref == curr_ref)
+	if (o2->own_ref == curr_ref)
 	    have_ref = 1;
-	if (w2->next == w)
+	if (o2->next == o)
 	    break;
-	w2 = w2->next;
+	o2 = o2->next;
     }
 
-    // remove w from the list
-    w2->next = (w->next == w2) ? NULL : w->next;
+    // remove o from the list
+    o2->next = (o->next == o2) ? NULL : o->next;
 
-    // If this group "owns" the entry in gtk.objects, set it to w2, if it
-    // currently points to w.  Note that w2 might not be present in
+    // If this group "owns" the entry in gtk.objects, set it to o2, if it
+    // currently points to o.  Note that o2 might not be present in
     // gtk.object_aliases either due to GC.
-    if (have_ref && w2->own_ref != curr_ref)
-	_set_object_pointer(L, w2->p, w2->own_ref, 0);
+    if (have_ref && o2->own_ref != curr_ref)
+	_set_object_pointer(L, o2->p, o2->own_ref, 0);
+#endif
 }
 
 
@@ -167,19 +189,19 @@ static void _alias_unlink(lua_State *L, struct object *w)
  * such Lua proxy object can have multiple Lua references, but holds only
  * one reference to the underlying library object.
  */
-static int l_object_gc(struct lua_State *L)
+static int lg_object_gc(struct lua_State *L)
 {
     struct object *w = (struct object*) lua_touserdata(L, 1);
 
     // sanity check
     if (!w) {
-	printf("%s Error: l_object_gc on a NULL pointer\n", msgprefix);
+	printf("%s Error: lg_object_gc on a NULL pointer\n", msgprefix);
 	return 0;
     }
 
     // The pointer must not be NULL, unless it is deleted.
     if (!w->p && !w->is_deleted) {
-	printf("%s Error: l_object_gc: pointer is NULL (%p, %s)\n",
+	printf("%s Error: lg_object_gc: pointer is NULL (%p, %s)\n",
 	    msgprefix, w, lg_get_object_name(w));
 	return 0;
     }
@@ -187,7 +209,7 @@ static int l_object_gc(struct lua_State *L)
     // optionally show some debugging info
     if (G_UNLIKELY(runtime_flags & RUNTIME_DEBUG_MEMORY)) {
 	// find the entry in objects
-	int ref_nr = _get_object_ref(L, w->p);
+	// int ref_nr = _get_object_ref(L, w->p);
 	int ref_count = lg_get_refcount(L, w);
 	struct object_type *wt = lg_get_object_type(L, w);
 
@@ -196,10 +218,8 @@ static int l_object_gc(struct lua_State *L)
 	//   reference in gtk.object_aliases for this Lua object -
 	//   ref of next alias (if applicable) -
 	//   reference for the address w->p in gtk.objects
-	fprintf(stderr, "%p %p %5d GC %s refcnt=%d %s - %d %d\n", w, w->p,
-	    w->own_ref,
-	    wt->name, ref_count, lg_get_object_name(w),
-	    w->next ? w->next->own_ref : 0, ref_nr);
+	fprintf(stderr, "%p/%p GC %s refcnt=%d %s\n", w, w->p,
+	    wt->name, ref_count, lg_get_object_name(w));
     }
 
     // If other aliases exist, remove this one from the linked list; otherwise,
@@ -207,10 +227,9 @@ static int l_object_gc(struct lua_State *L)
     if (w->next)
 	_alias_unlink(L, w);
 
-    // w->own_ref is 0 for stack objects, which don't have an entry in
-    // gtk.objects anyway.
-    else if (w->own_ref)
-	_set_object_pointer(L, w->p, 0, w->own_ref);
+    // Try to remove this object's entry in aliases; none exists if
+    // this is a stack entry.
+    _set_object_pointer(L, w->p, NULL, w);
 
     // decrease the refcount of the library object
     lg_dec_refcount(L, w);
@@ -229,29 +248,18 @@ static int l_object_gc(struct lua_State *L)
  */
 void lg_invalidate_object(lua_State *L, struct object *o)
 {
-    int curr_ref = _get_object_ref(L, o->p);
-    void *p = (void*) -1;
+    void *p = o->p;
 
     for (;;) {
-	if (o->own_ref == curr_ref)
-	    p = o->p;
-
-	/* extra check */
-	if (p != (void*) -1 && p != o->p)
-	    luaL_error(L, "%s internal error, inconsistent object pointer "
-		"at %p (%p vs. %p)", msgprefix, o, p, o->p);
-	    
 	o->p = NULL;
 	o->is_deleted = 1;
-	o->own_ref = 0;
 
 	o = o->next;
 	if (!o || !o->p)
 	    break;
     }
 
-    if (p != (void*) -1)
-	_set_object_pointer(L, p, 0, 0);
+    _set_object_pointer(L, p, NULL, NULL);
 }
 
 
@@ -356,7 +364,7 @@ static const luaL_reg object_methods[] = {
     { "__index",    lg_object_index },
     { "__newindex", lg_object_newindex },
     { "__tostring", lg_object_tostring },
-    { "__gc",	    l_object_gc },
+    { "__gc",	    lg_object_gc },
     { "__eq",	    l_object_compare },
     { "lg_get_type",l_object_get_type },
     { NULL, NULL }
@@ -419,8 +427,9 @@ static int _get_object_meta(lua_State *L, typespec_t ts)
 
 
 /**
- * A object for a given object (identified by its address) has been found.
- * Check the address, and the type.
+ * A Lua object for a given library object (identified by its address) has been
+ * found.  Check the address, and the type, and look for an alias with the
+ * requested type.
  *
  * Returns:
  *  0 ... success
@@ -428,46 +437,49 @@ static int _get_object_meta(lua_State *L, typespec_t ts)
  *  2 ... type mismatch; need to create new Lua object
  *
  * Lua stack:
- *  gtk.objects gtk.objects_aliases w
+ *  [-3]=objects [-2]=aliases [-1]=w
  *
  * w may be replaced with another object (alias), but otherwise the Lua stack
  * remains unchanged.
  */
-static int _get_object_check(lua_State *L, void *object, typespec_t ts)
+static int _find_alias(lua_State *L, void *p, typespec_t ts)
 {
     struct object *w = (struct object*) lua_touserdata(L, -1), *w_start;
 
     if (!w) {
-	printf("%p ERROR: _get_object_check with nil\n", w);
+	printf("%s ERROR: _find_alias with nil for object at %p\n",
+	    msgprefix, p);
 	return 1;
     }
-
 
     w_start = w;
     do {
 	// This object proxy is not new.
 	w->is_new = 0;
 
-	// internal check
-	if (G_UNLIKELY(w->p != object)) {
+	// internal check; all aliases must of course point to the same object
+	if (G_UNLIKELY(w->p != p)) {
 	    
 	    // can happen when gnome.destroy was used
-	    if (w->p == NULL && w->is_deleted)
+	    if (w->p == NULL && w->is_deleted) {
+		lua_pop(L, 1);
+		lua_pushnil(L);
 		return 2;
+	    }
 
 	    return luaL_error(L, "%s internal error: Lua object %p should "
-		"point to %p, but points to %p", msgprefix, w, object, w->p);
+		"point to %p, but points to %p", msgprefix, w, p, w->p);
 	}
 
 	// don't care about the type?  Always OK.  Note that module_idx might
 	// be set.
 	if (!ts.type_idx)
-	    return 0;
+	    goto found;
 
 	/* Verify that the type matches.  It is possible to have different
 	 * object types at the same address, e.g. GdkEvent. */
 	if (ts.value == w->ts.value)
-	    return 0;
+	    goto found;
 	
 	// XXX determine equivalents of ts in other modules
 
@@ -476,13 +488,33 @@ static int _get_object_check(lua_State *L, void *object, typespec_t ts)
 	if (!w)
 	    break;
 
-	lua_pop(L, 1);
-	lua_rawgeti(L, -1, w->own_ref);
     } while (w != w_start);
 
-    // No more chained entries exist.  Return the error to lg_get_object,
-    // which can then choose to add another alias.
+    // No more chained entries exist.  Return the error to _reuse_object,
+    // which then adds another alias.
     return 2;
+
+found:
+    if (w == w_start)
+	return 0;
+
+    // We used the pointers to get to the Lua object.  To have it on
+    // the Lua stack, we need to use the mapping of address to it in the
+    // table "aliases".  It is a weak table, so the entry might have
+    // been removed before garbage collection.
+    lua_pushlightuserdata(L, w);	// objects aliases w *w2
+    lua_rawget(L, -3);			// objects aliases w w2
+
+    // If the entry in aliases has already been removed, stay with the
+    // previously found alias and add a new alias there.
+    if (lua_isnil(L, -1)) {
+	lua_pop(L, 1);
+	return 2;
+    }
+
+    // The entry in aliases still existed (usual case), so use the Lua object.
+    lua_remove(L, -2);			// objects aliases w2
+    return 0;
 }
 
 
@@ -523,25 +555,26 @@ static inline int _is_on_stack(void *p)
  */
 static void _reuse_object(lua_State *L, void *p, typespec_t ts, int flags)
 {
-    // match, or complete failure -> return.  Doesn't change Lua stack.
-    if (_get_object_check(L, p, ts) != 2)
+    // Match, or complete failure -> return.  Doesn't change Lua stack,
+    // but might replace the "w" object on the top with NIL or something else.
+    if (_find_alias(L, p, ts) != 2)
 	return;
 
     // This object obviously already exists, so unset FLAG_NEW_OBJECT.
-    int w2_ref = _make_object(L, p, ts, flags & ~FLAG_NEW_OBJECT);
+    struct object *o2 = _make_object(L, p, ts, flags & ~FLAG_NEW_OBJECT);
 
-    if (G_UNLIKELY(w2_ref < 0)) {
+    if (G_UNLIKELY(o2 == (void*) -1)) {
 	lua_pop(L, 1);			    // replace w with nil
 	lua_pushnil(L);
 	return;
     }
 	
     // objects object_aliases w1 w2
-    if (w2_ref > 0) {
-	// the old object, that already existed (with the wrong type)
+    if (o2) {
+	// The old object, that already existed (with the wrong type)
 	struct object *w1 = (struct object*) lua_touserdata(L, -2);
 
-	// this is the new object
+	// this is the new object; same as o2!
 	struct object *w2 = (struct object*) lua_touserdata(L, -1);
 
 	// add to circular list
@@ -554,7 +587,7 @@ static void _reuse_object(lua_State *L, void *p, typespec_t ts, int flags)
 		lg_get_object_name(w1));
     }
 
-    lua_remove(L, -2);				// objects w_a w2
+    lua_remove(L, -2);				// objects aliases w2
 }
 
 
@@ -598,15 +631,17 @@ void lg_get_object(lua_State *L, void *p, typespec_t ts, int flags)
     // translate the address to a reference in the aliases table
     lua_getglobal(L, LUAGNOME_TBL);
     lua_getfield(L, -1, LUAGNOME_WIDGETS);
-    lua_getfield(L, -2, LUAGNOME_ALIASES);	// gtk gtk.objects gtk.aliases
-    lua_remove(L, -3);				// objects w_a
+    lua_getfield(L, -2, LUAGNOME_ALIASES);	// gnome objects aliases
+    lua_remove(L, -3);				// objects aliases
 
-    lua_pushlightuserdata(L, p);		// objects w_a *w
-    lua_rawget(L, -3);				// objects w_a ref/nil
+    lua_pushlightuserdata(L, p);		// objects aliases *w
+    lua_rawget(L, -3);				// objects aliases *o/nil
 
-    // if found, look up the ref number in wiget_aliases.
+    // If found, look up the address in aliases.  The address could be
+    // used directly, but if the object is half garbage collected, the
+    // entry might have been removed from the aliases table already.
     if (!lua_isnil(L, -1)) {
-	lua_rawget(L, -2);			// objects w_a w/nil
+	lua_rawget(L, -2);			// objects aliases w/nil
 	if (!lua_isnil(L, -1)) {
 	    _reuse_object(L, p, ts, flags);
 	    goto ex;
@@ -618,20 +653,20 @@ void lg_get_object(lua_State *L, void *p, typespec_t ts, int flags)
     // Either the address isn't a key in gtk.objects, or the reference
     // number isn't in gtk.object_aliases.  The latter may happen when an
     // entry in object_aliases is removed by GC (weak values!), but
-    // l_object_gc hasn't been called on it yet.
+    // lg_object_gc hasn't been called on it yet.
 
-    // returns ref=0 if the object is on the stack.
-    int ref = _make_object(L, p, ts, flags);
-    if (ref > 0) {
+    // returns NULL if the object is on the stack.
+    struct object *o = _make_object(L, p, ts, flags);
+    if (o && o != (void*) -1) {
 	// new entry in objects table
-	_set_object_pointer(L, p, ref, 0);
+	_set_object_pointer(L, p, o, NULL);
 
 	if (G_UNLIKELY(runtime_flags & RUNTIME_DEBUG_MEMORY
 	    && !lua_isnil(L, -1))) {
 	    struct object *w = (struct object*) lua_touserdata(L, -1);
 	    int ref_count = lg_get_refcount(L, w);
 	    struct object_type *wt = lg_get_object_type(L, w);
-	    fprintf(stderr, "%p %p %5d new %s %d %s\n", w, w->p, ref,
+	    fprintf(stderr, "%p %p new %s %4d %s\n", w, w->p,
 		wt->name, ref_count, lg_get_object_name(w));
 	}
     }
@@ -694,36 +729,42 @@ static typespec_t _determine_object_type(lua_State *L, void *p)
 
 
 /**
- * Push a new object (struct object) onto the stack.
+ * Push a new Lua proxy object (struct object) onto the Lua stack.  It gets an
+ * entry in the aliases table (unless it is a stack object); the caller must
+ * take care of an entry in the objects table.
  *
  * @param p  pointer to the object to make the Lua object for; must not be NULL.
  * @param ts  what the pointer type is; 0 for auto detect
  * @param flags  see lg_get_object
- * @return -1 on error (nothing pushed), 0 (stack object) or >0 (normal, ref
- *   to an entry in gtk.object_aliases)
+ * @return  -1 on error (nothing pushed), NULL (stack object) or >0 (normal)
  *
  * Lua stack: unless -1 is returned, a new object is pushed.
  */
-static int _make_object(lua_State *L, void *p, typespec_t ts, int flags)
+static struct object *_make_object(lua_State *L, void *p, typespec_t ts,
+    int flags)
 {
     struct object *o;
 
     // 0 is valid - for autodetection.  == module_count is OK as it is 1 based.
-    if (ts.module_idx > module_count)
-	return luaL_error(L, "%s invalid module_idx %d in _make_object",
+    if (ts.module_idx > module_count) {
+	luaL_error(L, "%s invalid module_idx %d in _make_object",
 	    msgprefix, ts.module_idx);
+	return (void*) -1;
+    }
 
     /* If the structure number is not given, the object must be derived from
      * GObject; otherwise, the result is undefined (probably SEGV). */
     if (!ts.type_idx) {
 	ts = _determine_object_type(L, p);
 	if (!ts.value)
-	    return -1;
+	    return (void*) -1;
     }
 
-    if (ts.type_idx <= 0 || ts.type_idx >= modules[ts.module_idx]->type_count)
-	return luaL_error(L, "%s invalid type_idx %d in _make_object",
+    if (ts.type_idx <= 0 || ts.type_idx >= modules[ts.module_idx]->type_count) {
+	luaL_error(L, "%s invalid type_idx %d in _make_object",
 	    msgprefix, ts.type_idx);
+	return (void*) -1;
+    }
 
     /* make new Lua object with meta table */
     o = (struct object*) lua_newuserdata(L, sizeof(*o));
@@ -736,43 +777,37 @@ static int _make_object(lua_State *L, void *p, typespec_t ts, int flags)
     lg_guess_object_type(L, o, flags);
 
     /* set metatable - shared among objects of the same type */
-    _get_object_meta(L, ts);			// w meta
-    lua_setmetatable(L, -2);			// w
+    _get_object_meta(L, ts);			// o meta
+    lua_setmetatable(L, -2);			// o
 
     /* Set the environment to an empty table - used to store data with
      * arbitrary keys for a specific object.  The env can't be nil.  To avoid
      * having an unused table for each object, use the same for all and replace
      * with a private table when the first data is stored.
      */
-    lua_getglobal(L, LUAGNOME_TBL);		// w gtk
-    lua_getfield(L, -1, LUAGNOME_EMPTYATTR);	// w gtk emptyattr
-    lua_setfenv(L, -3);				// w gtk
+    lua_getglobal(L, LUAGNOME_TBL);		// o gnome
+    lua_getfield(L, -1, LUAGNOME_EMPTYATTR);	// o gnome emptyattr
+    lua_setfenv(L, -3);				// o gnome
 
     // Increase refcount (but not always - see ffi2lua_struct_ptr).  flags
     // may have FLAG_NEW_OBJECT set.
     lg_inc_refcount(L, o, flags);
 
-    // stack objects neither get an entry in gtk.objects, nor in
-    // gtk.object_aliases.
+    // Stack objects neither get an entry in gnome.objects, nor in
+    // gnome.aliases.  They can't be reused anyway.
     if (_is_on_stack(p)) {
-	o->own_ref = 0;
-	lua_pop(L, 1);				// w
-	return 0;
+	lua_pop(L, 1);				// o
+	return NULL;
     }
 
-    // Store it in the objects aliases table, using the next index.  Can't
-    // use luaL_ref, because the object IDs must not be reused.
-    lua_getfield(L, -1, LUAGNOME_ALIASES);	// w gtk aliases
-    lua_remove(L, -2);				// w w_a
-    lua_rawgeti(L, -1, 0);			// w w_a idx
-    int ref = lua_tonumber(L, -1) + 1;
-    lua_pushnumber(L, ref);			// w w_a idx next_idx
-    lua_rawseti(L, -3, 0);			// w w_a idx
-    lua_pushvalue(L, -3);			// w w_a idx w
-    lua_rawseti(L, -3, ref);			// w w_a idx
-    lua_pop(L, 2);				// w
+    // Store the new object in the aliases table, using its own address
+    // as a key.
+    lua_getfield(L, -1, LUAGNOME_ALIASES);	// o gnome aliases
+    lua_pushlightuserdata(L, o);		// o gnome aliases *o
+    lua_pushvalue(L, -4);			// o gnome aliases *o o
+    lua_rawset(L, -3);				// o gnome aliases
+    lua_pop(L, 2);				// o
 
-    o->own_ref = ref;
-    return ref;
+    return o;
 }
 
