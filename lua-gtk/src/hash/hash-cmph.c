@@ -24,14 +24,6 @@ int lg_cmph_hashfunc_nr(CMPH_HASH func_nr)
     return -1;
 }
 
-#if 0
-#ifdef LUAGTK_win32_i386
-  #define __BIG_ENDIAN 1
-  #define __BYTE_ORDER 0
-#else
-#include <endian.h>
-#endif
-#endif
 
 /**
  * After computing a hash value and a bucket number using whatever CMPH hash
