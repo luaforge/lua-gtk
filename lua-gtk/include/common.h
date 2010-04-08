@@ -86,9 +86,9 @@ union type_info {
     struct {
 	unsigned int
 	    genus : 2,			// is GENUS_FUNCTION (2)
-	    fundamental_idx : 6,
+	    fundamental_idx : 6,	// may be func* or func**
 	    name_ofs : 16,
-	    indirections : 2,
+	    indirections : 2,		// 0, 1 or 2 (possibly incorrect/unused)
 	    padding1: 6,
 
 	    signature_ofs : 16,		// offset in module_info.prototypes
@@ -171,7 +171,7 @@ struct dynlink {
  * contains the LuaGnome typespec_t along with some flags.
  *
  * Because an object may be accessed using more than one type (like
- * GObject, GtkWidget, GtkWindow for example, or GEvent and GKeyEvent),
+ * GObject, GtkWidget, GtkWindow for example, or GdkEvent and GdkKeyEvent),
  * there may be multiple such structures for each object.
  *
  * Note: storing a reference to the next entry is not enough.  During garbage
@@ -184,8 +184,7 @@ struct dynlink {
  */
 struct object {
     void *p;			/* addr of the object & key to "objects" tbl */
-    int own_ref;		/* ref in gtk.aliases */
-    typespec_t ts;		/* could be a short LRU array */
+    typespec_t ts;		/* the type of the library object */
     unsigned int
 	mm_type : 8,		/* how memory management is done */
 	is_deleted : 1,		/* has been freed, *p is NULL */
