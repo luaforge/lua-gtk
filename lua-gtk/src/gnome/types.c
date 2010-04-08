@@ -366,7 +366,9 @@ static int lua2ffi_struct_ptr(struct argconv_t *ar)
 			"for a struct* is not allowed", msgprefix,
 			lg_get_type_name(ar->ts));
 
-		ar->arg->p = (void*) e->value;
+		ar->arg->p = call_info_alloc_item(ar->ci, sizeof(e->value));
+		* (int*) ar->arg->p = e->value;
+		// ar->arg->p = (void*) e->value;
 		return 1;
 	    }
 
@@ -375,7 +377,6 @@ static int lua2ffi_struct_ptr(struct argconv_t *ar)
 	    typespec_t ts;
 	    ts.value = lua_tonumber(L, -1);
 	    const char *is_name = lg_get_type_name(ts);
-	    // const char *is_name = lua_tostring(L, -1);
 	    GType is_type = g_type_from_name(is_name);
 
 	    const char *req_name = lg_get_type_name(ar->ts);
@@ -1061,7 +1062,7 @@ static const char ok_names[] =
  * @param ts  The type this object is supposed to have.
  * @return  If the object's supposed type is derived from GObject, and the
  *	actual type is known to lua-gtk, returns ts.type_idx=0, else it is
- *	returned unchanged.
+ *	returned unchanged.  If some error happens, ts.module_idx is also zero.
  */
 static typespec_t _guess_type_idx(lua_State *L, void *p, typespec_t ts)
 {
@@ -1089,6 +1090,15 @@ static typespec_t _guess_type_idx(lua_State *L, void *p, typespec_t ts)
     GType my_type = g_type_from_name(type_name);
     if (!my_type || !g_type_is_a(my_type, go_type))
 	return ts;
+
+    /* 2010-04-08 The object might be invalid - sometimes such invalid objects
+     * are returned from library functions, like gtk_text_buffer_create_tag,
+     * instead of NULL. */
+    GObject *o = (GObject*) p;
+    if (o->g_type_instance.g_class == NULL || o->ref_count == 0) {
+	zero.value = 0;
+	return zero;
+    }
 
     // The type must be known to LuaGnome; if not, automatically determining
     // the type probably will fail.  This applies e.g. to GLocalFile,
@@ -1138,15 +1148,13 @@ static int ffi2lua_struct_ptr(struct argconv_t *ar)
 {
     // return value of the function, or arguments to a callback?
     if (ar->mode == ARGCONV_CALLBACK || ar->func_arg_nr == 0) {
-	/* 2010-04-03 some Gtk functions might return an invalid object,
-	 * like gtk_text_buffer_create_tag, instead of NULL.  Catch this. */
-	GObject *o = (GObject*) ar->arg->p;
-	if (o->g_type_instance.g_class == NULL || o->ref_count == 0) {
+	typespec_t ts = _guess_type_idx(ar->L, ar->arg->p, ar->ts);
+	if (ts.value == 0) {
 	    lua_pushnil(ar->L);
 	    return 1;
 	}
-	lg_get_object(ar->L, ar->arg->p,
-	    _guess_type_idx(ar->L, ar->arg->p, ar->ts), _determine_flags(ar));
+
+	lg_get_object(ar->L, ar->arg->p, ts, _determine_flags(ar));
 	return 1;
     }
 
