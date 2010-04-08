@@ -13,7 +13,7 @@ if test ! -r "$SCRIPT.lua"; then
 fi
 
 # Display of new server
-DISP=:99
+DISP=:98
 
 # Star the server; it terminates when the first client (xmacrorec) terminates.
 Xephyr -ac -nolisten tcp -terminate $DISP &
