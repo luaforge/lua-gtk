@@ -4,10 +4,17 @@
 # Run all the tests in a virtual X server; either visible or not.  This
 # is useful to run automated tests on a host without X server.
 
+# For Debian, you need to install the following packages:
+#
+#   xserver-xephyr or xvfb
+#   xmacro
+#
+
 # -- configuration --
 VIRTDISP=:99				# display to use
 DELAY_PER_LINE=200			# ms of delay per macro line
 VIEW=0					# 1 if to watch the execution
+XMACROPLAY=xmacroplay
 #LOGFILE="tests.log"
 # -- end configuration --
 
@@ -51,7 +58,7 @@ function run_test_scripted() {
 
     # Run the recorded events.  Use a certain delay between events so that the
     # Lua script can react.  Don't show useless messages of this program.
-    xmacroplay -d $DELAY_PER_LINE $VIRTDISP < $NR.script >/dev/null 2>&1
+    $XMACROPLAY -d $DELAY_PER_LINE $VIRTDISP < $NR.script >/dev/null 2>&1
     PLAY_RC=$?
     if test $PLAY_RC -ne 0; then
 	echo "xmacroplay failed: $PLAY_RC"
