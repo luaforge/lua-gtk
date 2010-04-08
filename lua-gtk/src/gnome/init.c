@@ -629,8 +629,7 @@ int luaopen_gnome(lua_State *L)
     lua_newtable(L);			    // gnome mt t
     lua_setfield(L, 1, LUAGNOME_WIDGETS);    // gnome mt
 
-    // gnome.objects_aliases.  It has automatic garbage collection (weak
-    // values)
+    // gnome.aliases.  It has automatic garbage collection (weak values).
     lua_newtable(L);
     lua_pushvalue(L, -2);
     lua_setmetatable(L, -2);
