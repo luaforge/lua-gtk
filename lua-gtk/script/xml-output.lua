@@ -400,10 +400,8 @@ function output_types(ofname)
 --    end
     ofile:close()
 
-    print "Type statistics:"
-    print(string.format("native types=%d, strlen=%d", types_native,
-	types_native_strings))
-    print(string.format("foreign types=%d", types_foreign))
+    print(string.format("  types: native=%d, strlen=%d, foreign=%d",
+	types_native, types_native_strings, types_foreign))
 end
 
 ---
