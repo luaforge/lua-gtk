@@ -561,7 +561,9 @@ int generate_hash_cmph(lua_State *L, const char *datafile_name,
     /* convert to the packed form.  This is used for later writing, but
      * also to compute hash values */
     packed_length = cmph_packed_size(mphf);
-    printf("packed length: %d\n", packed_length);
+    int n = cmph_size(mphf);
+    printf("  cmph hash function packed length for %d %s: %d (%.2f bits/key)\n", 
+	n, _prefix, packed_length, packed_length * 8.0 / n);
     packed_mphf = (unsigned char*) malloc(packed_length);
     cmph_pack(mphf, (void*) packed_mphf);
 
