@@ -562,7 +562,12 @@ function _handle_char_ptr_returns(arg_info, t, fname)
 	name = "const " .. t.full_name
     end
 
-    print("char/const char* return value MISMATCH for", fname, name)
+    -- If the bit 0x8000 is set, this is a known inconsistency and is
+    -- not complained about.
+    if bit.band(flags, 0x8000) == 0 then
+	print("char/const char* return value MISMATCH for", fname, name)
+    end
+
     return assert(resolve_type(typedefs_name2id[name]))
 end
 

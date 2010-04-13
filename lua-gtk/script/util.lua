@@ -18,7 +18,9 @@ function_flag_map = {
     INCREF = 8,			-- not used
     NOINCREF = 16,		-- used
     CHAR_PTR = 0x1000,		-- used indirectly
+    CHAR_PTR_FORCE = 0x9000,	-- C headers have a const char*
     CONST_CHAR_PTR = 0x2000,	-- used indirectly
+    CONST_CHAR_PTR_FORCE = 0xA000,  -- C headers have a non-const char*
 }
 
 -- Read a Lua file, no frills.
