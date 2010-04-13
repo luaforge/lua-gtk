@@ -33,8 +33,14 @@ else
 
 # include the config file, which must exist.
 ifeq ($(wildcard build/$(ARCH)/$(MODULE)/config.make), )
-    $(error Library $(ARCH)/$(MODULE) not yet configured)
-endif
+
+clean:
+	@true
+
+all:
+	$(error Library $(ARCH)/$(MODULE) not yet configured)
+else
+
 
 
 all: module_$(MODULE) dummy
@@ -247,5 +253,5 @@ $(ODIR)/%.luac: $(IDIR)/%.lua
 	$H luac -o $@ $<
 
 endif
-
+endif
 endif
