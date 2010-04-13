@@ -117,7 +117,10 @@ function register_fundamental(t)
 end
 
 
--- compute a full name for the type including qualifiers and pointers
+---
+-- Compute a full name for the type including qualifiers and pointers.  Not
+-- considered are the qualifiers volatile and restrict.
+--
 function make_full_name(t, name)
     local ar_string = ""
     if t.array then
@@ -701,26 +704,28 @@ function assign_type_idx()
 	    local id2 = name2id[t.full_name]
 	    if id2 and id2 ~= id then
 		-- already mapped to a different ID
-		if verbose > 0 then
+		if true or verbose > 0 then
 		    print(string.format("Duplicate type %s: redirect %s to %s",
 			t.full_name, id, id2))
 		end
 
-		-- t2 will be eliminated; add its counter (if any) to t
+		-- t will be merged into t2, which was here first.  Add t's
+		-- counter (if any) to t2.
 		local t2 = typedefs[id2]
-		if t2.counter then
-		    t.counter = t.counter + t2.counter
+		if t.counter then
+		    t2.counter = t2.counter + t.counter
 		end
 
-		-- if t2 is native, then t should be, too!
-		t.is_native = t.is_native or t2.is_native
+		-- if t is native, then t2 should be, too!
+		t2.is_native = t2.is_native or t.is_native
 
-		typedefs[id2] = t
+		-- replace the t with t2
+		typedefs[id] = t2
 	    else
 		keys[#keys + 1] = t.full_name
+		name2id[t.full_name] = id
 	    end
 
-	    name2id[t.full_name] = id
 	end
     end
 
