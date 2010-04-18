@@ -102,8 +102,13 @@ Thu Aug 18 15:35:52 CEST 2005
 * port to Lua 5.1
 
 
+; -------------- 2006 ----------------
+
 Fre Jun  2 18:58:29 CEST 2006
 * License changed from GPL to LGPL
+
+
+; -------------- 2007 ----------------
 
 
 Fre Feb  2 12:17:32 CET 2007
@@ -366,6 +371,10 @@ Don Dez 20 01:02:11 CET 2007
 2007-12-20
 * some refactoring
 * more function comments
+
+
+; -------------- 2008 ----------------
+
 
 2008-01-09
 * mingw build works again
@@ -835,6 +844,7 @@ arguments.
 * some fundamental types added to glib, like FILE, size_t, time_t.  Other modules may still complain during building but these types are now available.
 * all of the files now checked into CVS.
 
+; -------------- 2009 ----------------
 
 2009-01-11
 * lua-bit library replaced by bitop from luajit
@@ -920,10 +930,32 @@ arguments.
 This avoids the error gdb halts at when lua loads a dynamic library that links
 to the pthread lib.
 
-
 2009-12-03
 * binding for gtkhtml3 now works somewhat.
 
 2009-12-21
 * fixed constant encoding, which was broken for constants with a value > 0x3f
+
+; -------------- 2010 ----------------
+
+2010-02-02
+* entries in include_types.ARCH_OS are now considered
+* fixed mark_type_id_in_use when called from mark_override: types of elements
+in structures in include_types are now included
+
+2010-02-19
+* cairo: fixed allocation issues for struct cairo
+
+
+2010-04-13
+* Makefile works for the target "clean" for all modules, even unconfigured ones
+* script/util.lua: CONST_CHAR_PTR_FORCE and CHAR_PTR_FORCE flags to avoid
+gratuitous warnings during build
+* some build messages improved
+* script/xml-types.lua: fixed a bug that can appear when a certain type
+(identified by its full_name) appears more than twice.  Triggered by GLib
+version 2.24.0, first argument to function g_bit_lock.
+
+2010-04-16
+* settings on the SourceForge site for lua-gnome; homepage migrated there.
 
