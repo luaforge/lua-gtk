@@ -223,7 +223,7 @@ flag_table = {
 include_types = {
     "GtkFileChooserWidget*",
     "GtkFileChooserDialog*",
-    "GtkInputDialog*",
+--    "GtkInputDialog*",	-- deprecated as of Gtk 2.20
     "GtkHBox*",
     "GtkVBox*",
     "GtkDrawingArea*",
