@@ -704,7 +704,7 @@ function assign_type_idx()
 	    local id2 = name2id[t.full_name]
 	    if id2 and id2 ~= id then
 		-- already mapped to a different ID
-		if true or verbose > 0 then
+		if verbose > 0 then
 		    print(string.format("Duplicate type %s: redirect %s to %s",
 			t.full_name, id, id2))
 		end
